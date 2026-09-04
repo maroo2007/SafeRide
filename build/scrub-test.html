@@ -1,0 +1,166 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>SafeRide scrub test harness</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0a0a0b; color: #e8e8ea;
+         font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .runway { height: 600vh; position: relative; }
+  .sticky { position: sticky; top: 0; height: 100vh; overflow: hidden; }
+  video { width: 100%; height: 100%; object-fit: cover; display: block; background: #000; }
+
+  .hud { position: fixed; top: 12px; left: 12px; z-index: 10;
+         background: rgba(8,8,10,.92); border: 1px solid #2a2a30; border-radius: 8px;
+         padding: 12px 14px; min-width: 300px; backdrop-filter: blur(8px); }
+  .hud h1 { margin: 0 0 10px; font-size: 12px; letter-spacing: .08em;
+            text-transform: uppercase; color: #9a9aa2; font-weight: 600; }
+  .row { display: flex; justify-content: space-between; gap: 18px; padding: 2px 0; }
+  .row span:first-child { color: #8a8a92; }
+  .row span:last-child { font-variant-numeric: tabular-nums; }
+  .bad  { color: #ff6b5a; }
+  .warn { color: #ffb648; }
+  .ok   { color: #4ade80; }
+  .pick { position: fixed; top: 12px; right: 12px; z-index: 10;
+          background: rgba(8,8,10,.92); border: 1px solid #2a2a30; border-radius: 8px; padding: 10px; }
+  .pick button { display: block; width: 100%; margin: 3px 0; padding: 7px 12px; cursor: pointer;
+                 background: #17171c; color: #e8e8ea; border: 1px solid #2f2f37;
+                 border-radius: 5px; font: inherit; text-align: left; }
+  .pick button:hover { background: #212128; }
+  .pick button[aria-current="true"] { background: #2b6cb0; border-color: #3b82f6; }
+  .pick .note { color: #8a8a92; font-size: 11px; margin: 8px 2px 2px; max-width: 200px; }
+  .hint { position: fixed; bottom: 12px; left: 12px; z-index: 10; color: #6a6a72; font-size: 11px; }
+</style>
+
+<div class="hud">
+  <h1>Scrub telemetry</h1>
+  <div class="row"><span>variant</span><span id="v">—</span></div>
+  <div class="row"><span>duration</span><span id="dur">—</span></div>
+  <div class="row"><span>progress</span><span id="prog">0.000</span></div>
+  <div class="row"><span>currentTime</span><span id="ct">0.000</span></div>
+  <div class="row"><span>presented fps</span><span id="fps">—</span></div>
+  <div class="row"><span>seek→paint p50</span><span id="p50">—</span></div>
+  <div class="row"><span>seek→paint p95</span><span id="p95">—</span></div>
+  <div class="row"><span>stalls (&gt;150ms)</span><span id="stall">0</span></div>
+  <div class="row"><span>distinct frames</span><span id="uniq">0</span></div>
+  <div class="row"><span>readyState</span><span id="rs">—</span></div>
+</div>
+
+<div class="pick" id="pick">
+  <div class="note">Scroll to scrub. Reset stats between runs.</div>
+  <button id="reset">Reset stats</button>
+</div>
+
+<div class="hint">Scroll the full runway at a steady pace, then read p95 and stalls.</div>
+
+<div class="runway">
+  <div class="sticky">
+    <video id="vid" muted playsinline preload="auto" aria-hidden="true"></video>
+  </div>
+</div>
+
+<script>
+// Variants are injected by the test runner; edit this list to match built files.
+const VARIANTS = window.__VARIANTS__ || [
+  { label: "-g 1  h264 (all-intra)", src: "ladder/g1_1080_crf20.mp4" },
+  { label: "-g 2  h264",             src: "ladder/g2_1080_crf20.mp4" },
+  { label: "-g 3  h264",             src: "ladder/g3_1080_crf20.mp4" }
+];
+
+const vid = document.getElementById("vid");
+const $ = id => document.getElementById(id);
+
+let seekLatencies = [], stalls = 0, pendingSeekAt = 0, lastPaintAt = 0;
+let presented = 0, fpsWindowStart = performance.now();
+let distinct = new Set(), current = null;
+
+function reset() {
+  seekLatencies = []; stalls = 0; presented = 0; distinct.clear();
+  fpsWindowStart = performance.now(); lastPaintAt = performance.now();
+  render();
+}
+document.getElementById("reset").onclick = reset;
+
+function pct(arr, p) {
+  if (!arr.length) return null;
+  const s = [...arr].sort((a, b) => a - b);
+  return s[Math.min(s.length - 1, Math.floor(s.length * p))];
+}
+
+function render() {
+  const d = vid.duration || 0;
+  $("dur").textContent = d ? d.toFixed(3) + "s" : "—";
+  // Assert the locked duration. Anything else means a broken rung.
+  $("dur").className = !d ? "" : (Math.abs(d - 52.30) < 0.05 ? "ok" : "bad");
+  $("ct").textContent = vid.currentTime.toFixed(3);
+  $("rs").textContent = vid.readyState;
+  const p50 = pct(seekLatencies, .50), p95 = pct(seekLatencies, .95);
+  $("p50").textContent = p50 == null ? "—" : p50.toFixed(1) + "ms";
+  $("p95").textContent = p95 == null ? "—" : p95.toFixed(1) + "ms";
+  if (p95 != null) $("p95").className = p95 > 120 ? "bad" : p95 > 60 ? "warn" : "ok";
+  $("stall").textContent = stalls;
+  $("stall").className = stalls > 0 ? "bad" : "ok";
+  $("uniq").textContent = distinct.size;
+}
+
+// requestVideoFrameCallback reports actual frame presentation, which is what
+// scrub smoothness really is — not rAF, which fires whether or not a new
+// frame was painted.
+function onFrame(now, meta) {
+  presented++;
+  distinct.add(meta.mediaTime.toFixed(4));
+  if (pendingSeekAt) { seekLatencies.push(now - pendingSeekAt); pendingSeekAt = 0; }
+  const gap = now - lastPaintAt;
+  if (gap > 150 && seekLatencies.length) stalls++;
+  lastPaintAt = now;
+  const el = now - fpsWindowStart;
+  if (el >= 1000) {
+    $("fps").textContent = (presented * 1000 / el).toFixed(1);
+    presented = 0; fpsWindowStart = now;
+  }
+  render();
+  vid.requestVideoFrameCallback(onFrame);
+}
+
+function scrollProgress() {
+  const max = document.documentElement.scrollHeight - window.innerHeight;
+  return max <= 0 ? 0 : Math.min(1, Math.max(0, window.scrollY / max));
+}
+
+let ticking = false;
+addEventListener("scroll", () => {
+  if (ticking) return;
+  ticking = true;
+  requestAnimationFrame(() => {
+    ticking = false;
+    const p = scrollProgress();
+    $("prog").textContent = p.toFixed(3);
+    if (vid.readyState >= 2 && vid.duration) {
+      if (!pendingSeekAt) pendingSeekAt = performance.now();
+      vid.currentTime = p * vid.duration;
+    }
+  });
+}, { passive: true });
+
+function load(i) {
+  current = i;
+  vid.src = VARIANTS[i].src;
+  $("v").textContent = VARIANTS[i].label;
+  [...document.querySelectorAll("#pick button[data-i]")]
+    .forEach(b => b.setAttribute("aria-current", String(+b.dataset.i === i)));
+  reset();
+  vid.load();
+}
+
+const pick = document.getElementById("pick");
+VARIANTS.forEach((v, i) => {
+  const b = document.createElement("button");
+  b.textContent = v.label; b.dataset.i = i; b.onclick = () => load(i);
+  pick.appendChild(b);
+});
+
+vid.addEventListener("loadedmetadata", render);
+vid.addEventListener("waiting", () => stalls++);
+vid.requestVideoFrameCallback(onFrame);
+load(0);
+</script>

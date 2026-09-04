@@ -1,0 +1,26 @@
+node_modules/
+.next/
+out/
+.env*
+!.env.example
+*.symlink.bak
+.DS_Store
+
+# Large media. Sources and encoded variants are tracked outside git.
+*.mp4
+*.webm
+*.mov
+*.mkv
+*.jpg
+*.jpeg
+*.png
+!public/images/*.jpg
+
+# Test harness working files
+build/*.log
+build/results*.jsonl
+build/ladder/
+build/intermediate*
+
+# stray logs at root
+*.log
