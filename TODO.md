@@ -182,3 +182,143 @@ Requirements for CLAMPED:
   learn that something didn't finish.
 - **The unlock as buffering advances must be invisible** — the video simply starts
   following the scroll again.
+
+---
+
+## Phase 1 — deviations from the spec, for your call
+
+Three places where the spec's stated stack no longer matches reality. All are
+cheap to reverse; none is blocking.
+
+### Next.js 16, not 15
+Spec 6 says "Next.js 15 (App Router)". `create-next-app@latest` now installs
+**16.3.4** (React 19.2.8). Built and typechecked clean. Reversible with
+`pnpm add next@15 eslint-config-next@15` if you want the spec version pinned.
+
+### `lenis`, not `@studio-freight/lenis`
+Spec 1.4, 3.1 and 6 all say `@studio-freight/lenis`. That package is
+**deprecated and frozen at 1.0.42**; npm redirects to `lenis`. Installed
+`lenis@1.3.26`. This is a rename, not a fork.
+
+### Visual identity now comes from ui-ux-pro-max, not the old site
+
+Per direction: the previous site's theme is discarded. **Only its copy is
+reused.** The design system is now sourced from the skill:
+
+| layer | source | value |
+|---|---|---|
+| Pattern | Trust and Authority + Conversion | proof-led, WCAG AAA, "accent for CTA only" |
+| Palette | Trust navy + premium gold | `#0f172a` / `#a16207` on `#f8fafc` |
+| Type | SaaS Boutique | Calistoga display + Inter body + JetBrains Mono labels |
+| Dark | Modern Dark (Cinema) | layered near-black `#050506`, 16px radius, expo easing |
+
+Two deliberate departures from the skill's raw output:
+
+- **Its indigo accent (`#5E6AD2`) is not used.** Spec 12 bans indigo, and the
+  pattern's own anti-patterns list rules out AI purple/pink.
+- **Its returned colour row (`#DC2626` red / `#2563EB` blue) is not used
+  either.** It contradicted the same result's stated colour strategy
+  ("Navy/Grey corporate. Trust blue. Accent for CTA only") and read as a
+  generic alert palette. The Banking/Legal "trust navy + premium gold" row
+  matches the strategy line and the product.
+
+**Why gold specifically:** the hero video is warm amber on near-black for its
+full 52 seconds and cannot be re-graded. A gold accent makes the film read as
+an intensified brand note. A blue- or red-accented system would leave the
+centrepiece looking like it belonged to a different site.
+
+The whole palette passes AA as text on both page and card, in both themes,
+with no adjustment needed — unlike the previous orange, which failed at 2.47:1.
+
+### Also found: Privacy Policy and Terms of Service are dead links
+Spec 4.13 flags only the social icons. In fact the live footer has **6** links
+with `href="#"` — the 4 social icons *plus* **Privacy Policy** and **Terms of
+Service**. Those two need real pages, not just a URL; they are legal documents.
+Spec 12 says no dead links ship.
+
+---
+
+## KNOWN ASSET ISSUE — the film's orange is off-brand
+
+**Do not "fix" this by moving a token.** The mismatch is known, accepted and
+temporary. `--accent` stays `#FB8A00`.
+
+The shipped app is canonical: it is in parents' hands, and changing it would mean
+the app, the app stores, and anything already printed. The film is unpublished
+marketing collateral, so the film moves.
+
+### Measured deltas
+
+Sampled by full-image pixel scan (`build/palette-scan.py`), pixel counts shown.
+
+| | hue | sat | light | luma |
+|---|---|---|---|---|
+| film `#B9551A` | 22° | 75% | 41% | 43 |
+| app `#FB8A00` | 33° | 100% | 49% | 99 |
+| **delta** | **+11°** | **+25pt** | +8pt | **2.3x brighter** |
+
+Not a grading artifact: the film has full dynamic range (white-out reaches
+`#FDFDFD` luma 250, wordmark ground `#030302` luma 0). The flat orange hold
+matches the lit bus stripe, and a flat fill has no lighting excuse.
+
+### Elements needing the warm shift
+
+| element | timestamp | sampled | pixels |
+|---|---|---|---|
+| bus stripe | 13.0s / 15.0s | `#BB561B` / `#BD5B25` | 9,717 / 31,921 |
+| painted SAFERIDE mark | 13.0s / 14.0s | `#BB551B` / `#B75319` | 8,312 / 5,395 |
+| bus stripe, early clip | 4.0s | `#B75719` | 887 |
+| **solid orange hold** | **16.75s** | **`#BA5A26`** | 53,953 (20.8%) |
+
+### Cost and timing
+
+The re-grade is a colour pass on the master, which means **re-running the whole
+interpolation and encode ladder** (~55 min interpolation + the full variant set).
+Not worth blocking on. Do it **before launch, not before Phase 2**.
+
+**Until then the video on screen will not match the site's accent.** That is
+expected. Anyone who "notices the bug" should be pointed at this entry.
+
+---
+
+## Open question for the brief: the hero copy has no readable plateau
+
+Spec §1.6 gives the hero copy fade as progress `0.00 -> 0.12`. Implemented
+literally (`fadeOutFrom: 0`), the copy begins dissolving on the **first pixel
+of scroll** — there is no point after load where it sits at full strength for
+a beat.
+
+Measured worst-case contrast for the headline through that window, with the
+scrim held (see `HERO.scrimHoldTo`):
+
+| progress | copy opacity | headline worst |
+|---|---|---|
+| 0.00 | 1.00 | 7.28:1 |
+| 0.01 | 0.92 | 6.38:1 |
+| 0.02 | 0.83 | 5.75:1 |
+| 0.03 | 0.75 | 4.65:1 |
+| 0.04 | 0.67 | 4.20:1 |
+| 0.06 | 0.50 | 3.00:1 |
+
+7.28:1 exists only at exactly progress 0. By 90px of scroll the headline is
+already under 4.5:1, purely because it is dissolving.
+
+The spec text does not say whether the fade must *start* at 0 or merely
+*finish* by 0.12. **Not changed unilaterally — it is a reading of the brief.**
+A hold of `fadeOutFrom: 0.03` would give the headline roughly 135px of scroll
+at full strength before it goes, and costs nothing else.
+
+## Known-good scrim geometry — do not "simplify" these
+
+Two shipped defects came from the same mistake in different clothes: a gradient
+that has not reached its transparent stop by the end of its box gets cut off
+square, and that square is a visible hard edge.
+
+- `CAPTION_SCRIM` must be rendered against the **viewport**, not the
+  `max-w-6xl` content column. Inside the column its left edge is at
+  `(W-1152)/2`, not a screen edge, and the ellipse is sliced there.
+- `HERO_SCRIM`'s last stop is at 90% because the gradient line at 98° still has
+  ~4-5% alpha at the right edge if it runs to 96%.
+
+Both are covered by tests in `__tests__/video-scrub.test.ts` §2b, which check
+the alpha along every viewport edge rather than trusting the CSS by eye.

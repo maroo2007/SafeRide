@@ -1,0 +1,299 @@
+@font-face {
+  font-family: 'Abril Fatface';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/l/font?kit=zOL64pLDlL1D99S8g8PtiKchm-V0j7izHXPOgUk&skey=3aaa84d7e0b4f9c7&v=v25) format('woff2');
+  unicode-range: U+52-53, U+61, U+64-66, U+69;
+}
+@font-face {
+  font-family: 'Alexandria';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/l/font?kit=UMBCrPdDqW66y0Y2usFeQCH18mulUxBvI9r7TqbCBJxbFNR-qgWe&skey=188dfcbc9be685d4&v=v6) format('woff2');
+  unicode-range: U+52-53, U+61, U+64-66, U+69;
+}
+@font-face {
+  font-family: 'Anton';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/l/font?kit=1Ptgg87LROyAm0Kx6i16GcALYJb3&skey=3e16a04254d4c9b3&v=v27) format('woff2');
+  unicode-range: U+52-53, U+61, U+64-66, U+69;
+}
+@font-face {
+  font-family: 'Archivo Narrow';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/l/font?kit=tss5ApVBdCYD5Q7hcxTE1ArZ0Zz8oY2KRmwvKhhvLFGKoWuuTnZCjEP_vQ&skey=345333fd7197b162&v=v35) format('woff2');
+  unicode-range: U+52-53, U+61, U+64-66, U+69;
+}
+@font-face {
+  font-family: 'Baloo 2';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/l/font?kit=wXK0E3kTposypRydzVT08TS3JnAmtdgazapq7FX3vx5o3lNT&skey=f84d20f19091b325&v=v23) format('woff2');
+  unicode-range: U+52-53, U+61, U+64-66, U+69;
+}
+@font-face {
+  font-family: 'Barlow Condensed';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/l/font?kit=HTx3L3I-JCGChYJ8VI-L6OO_au7B2xPB2COl3c1mDNM&skey=a14102e17a4027e&v=v13) format('woff2');
+  unicode-range: U+52-53, U+61, U+64-66, U+69;
+}
+@font-face {
+  font-family: 'Big Shoulders';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/l/font?kit=qFdk35CPh40oITJ69S3GFqy5-BQAcbz7z7beObrv_PytqyTi33thrko9SOP9Bcs2dAQ50dd4Kg&skey=223c3b2fa6edee3d&v=v4) format('woff2');
+  unicode-range: U+52-53, U+61, U+64-66, U+69;
+}
+@font-face {
+  font-family: 'Bitter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/l/font?kit=raxhHiqOu8IVPmnRc6SY1KXhnF_Y8fbfCLrcXwIk1IDMYCI&skey=c92268a3e57ee309&v=v42) format('woff2');
+  unicode-range: U+52-53, U+61, U+64-66, U+69;
+}
+@font-face {
+  font-family: 'Bodoni Moda';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/l/font?kit=aFT67PxzY382XsXX63LUYL6GYFcan6NJrKp-VPjfJMShrpsGFUt8oU7awIVqtgKeGmSXxoE&skey=f4820fc03b641f99&v=v28) format('woff2');
+  unicode-range: U+52-53, U+61, U+64-66, U+69;
+}
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/l/font?kit=3y9U6as8bTXq_nANBjzKo3IeZx8z6up5BeSl5jBNz_19PpbpMXuECpwUxJBOm_OJWiaaD30YfKfjZZoLvRviyMg3sLZbd7lzXnk&skey=7f69194495102d00&v=v9) format('woff2');
+  unicode-range: U+52-53, U+61, U+64-66, U+69;
+}
+@font-face {
+  font-family: 'Cormorant Garamond';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/l/font?kit=co3umX5slCNuHLi8bLeY9MK7whWMhyjypVO7abI26QOD_v86GnbciKFqSJ7ENtU&skey=a863d1376a24bd7a&v=v21) format('woff2');
+  unicode-range: U+52-53, U+61, U+64-66, U+69;
+}
+@font-face {
+  font-family: 'DM Serif Display';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/l/font?kit=-nFnOHM81r4j6k0gjAW3mujVU2B2K_Jj0IKgjgyUukM&skey=b35e2c4c711f6b3&v=v17) format('woff2');
+  unicode-range: U+52-53, U+61, U+64-66, U+69;
+}
+@font-face {
+  font-family: 'Familjen Grotesk';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/l/font?kit=Qw3LZR9ZHiDnImG6-NEMQ41wby8WRnYsfkunR_eGfMGJaSzoa1uGQ_PTO5m9&skey=d313b61b400f0258&v=v11) format('woff2');
+  unicode-range: U+52-53, U+61, U+64-66, U+69;
+}
+@font-face {
+  font-family: 'Fraunces';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/l/font?kit=6NUh8FyLNQOQZAnv9bYEvDiIdE9Ea92uemAk_WBq8U_9v0c2Wa0K7iN7hzFUPJH58nib1603gg7S2nfgRYIctxujC-zR3xkvU1CDPg&skey=2eca4ab215eafb9c&v=v38) format('woff2');
+  unicode-range: U+52-53, U+61, U+64-66, U+69;
+}
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/l/font?kit=gyBhhwUxId8gMGYQMKR3pzfaWI_RnOM4mIvYkQZ00d3s-w&skey=70a816dcd17c8a3c&v=v5) format('woff2');
+  unicode-range: U+52-53, U+61, U+64-66, U+69;
+}
+@font-face {
+  font-family: 'Gilda Display';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/l/font?kit=t5tmIRoYMoaYG0WEOh7HwMeR7TzdrcnVG3t-yQ8&skey=a96c8e607690656f&v=v20) format('woff2');
+  unicode-range: U+52-53, U+61, U+64-66, U+69;
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/l/font?kit=zYXGKVElMYYaJe8bpLHnCwDKr932-G7dytD-Dmu1swZSAXcomDVmadSD6llzBbo6zNTPj4W5fA&skey=db4d85f0f9937532&v=v23) format('woff2');
+  unicode-range: U+52-53, U+61, U+64-66, U+69;
+}
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/l/font?kit=pximypc9vsFDm051Uf6KVwgkfoSxQ0GsQv8ToedPibnr-yp2JGEJOH9npSTF-QfwgS51jYe9LmJK&skey=882d0052def71e74&v=v4) format('woff2');
+  unicode-range: U+52-53, U+61, U+64-66, U+69;
+}
+@font-face {
+  font-family: 'Instrument Serif';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/l/font?kit=jizBRFtNs2ka5fXjeivQ4LroWlx-2zcBjAya6b_EgO8&skey=8f4195a287ef110c&v=v5) format('woff2');
+  unicode-range: U+52-53, U+61, U+64-66, U+69;
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/l/font?kit=UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuLyfMZ1ziufT-ouxH1g&skey=c491285d6722e4fa&v=v20) format('woff2');
+  unicode-range: U+52-53, U+61, U+64-66, U+69;
+}
+@font-face {
+  font-family: 'Josefin Slab';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/l/font?kit=lW-swjwOK3Ps5GSJlNNkMalNpiZe_ldbOR4W71msd3wvKPrOakfFuAc&skey=691565cf3ae1dcfe&v=v29) format('woff2');
+  unicode-range: U+52-53, U+61, U+64-66, U+69;
+}
+@font-face {
+  font-family: 'Khand';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/l/font?kit=TwMA-IINQlQQ0YpQQHZlHmPrm4Hq&skey=d40ed1e34341551d&v=v22) format('woff2');
+  unicode-range: U+52-53, U+61, U+64-66, U+69;
+}
+@font-face {
+  font-family: 'Lexend';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/l/font?kit=wlptgwvFAVdoq2_F94zlCfv0bz1WCzsW_LV1ePj8YS9F5fU&skey=77476a9438b362c8&v=v26) format('woff2');
+  unicode-range: U+52-53, U+61, U+64-66, U+69;
+}
+@font-face {
+  font-family: 'Manrope';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/l/font?kit=xn7_YHE41ni1AdIRqAuZuw1Bx9mbZk79FO_A67urKqekb9HY&skey=c397ded15edc0853&v=v20) format('woff2');
+  unicode-range: U+52-53, U+61, U+64-66, U+69;
+}
+@font-face {
+  font-family: 'Newsreader';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/l/font?kit=cY9qfjOCX1hbuyalUrK49dLac06G1ZGsZBtoBCzBDXXD9JVF438weI_ACfRHZGLZ5T3FtA&skey=e69ba3232be0ce27&v=v26) format('woff2');
+  unicode-range: U+52-53, U+61, U+64-66, U+69;
+}
+@font-face {
+  font-family: 'Oswald';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/l/font?kit=TK3_WkUHHAIjg75cFRf3bXL8LICs1_FvgURwZ1zD70TiZ0U&skey=653237e53512d0de&v=v57) format('woff2');
+  unicode-range: U+52-53, U+61, U+64-66, U+69;
+}
+@font-face {
+  font-family: 'Playfair Display';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/l/font?kit=nuFvD-vYSZviVYUb_rj3ij__anPXJzDwcbmjWBN2PKdFvUDVfNGyrzTOfiz9&skey=f3b68f0152604ed9&v=v40) format('woff2');
+  unicode-range: U+52-53, U+61, U+64-66, U+69;
+}
+@font-face {
+  font-family: 'Prata';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/l/font?kit=6xKhdSpbNNCT-vWNGGyjfxVsLYST&skey=3b0c7d1d6e89685d&v=v22) format('woff2');
+  unicode-range: U+52-53, U+61, U+64-66, U+69;
+}
+@font-face {
+  font-family: 'Public Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/l/font?kit=ijwGs572Xtc6ZYQws9YVwllKVG8qX1oyOymuFpm5xhUqBQ1EG0OEpw&skey=d896b51311bb3f4e&v=v21) format('woff2');
+  unicode-range: U+52-53, U+61, U+64-66, U+69;
+}
+@font-face {
+  font-family: 'Readex Pro';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/l/font?kit=SLXnc1bJ7HE5YDoGPuzj_dh8uc7wUy8ZQQyX2KY8TL0kGZN6blTC4USmh3MjzKqdD2ZpXg&skey=b908a1bc5b6543db&v=v27) format('woff2');
+  unicode-range: U+52-53, U+61, U+64-66, U+69;
+}
+@font-face {
+  font-family: 'Roboto Slab';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/l/font?kit=BngbUXZYTXPIvIBgJJSb6s3BzlRRfKOFbvjojISWbXZhL4PHsbPFHA&skey=a9ad6a4717e923f0&v=v36) format('woff2');
+  unicode-range: U+52-53, U+61, U+64-66, U+69;
+}
+@font-face {
+  font-family: 'Rubik';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/l/font?kit=iJWZBXyIfDnIV5PNhY1KTN7Z-Yh-B4i1VVc3DdSs9eApUg&skey=cee854e66788286d&v=v31) format('woff2');
+  unicode-range: U+52-53, U+61, U+64-66, U+69;
+}
+@font-face {
+  font-family: 'Saira Condensed';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/l/font?kit=EJROQgErUN8XuHNEtX81i9TmEkrfoPlHot77yknbdw&skey=7892c834700de0ca&v=v12) format('woff2');
+  unicode-range: U+52-53, U+61, U+64-66, U+69;
+}
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/l/font?kit=V8mQoQDjQSkFtoMM3T6r8E7mF71Q-gOoraIAEj7oUUsmLsI5Hksv7gYG&skey=c04ef52a878abc32&v=v22) format('woff2');
+  unicode-range: U+52-53, U+61, U+64-66, U+69;
+}
+@font-face {
+  font-family: 'Unbounded';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/l/font?kit=Yq6F-LOTXCb04q32xlpat-6uR42XTqtG6xjx04jfg6TZPiNACt4&skey=85bdc4c30fbe73fc&v=v12) format('woff2');
+  unicode-range: U+52-53, U+61, U+64-66, U+69;
+}
+@font-face {
+  font-family: 'Yeseva One';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/l/font?kit=OpNJno4ck8vc-xYpwWWxpi9HWU-RqiK4Ukg&skey=9baeda5be4021674&v=v24) format('woff2');
+  unicode-range: U+52-53, U+61, U+64-66, U+69;
+}
+@font-face {
+  font-family: 'Zilla Slab';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/l/font?kit=dFa6ZfeM_74wlPZtksIFWjgo_ybaPzQXE8Q&skey=f5798da7f6ea645a&v=v12) format('woff2');
+  unicode-range: U+52-53, U+61, U+64-66, U+69;
+}

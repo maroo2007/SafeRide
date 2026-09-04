@@ -15,6 +15,8 @@ out/
 *.jpeg
 *.png
 !public/images/*.jpg
+!public/images/*.png
+!public/images/*.webp
 
 # Test harness working files
 build/*.log
@@ -24,3 +26,15 @@ build/intermediate*
 
 # stray logs at root
 *.log
+
+# next dev regenerates these on every run
+AGENTS.md
+CLAUDE.md
+
+# tsc incremental cache
+*.tsbuildinfo
+
+# Chrome headless profiles must NEVER live in the project tree — Turbopack
+# watches it and panics on the locked shared_proto_db/LOCK file.
+build/cp*/
+build/chrome-profile/

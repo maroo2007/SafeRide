@@ -8,6 +8,26 @@ Scroll-scrubbed video hero (pear.no technique) plus conventional content section
 
 ---
 
+## Design system
+
+Sourced from the `ui-ux-pro-max` skill. The previous site's theme is **not**
+used; only its copy is reused.
+
+- **Pattern** — Trust and Authority + Conversion. Proof-led, WCAG AAA,
+  colour strategy "navy/grey corporate, accent for CTA only".
+- **Palette** — trust navy `#0f172a` + premium gold `#a16207` on `#f8fafc`.
+- **Type** — Calistoga (display) + Inter (body) + JetBrains Mono (labels),
+  the "SaaS Boutique" pairing. Calistoga ships one weight by design.
+- **Dark** — Modern Dark (Cinema): layered near-blacks, never pure `#000000`,
+  16px radius, expo-out easing.
+
+**Gold is the CTA colour and nothing else.** Using it for general emphasis
+destroys the one signal that drives conversion. There should be exactly one
+gold control per screen.
+
+Contrast is enforced by `__tests__/tokens.contrast.test.ts`, which parses the
+real `globals.css` rather than a copy of the palette.
+
 ## Local development
 
 ```bash

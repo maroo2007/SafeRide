@@ -1,0 +1,352 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   SafeRide design tokens
+
+   COLOUR IS SAMPLED FROM THE FILM, not chosen by eye. Every value marked
+   "film" was extracted by full-image pixel scan (build/palette-scan.py) with
+   pixel-count evidence. Ink and paper come from the shipped app.
+
+   TYPE is the locked stack — three families plus mono, subset per script:
+     Latin heading   Fraunces wght 700-800, opsz 144
+     Latin body      Fraunces wght 400,     opsz 9
+     Latin italic    Fraunces Italic, variable
+     Mono / labels   JetBrains Mono, variable
+     Arabic heading  Amiri 700 (+400)
+     Arabic body     Noto Naskh Arabic, variable
+   Latin resolves to ONE family and Arabic does not, because Fraunces has an
+   optical-size axis and Amiri has no equivalent lever (x-height fixed at
+   0.67x vs Noto Naskh's 0.84x).
+
+   KNOWN MISMATCH — do not "fix" this by moving a token:
+   the film's orange measures ~#B9551A (hue 22deg, sat 75%, luma 43) against
+   the app-canonical #FB8A00 (hue 33deg, sat 100%, luma 99). The app ships and
+   wins. The film is off-brand and is scheduled for a warm re-grade before
+   launch. Until then the video on screen will not match the accent. That is
+   accepted and temporary. See TODO.md.
+   ========================================================================== */
+
+:root {
+  /* --- ramp: the only place raw hex is allowed --- */
+
+  /* from the shipped app */
+  --ink: #030917;
+  --paper: #fdf8f0;
+
+  /* film — wordmark-frame ground, 223,903 px = 90.0% of the frame.
+     20.28:1 against paper. The AAA dark ground the video resolves to. */
+  --surface-dark: #030302;
+
+  /* app-canonical brand orange. FILL ONLY — see the rule at the bottom. */
+  --accent: #fb8a00;
+
+  /* film — 3D network node highlights, 8,775 px = 15.2% of bright pixels.
+     16.77:1 on ink. The accent for DARK grounds, where --accent fails. */
+  --accent-warm: #fae6b7;
+
+  /* film — bus body, stable #C3BCA6..#C4BCA7 across three clips. */
+  --neutral-warm: #c5bfab;
+
+  /* The edge for every accent-filled surface.
+     This is the FILM's orange — the one rejected as the fill for being too
+     dark. Too dark to be the fill; dark enough to be a compliant boundary on
+     paper (4.54:1, clearing WCAG 1.4.11's 3:1); and it ties the button to the
+     video. #FB8A00 alone is 2.27:1 against paper and fails that boundary.
+     NEGATIVE RESULT, recorded so nobody re-tries it: size and weight do NOT
+     fix this. A larger, heavier button gains area but its edge stays 2.27:1.
+     The boundary is the only lever. */
+  --accent-edge: #b9551a;
+  --accent-lift: 0 10px 20px rgba(120, 60, 10, 0.2), 0 2px 6px rgba(120, 60, 10, 0.14);
+
+  /* Warm neutrals derived from --neutral-warm, not from a blue ramp. The
+     periwinkle secondary is deliberately gone: nothing in the film or the app
+     supported it. */
+  --warm-100: #f2ede3;
+  --warm-200: #e3dccd;
+  --warm-700: #4c4740;
+
+  /* --- semantic, light --- */
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --card: #ffffff;
+  --card-foreground: var(--ink);
+  --popover: #ffffff;
+  --popover-foreground: var(--ink);
+
+  /* The primary solid control is ink, not orange. */
+  --primary: var(--ink);
+  --primary-foreground: var(--paper);
+
+  --secondary: var(--warm-200);
+  --secondary-foreground: var(--ink);
+
+  /* --accent is a FILL. Dark text sits on it at ~8:1. */
+  --accent-foreground: var(--ink);
+
+  --muted: var(--warm-100);
+  --muted-foreground: var(--warm-700);
+
+  --border: var(--warm-200);
+  --input: var(--warm-200);
+  --ring: var(--ink);
+
+  --destructive: #b3261e;
+  --destructive-foreground: #fff5f5;
+  --success: #146c43;
+  --success-foreground: #f2fff8;
+  --warning: #7a4100;
+  --warning-foreground: #fff8f0;
+
+  --radius: 1rem;
+
+  /* --- motion --- */
+  --dur-micro: 180ms;
+  --dur-state: 260ms;
+  --dur-reveal: 900ms;
+  --dur-exit: 170ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.64, 0, 0.78, 0);
+  --ease-brand: cubic-bezier(0.16, 1, 0.3, 1);
+  --reveal-distance: 24px;
+  --stagger-step: 60ms;
+
+  --header-h: 4.5rem;
+
+  /* --- optical size: the axis that lets ONE family carry display and text --- */
+  --opsz-display: 144;
+  --opsz-text: 9;
+
+  /* --- type scale --- */
+  --text-hero: clamp(2.75rem, 6vw, 4.5rem);
+  --text-h2: clamp(2rem, 3.5vw, 3rem);
+  --text-h3: 1.375rem;
+  --text-body-lg: 1.1875rem;
+  --text-body: 1rem;
+  --text-label: 0.75rem;
+  --leading-hero: 1.02;
+  --leading-body: 1.7;
+  --leading-body-ar: 1.95;
+}
+
+/* Dark sections — the footer, the video's own frames, the parallax bridge, and
+   any dark band mid-page. Ground AND text are both taken from the film's final
+   shot, so a dark section is provably the same black the video resolves to.
+   The site as a whole stays light: a dark site reads as developer tooling, not
+   as something a school procures. */
+.dark {
+  --background: var(--surface-dark);
+  --foreground: #fcfbf8;          /* film — wordmark letterforms */
+  --card: #0c0b09;
+  --card-foreground: #fcfbf8;
+  --popover: #0c0b09;
+  --popover-foreground: #fcfbf8;
+
+  --primary: #fcfbf8;
+  --primary-foreground: var(--surface-dark);
+
+  --secondary: #1c1a16;
+  --secondary-foreground: #fcfbf8;
+
+  /* --accent stays #fb8a00 as a FILL on dark too. For accent-coloured TEXT on
+     dark, use --accent-warm. */
+  --accent-foreground: var(--surface-dark);
+
+  /* On #030302 the fill is already 8.58:1 against the ground, so the boundary
+     is unnecessary — and a dark ring around a bright fill reads as grime.
+     Setting the token to transparent means .accent-fill is correct on BOTH
+     grounds without any component branching. */
+  --accent-edge: transparent;
+  --accent-lift: none;
+
+  --muted: #141310;
+  --muted-foreground: #b0aa9e;
+
+  --border: #ffffff24;
+  --input: #ffffff2e;
+  --ring: var(--accent-warm);
+
+  --destructive: #ff8a80;
+  --destructive-foreground: #1a0203;
+  --success: #6ee7a0;
+  --success-foreground: #011207;
+  --warning: #f5c26b;
+  --warning-foreground: #1d0d00;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-warm: var(--accent-warm);
+  --color-neutral-warm: var(--neutral-warm);
+  --color-surface-dark: var(--surface-dark);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+
+  --font-sans: var(--font-fraunces);
+  --font-display: var(--font-fraunces);
+  --font-mono: var(--font-jetbrains);
+  --font-arabic: var(--font-naskh);
+
+  --radius-brand: var(--radius);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    /* Lenis drives smooth scrolling; native smooth scroll would fight it. */
+    scroll-behavior: auto;
+  }
+
+  /* Latin body: Fraunces at the TEXT optical size. opsz 9 opens the
+     letterforms and thickens the hairlines; the display cut (opsz 144) is
+     cramped and dense at 16px and must never be used for paragraphs. */
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-fraunces), Georgia, serif;
+    font-weight: 400;
+    font-variation-settings: "opsz" var(--opsz-text);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Latin headings: same family, DISPLAY optical size. */
+  h1, h2, h3, h4 {
+    font-family: var(--font-fraunces), Georgia, serif;
+    font-weight: 700;
+    font-variation-settings: "opsz" var(--opsz-display);
+    line-height: 1.12;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+
+  h1 {
+    font-weight: 800;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  /* Arabic. Amiri carries headings, Noto Naskh carries body — Amiri's 0.67x
+     x-height tires across long copy while Noto Naskh's 0.84x does not.
+     Fraunces is second in both stacks on purpose: Latin runs embedded in
+     Arabic copy (GPS, QR, AI) fall through to it rather than to Amiri's
+     markedly lighter Latin. */
+  [lang="ar"] {
+    font-family: var(--font-naskh), var(--font-fraunces), serif;
+    font-variation-settings: normal;
+    line-height: 1.95;
+  }
+
+  [lang="ar"] h1,
+  [lang="ar"] h2,
+  [lang="ar"] h3,
+  [lang="ar"] h4 {
+    font-family: var(--font-amiri), var(--font-fraunces), serif;
+    font-weight: 700;
+    font-variation-settings: normal;
+    line-height: 1.6;
+    letter-spacing: 0;
+  }
+
+  /* A visible focus ring on every interactive element is non-negotiable. */
+  :focus-visible {
+    outline: 3px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  :target {
+    scroll-margin-top: calc(var(--header-h) + 1rem);
+  }
+}
+
+@layer utilities {
+  /* Section badges and data labels: JetBrains Mono, 12px, uppercase, wide. */
+  .label-mono {
+    font-family: var(--font-jetbrains), ui-monospace, monospace;
+    font-size: 0.75rem;
+    line-height: 1;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+  }
+
+  .tap-target {
+    min-inline-size: 44px;
+    min-block-size: 44px;
+  }
+
+  /* EVERY accent-filled surface: the CTA, pricing CTAs, accent cards, badges.
+     Never write `bg-accent` bare — #fb8a00 against paper is a 2.27:1 boundary
+     and fails WCAG 1.4.11. This bundles fill + compliant edge + lift, and the
+     tokens neutralise the edge on dark grounds automatically.
+     Enforced by __tests__/accent-usage.test.ts. */
+  .accent-fill {
+    background-color: var(--accent);
+    color: var(--accent-foreground);
+    border: 2px solid var(--accent-edge);
+    box-shadow: var(--accent-lift);
+  }
+}
+
+/* ==========================================================================
+   THE --accent RULE
+
+   --accent (#fb8a00) is a FILL. Dark text on it is ~8:1. But as text or as a
+   hairline on paper it is 2.36:1 — it fails, exactly the way the previous
+   palette's #f1840b failed at 2.47:1.
+
+   So: never `text-accent`, never `border-accent`, never an outline or
+   underline in --accent. For accent-coloured TEXT on a dark ground, use
+   --accent-warm (#fae6b7, 16.77:1 on ink).
+
+   This is enforced by __tests__/accent-usage.test.ts, not by discipline.
+   ========================================================================== */
+
+/* ==========================================================================
+   Reduced motion
+   Spec 12: "Reduced motion means no motion, not less motion."
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-micro: 0ms;
+    --dur-state: 0ms;
+    --dur-reveal: 0ms;
+    --dur-exit: 0ms;
+    --reveal-distance: 0px;
+    --stagger-step: 0ms;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
