@@ -81,18 +81,18 @@ function edgeContrast(img, r) {
 
   /* ---------------- paper ---------------- */
   const paperInfo = JSON.parse(await evaluate(`(async () => {
-    document.getElementById('on-paper').scrollIntoView({block:'start'});
+    document.getElementById('route-paper').scrollIntoView({block:'start'});
     await new Promise(r=>setTimeout(r,700));
     const out=[];
-    document.querySelectorAll('#on-paper [data-pair]').forEach(p=>{
+    document.querySelectorAll('#route-paper [data-pair]').forEach(p=>{
       p.querySelectorAll('a').forEach((a,i)=>{
         const r=a.getBoundingClientRect(); const cs=getComputedStyle(a);
         out.push({key:p.dataset.pair+(i?'/secondary':'/primary'), x:r.x,y:r.y,w:r.width,h:r.height,
                   color:cs.color, border:cs.borderTopColor});
       });
     });
-    document.querySelectorAll('#on-paper a > span').forEach(e=>e.style.visibility='hidden');
-    document.querySelectorAll('#on-paper a > svg').forEach(e=>e.style.visibility='hidden');
+    document.querySelectorAll('#route-paper a > span').forEach(e=>e.style.visibility='hidden');
+    document.querySelectorAll('#route-paper a > svg').forEach(e=>e.style.visibility='hidden');
     return JSON.stringify(out);
   })()`));
   await sleep(400);
@@ -119,17 +119,17 @@ function edgeContrast(img, r) {
 
   /* ---------------- over footage ---------------- */
   const footInfo = JSON.parse(await evaluate(`(async () => {
-    document.querySelectorAll('#on-paper a > span, #on-paper a > svg').forEach(e=>e.style.visibility='');
-    document.getElementById('over-footage').scrollIntoView({block:'start'});
+    document.querySelectorAll('#route-paper a > span, #route-paper a > svg').forEach(e=>e.style.visibility='');
+    document.getElementById('route-footage').scrollIntoView({block:'start'});
     await new Promise(r=>setTimeout(r,700));
     const out=[];
-    document.querySelectorAll('#over-footage [data-pair]').forEach(p=>{
+    document.querySelectorAll('#route-footage [data-pair]').forEach(p=>{
       p.querySelectorAll('a').forEach((a,i)=>{
         const r=a.getBoundingClientRect(); const cs=getComputedStyle(a);
         out.push({key:p.dataset.pair+(i?'/secondary':'/primary'), x:r.x,y:r.y,w:r.width,h:r.height, color:cs.color});
       });
     });
-    document.querySelectorAll('#over-footage a > span, #over-footage a > svg').forEach(e=>e.style.visibility='hidden');
+    document.querySelectorAll('#route-footage a > span, #route-footage a > svg').forEach(e=>e.style.visibility='hidden');
     return JSON.stringify(out);
   })()`));
 

@@ -94,28 +94,23 @@ const get = (u) => new Promise((res, rej) =>
         r(JSON.stringify({x:Math.max(0,b.x+scrollX),y:Math.max(0,b.y+scrollY),
                           width:Math.min(${VW},b.width),height:b.height}));},700));})()`));
 
-  /* 1. specimens at actual 36px */
-  let r = await rectOf("#icons-36");
-  await shot("icon-01-specimens-36px-actual.png", r);
-  await shot("icon-02-specimens-36px-zoom3x.png", r, 3);
-
-  /* 2. over footage: resting, hovered */
-  r = await rectOf("#icon-footage");
+  /* 1. over footage: resting, hovered */
+  let r = await rectOf("#route-footage");
   await sleep(600);
-  await shot("icon-03-footage-resting.png", r);
-  const n = await setHover("#icon-footage a", true);
+  await shot("route-03-footage-resting.png", r);
+  const n = await setHover("#route-footage a", true);
   await sleep(900);
-  await shot("icon-04-footage-hovered.png", r);
-  await setHover("#icon-footage a", false);
+  await shot("route-04-footage-hovered.png", r);
+  await setHover("#route-footage a", false);
   await sleep(500);
 
   /* 3. MID-ANIMATION filmstrip — real transitions, paused then seeked */
   const digests = new Map();
-  await nodesFor("#icon-footage a");          // warm the cache before timing matters
+  await nodesFor("#route-footage a");          // warm the cache before timing matters
   for (const ms of STEPS) {
-    await setHover("#icon-footage a", false);
+    await setHover("#route-footage a", false);
     await sleep(700);                          // let everything unwind to rest
-    await setHover("#icon-footage a", true);
+    await setHover("#route-footage a", true);
     // No sleep here: pause on the very next frame, while the transitions are
     // still near zero, then seek. Reading the times back is the proof.
     const state = await ev(`new Promise(res=>requestAnimationFrame(()=>{
@@ -128,13 +123,13 @@ const get = (u) => new Promise((res, rej) =>
       })));
     }))`);
     await sleep(140);
-    const name = `icon-05-middraw-${String(ms).padStart(3, "0")}ms.png`;
+    const name = `route-05-middraw-${String(ms).padStart(3, "0")}ms.png`;
     await shot(name, r);
     digests.set(name, crypto.createHash("sha1")
       .update(fs.readFileSync(path.join(OUT, name))).digest("hex").slice(0, 12));
     console.log(`       seek ${ms}ms -> ${state}`);
   }
-  await setHover("#icon-footage a", false);
+  await setHover("#route-footage a", false);
 
   /* The rig must prove it actually moved something. */
   const uniq = new Set(digests.values());
@@ -151,14 +146,20 @@ const get = (u) => new Promise((res, rej) =>
     console.log("  filmstrip OK: " + uniq.size + "/" + digests.size + " frames distinct");
   }
 
-  /* 4. on paper: resting, hovered */
-  r = await rectOf("#icon-paper");
-  await sleep(500);
-  await shot("icon-06-paper-resting.png", r);
-  await setHover("#icon-paper a", true);
+  /* 3b. a 3x crop of the hovered primary, to check the line and dot up close */
+  await setHover("#route-footage a", true);
   await sleep(900);
-  await shot("icon-07-paper-hovered.png", r);
-  await setHover("#icon-paper a", false);
+  await shot("route-04b-footage-hovered-zoom3x.png", r, 3);
+  await setHover("#route-footage a", false);
+
+  /* 4. on paper: resting, hovered */
+  r = await rectOf("#route-paper");
+  await sleep(500);
+  await shot("route-06-paper-resting.png", r);
+  await setHover("#route-paper a", true);
+  await sleep(900);
+  await shot("route-07-paper-hovered.png", r);
+  await setHover("#route-paper a", false);
   console.log(`  (forced :hover on ${n} controls)`);
 
   ws.close(); chrome.kill(); process.exit(0);

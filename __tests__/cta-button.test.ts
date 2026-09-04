@@ -56,6 +56,33 @@ describe("CTA hover variants", () => {
     expect(check).not.toMatch(/opacity/);
   });
 
+  it("E3's frosted groove survives reduced motion; only the travel is cut", () => {
+    // Verified in a real browser with prefers-reduced-motion emulated: groove
+    // display:inline at opacity 1, trail and dot display:none, every
+    // transition-duration 0s, and zero animations created on hover.
+    // The groove IS the resting state, so suppressing it would remove the one
+    // thing that makes this variant work without a pointer.
+    const block = css.slice(css.indexOf("prefers-reduced-motion"));
+    // Substring checks, not a multi-line regex: the regex literal cannot
+    // span lines and a mangled one silently made this whole FILE fail to
+    // parse, which vitest reported as "102 passed" with the file at 0 tests.
+    expect(block).toContain(".routeDot,");
+    expect(block).toContain(".trail {");
+    expect(block).toContain("display: none;");
+    expect(block, "the groove must NOT be suppressed").not.toMatch(/\.groove/);
+  });
+
+  it("the route path has one definition, shared by the stroke and the dot", () => {
+    // The dot rides an offset-path in CSS while the stroke is a `d` in the
+    // SVG. If those two drift the dot leaves the line, and nothing would fail
+    // loudly — it would just look subtly wrong.
+    const d = /const ROUTE_D = "([^"]+)"/.exec(tsx);
+    expect(d, "ROUTE_D must be a single named constant").not.toBeNull();
+    const offset = /offset-path:\s*path\("([^"]+)"\)/.exec(css);
+    expect(offset, "dot must ride an offset-path").not.toBeNull();
+    expect(offset![1]).toBe(d![1]);
+  });
+
   it("the label swap cannot resize the button mid-animation", () => {
     // Two labels of different widths in normal flow would reflow the CTA row
     // every time a pointer crossed it. They share one grid cell instead.

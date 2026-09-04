@@ -21,20 +21,32 @@ import s from "./cta-button.module.css";
  */
 
 export type CtaMechanic =
-  | "check" | "pin" | "route" | "notify" | "signal" | "dots" | "label" | "arrow";
-export type CtaFill = "solid" | "glassLayer" | "glassTrue" | "outlineInk";
+  | "check" | "pin" | "route" | "notify" | "signal" | "dots" | "label" | "arrow"
+  /** The three glass treatments of the route line. */
+  | "routeLum" | "routeInk" | "routeGroove";
+export type CtaFill =
+  | "solid" | "glassLayer" | "glassTrue" | "glassQuiet" | "outlineInk";
 
 const FILL_CLASS: Record<CtaFill, string> = {
   solid: s.solid,
   glassLayer: s.glassLayer,
   glassTrue: s.glassTrue,
+  glassQuiet: s.glassQuiet,
   outlineInk: s.outlineInk,
 };
+
+/** The route path. One definition, shared by the SVG and by the dot's
+ *  offset-path in CSS — they must not be allowed to diverge. */
+const ROUTE_D = "M0 38 C 62 14, 128 46, 186 22 C 214 11, 230 22, 240 26";
+const ROUTES: CtaMechanic[] = ["route", "routeLum", "routeInk", "routeGroove"];
 
 /** Which mechanics carry a 36px icon in the circle shell. */
 const CIRCLE_ICONS: CtaMechanic[] = ["check", "pin"];
 /** Which mechanics swap the label. All of them except the arrow. */
-const SWAPS: CtaMechanic[] = ["check", "pin", "route", "notify", "signal", "dots", "label"];
+const SWAPS: CtaMechanic[] = [
+  "check", "pin", "route", "routeLum", "routeInk", "routeGroove",
+  "notify", "signal", "dots", "label",
+];
 
 /**
  * Ink for the icon fill and its stroke.
@@ -160,12 +172,31 @@ export function CtaButton({
         <span aria-hidden="true" style={{ zIndex: 1 }}>{label}</span>
       )}
 
-      {mechanic === "route" && (
-        <svg className={s.route} viewBox="0 0 200 12" preserveAspectRatio="none"
+      {ROUTES.includes(mechanic) && (
+        /* preserveAspectRatio none stretches the path to the button's width;
+           non-scaling-stroke keeps the line the same weight regardless, so a
+           longer label cannot thin it out. */
+        <svg className={s.route} viewBox="0 0 240 56" preserveAspectRatio="none"
              aria-hidden="true" focusable="false">
-          <path className={s.routePath} d="M0 6 C 60 1, 140 11, 200 6" pathLength={1}
-                vectorEffect="non-scaling-stroke" />
-          <circle className={s.routeDot} cx="0" cy="0" r="2.6" />
+          {mechanic === "routeGroove" && (
+            <>
+              {/* Always present. This is the resting state, and the reason
+                  E3 survives on touch where the others do not. */}
+              <path className={s.groove} d={ROUTE_D} vectorEffect="non-scaling-stroke" />
+              <path className={s.trail} d={ROUTE_D} pathLength={1}
+                    vectorEffect="non-scaling-stroke" />
+            </>
+          )}
+          {mechanic !== "routeGroove" && (
+            <path
+              className={`${s.routePath} ${mechanic === "routeLum" ? s.lumPath : s.inkPath}`}
+              d={ROUTE_D} pathLength={1} vectorEffect="non-scaling-stroke"
+            />
+          )}
+          <circle
+            className={`${s.routeDot} ${mechanic === "routeLum" ? s.lumDot : s.inkDot}`}
+            cx="0" cy="0" r={mechanic === "routeGroove" ? 3.1 : 2.8}
+          />
         </svg>
       )}
 
