@@ -4,17 +4,16 @@ import { join } from "node:path";
 
 const tsx = readFileSync(join(process.cwd(), "components", "ui", "cta-button.tsx"), "utf8");
 const css = readFileSync(join(process.cwd(), "components", "ui", "cta-button.module.css"), "utf8");
+/** Comments legitimately mention the removed treatments; code must not. */
+const cssCode = css.replace(/\/\*[\s\S]*?\*\//g, "");
+const tsxCode = tsx.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 
-describe("CTA hover variants", () => {
+describe("the hero CTA", () => {
   it("the accessible name is the resting label and does not change on hover", () => {
     // The reference button puts both labels in the DOM as plain text, so its
     // accessible name is the two concatenated ("now! play"). A hover state must
     // not rewrite what a screen reader announces.
     expect(tsx).toMatch(/aria-label=\{label\}/);
-    // Both visible labels are decorative; the name comes from aria-label.
-    // Anchored on the labels wrapper itself rather than a slice between two
-    // moving landmarks — the previous version silently matched an empty string
-    // once the surrounding code was refactored.
     expect(tsx).toMatch(/className=\{s\.labels\}\s+aria-hidden="true"/);
   });
 
@@ -25,69 +24,91 @@ describe("CTA hover variants", () => {
     expect(block).toMatch(/animation:\s*none\s*!important/);
     // A shortened duration is not "disabled".
     expect(block).not.toMatch(/transition:[^;]*\d+ms/);
+    // The travelling dot has nothing to say when it cannot travel.
+    expect(block).toContain("display: none;");
   });
 
-  it("every icon's choreography lands inside the 400ms ceiling", () => {
-    // The previous version compared the GLOBAL max duration against the global
-    // max delay, which belongs to no actual animation: with several icons in
-    // one stylesheet that sum (300 + 240) overstated every real total. Assert
-    // the two component limits separately, plus the documented budgets.
-    const durations = [...css.matchAll(/transition:[^;]*?(\d+)ms/g)].map((m) => +m[1]);
-    const delays = [...css.matchAll(/transition-delay:\s*(\d+)ms/g)].map((m) => +m[1]);
+  it("the choreography lands inside the 400ms ceiling", () => {
+    const durations = [...cssCode.matchAll(/transition:[^;]*?(\d+)ms/g)].map((m) => +m[1]);
+    const delays = [...cssCode.matchAll(/transition-delay:\s*(\d+)ms/g)].map((m) => +m[1]);
     expect(Math.max(...durations), "longest single transition").toBeLessThanOrEqual(300);
-    expect(Math.max(...delays, 0), "longest stagger").toBeLessThanOrEqual(250);
-
-    // The component header states each icon's total. Those are the numbers
-    // reported to the reviewer, so they are the ones under test.
-    const budgets = [...tsx.matchAll(/=\s*(\d+)ms$/gm)].map((m) => +m[1]);
-    expect(budgets.length, "documented icon budgets").toBeGreaterThanOrEqual(4);
-    for (const b of budgets) expect(b, "documented budget").toBeLessThanOrEqual(400);
+    expect(Math.max(...delays, 0), "longest stagger").toBeLessThanOrEqual(150);
+    expect(Math.max(...durations) + Math.max(...delays, 0)).toBeLessThanOrEqual(400);
   });
 
-  it("the checkmark draws by dash offset rather than fading in", () => {
-    expect(css).toMatch(/stroke-dashoffset/);
+  it("the route line draws by dash offset rather than fading in", () => {
+    const start = cssCode.indexOf(".routePath {");
+    const rule = cssCode.slice(start, cssCode.indexOf("}", start));
+    expect(rule).toMatch(/stroke-dashoffset/);
+    // An opacity fade would be an image appearing, not a line being drawn.
+    expect(rule).not.toMatch(/opacity/);
     // pathLength=1 keeps the dash maths independent of the path geometry.
     expect(tsx).toMatch(/pathLength=\{1\}/);
-    // An opacity fade would be an image appearing, not a mark being made.
-    // Scope to the .check rule ALONE. Slicing to a far-away landmark swept in
-    // the pin, route and notify rules, which legitimately animate opacity.
-    const start = css.indexOf(".check {");
-    const check = css.slice(start, css.indexOf("}", start));
-    expect(check).not.toMatch(/opacity/);
-  });
-
-  it("E3's frosted groove survives reduced motion; only the travel is cut", () => {
-    // Verified in a real browser with prefers-reduced-motion emulated: groove
-    // display:inline at opacity 1, trail and dot display:none, every
-    // transition-duration 0s, and zero animations created on hover.
-    // The groove IS the resting state, so suppressing it would remove the one
-    // thing that makes this variant work without a pointer.
-    const block = css.slice(css.indexOf("prefers-reduced-motion"));
-    // Substring checks, not a multi-line regex: the regex literal cannot
-    // span lines and a mangled one silently made this whole FILE fail to
-    // parse, which vitest reported as "102 passed" with the file at 0 tests.
-    expect(block).toContain(".routeDot,");
-    expect(block).toContain(".trail {");
-    expect(block).toContain("display: none;");
-    expect(block, "the groove must NOT be suppressed").not.toMatch(/\.groove/);
   });
 
   it("the route path has one definition, shared by the stroke and the dot", () => {
     // The dot rides an offset-path in CSS while the stroke is a `d` in the
-    // SVG. If those two drift the dot leaves the line, and nothing would fail
+    // SVG. If those drift the dot leaves the line, and nothing would fail
     // loudly — it would just look subtly wrong.
     const d = /const ROUTE_D = "([^"]+)"/.exec(tsx);
     expect(d, "ROUTE_D must be a single named constant").not.toBeNull();
     const offset = /offset-path:\s*path\("([^"]+)"\)/.exec(css);
-    expect(offset, "dot must ride an offset-path").not.toBeNull();
+    expect(offset, "the dot must ride an offset-path").not.toBeNull();
     expect(offset![1]).toBe(d![1]);
   });
 
   it("the label swap cannot resize the button mid-animation", () => {
     // Two labels of different widths in normal flow would reflow the CTA row
     // every time a pointer crossed it. They share one grid cell instead.
-    const labels = css.slice(css.indexOf(".labels {"), css.indexOf(".icon {"));
+    const labels = cssCode.slice(cssCode.indexOf(".labels {"), cssCode.indexOf(".rest,"));
     expect(labels).toMatch(/display:\s*inline-grid/);
-    expect(labels).toMatch(/grid-area:\s*1\s*\/\s*1/);
+    expect(cssCode).toMatch(/grid-area:\s*1\s*\/\s*1/);
+  });
+});
+
+/* ------------------------------------------------------------------ *
+ * The glass revert. Every translucent treatment measured 1.02:1 for the
+ * label and 1.01:1 for the boundary on paper — invisible, and not
+ * recoverable by recolouring the label, because the boundary fails
+ * independently. These guard the revert rather than trusting a grep run
+ * once.
+ * ------------------------------------------------------------------ */
+describe("no glass survives on the CTA", () => {
+  it("declares no backdrop-filter anywhere", () => {
+    expect(cssCode).not.toMatch(/backdrop-filter/i);
+  });
+
+  it("declares no translucent fill on any button surface", () => {
+    // A translucent BACKGROUND is the defect. Borders and drop-shadows may
+    // legitimately be rgba, so only background declarations are scanned.
+    const backgrounds = [...cssCode.matchAll(/background(?:-color)?:\s*([^;]+);/g)].map((m) => m[1]);
+    for (const b of backgrounds) {
+      const alpha = /rgba\([^)]*?,\s*(0?\.\d+|0)\s*\)/.exec(b);
+      if (alpha) {
+        // Hover tints are fine; a semi-opaque FILL is not, because that is
+        // footage showing through the button.
+        expect(parseFloat(alpha[1]), `translucent fill: ${b.trim()}`).toBeLessThanOrEqual(0.15);
+      }
+    }
+  });
+
+  it("keeps no orphaned glass or rejected-variant class names", () => {
+    for (const dead of [
+      "glassLayer", "glassTrue", "glassQuiet", "glassSecondary",
+      "lumPath", "lumDot", ".groove", ".trail",
+      "routeLum", "routeInk", "routeGroove",
+      ".check", ".pin", ".notify", ".arc", ".link", ".node", ".arrow",
+    ]) {
+      expect(cssCode, `orphaned in css: ${dead}`).not.toContain(dead);
+      expect(tsxCode, `orphaned in tsx: ${dead}`).not.toContain(dead.replace(".", "s."));
+    }
+  });
+
+  it("the primary fill still routes through .accent-fill, keeping the #B9551A edge", () => {
+    expect(cssCode).toMatch(/\.solid\s*\{\s*composes:\s*accent-fill from global;/);
+    // Writing the hex here would lose the token that neutralises the edge on
+    // dark grounds, painting a dark hairline onto the button over footage.
+    expect(cssCode).not.toMatch(/#b9551a/i);
+    expect(cssCode).not.toMatch(/#fb8a00/i);
   });
 });

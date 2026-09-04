@@ -1,13 +1,18 @@
 /*
- * CTA hover variants, for evaluation.
+ * The hero CTA.
  *
- * Timing note: the Uiverse reference runs 500ms transitions with 300ms delays,
- * so the swap completes at ~800ms. The house guideline is 150-300ms for a
- * micro-interaction and the brief's hard ceiling is 400ms. Magnitudes AND
- * durations are scaled down: 200ms moves with a 90ms stagger, ~290ms total.
+ * One mechanic: a route line that draws across the button on hover with a dot
+ * travelling the path, alongside a label swap.
  *
- * Every icon treatment below is budgeted to finish inside 400ms. Where an icon
- * staggers its parts, the stagger counts toward the total.
+ * Timing note: the Uiverse reference the swap came from runs 500ms transitions
+ * with 300ms delays, completing at ~800ms. The house guideline is 150-300ms
+ * for a micro-interaction and the brief's ceiling is 400ms. Magnitudes AND
+ * durations were scaled down: 200ms moves with a 90ms stagger, ~290ms total,
+ * and the line and dot at 300ms.
+ *
+ * NO GLASS. Every translucent fill, backdrop-blur, glass sheen and frosted
+ * groove was removed. See .solid for why the opaque fill is load-bearing
+ * rather than a style preference.
  */
 
 .btn {
@@ -42,12 +47,18 @@
 
 /* ---------- fills ---------------------------------------------------- */
 
-/* Solid accent. Goes through the .accent-fill utility rather than writing
-   #FB8A00 here: that utility bundles the fill with --accent-edge, and the
-   token neutralises the edge to transparent on dark grounds. Hardcoding
-   #b9551a would paint a dark hairline onto the button over dark footage,
-   where the design deliberately has none — so this is a behavioural fix, not
-   just compliance with __tests__/accent-usage.test.ts. */
+/*
+ * Primary. Goes through the .accent-fill utility rather than writing #FB8A00
+ * here: that utility bundles the fill with --accent-edge, and the token
+ * neutralises the edge to transparent on dark grounds. Hardcoding #b9551a
+ * would paint a dark hairline onto the button over dark footage, where the
+ * design deliberately has none.
+ *
+ * The fill is OPAQUE and that is load-bearing. Measured, a translucent fill
+ * put the label at 1.02:1 and the boundary at 1.01:1 on paper — invisible,
+ * and not fixable by recolouring the label, because the boundary fails
+ * independently of it. Opaque, the same button is 8.28:1 and 4.07:1.
+ */
 .solid {
   composes: accent-fill from global;
 }
@@ -55,82 +66,33 @@
   filter: brightness(1.04);
 }
 
-/* G2 — opaque #FB8A00 underneath, glass read from a highlight layer on top.
-   Composes the global utility DIRECTLY. `composes: solid` does not chain
-   through to .solid's own `composes: ... from global`, which silently left
-   this button with no fill at all — measured as paper, 1.11:1 over footage. */
-.glassLayer {
-  composes: accent-fill from global;
-}
-.glassLayer:hover {
-  filter: brightness(1.04);
-}
-/* The sheen sits BELOW the label (z-index 0 vs 1). Measured: it reaches zero
-   above the label's cap height, so the label ground samples as pure #FB8A00
-   and every number matches the solid fill. */
-.glassLayer::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.34) 0%,
-    rgba(255, 255, 255, 0.14) 38%,
-    rgba(255, 255, 255, 0) 62%
-  );
-}
-.glassLayer::after {
-  content: "";
-  position: absolute;
-  inset: 1px 1px auto 1px;
-  z-index: 0;
-  height: 1px;
-  border-radius: inherit;
-  pointer-events: none;
-  background: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.78) 50%,
-    rgba(255, 255, 255, 0) 100%
-  );
-}
-
-/* G3 — true glass. Measured 1.02:1 on paper; kept only for the comparison. */
-.glassTrue {
-  background: rgba(253, 248, 240, 0.18);
-  backdrop-filter: blur(14px) saturate(1.25);
-  -webkit-backdrop-filter: blur(14px) saturate(1.25);
-  border: 1px solid rgba(253, 248, 240, 0.42);
-  color: #fcfbf8;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.34);
-}
-.glassTrue:hover {
-  background: rgba(253, 248, 240, 0.26);
-}
-/* Secondary: the same glass, held quieter — lower fill and border alpha so
-   the hierarchy survives when both buttons are glass. */
-.glassQuiet {
-  background: rgba(253, 248, 240, 0.11);
-  backdrop-filter: blur(14px) saturate(1.15);
-  -webkit-backdrop-filter: blur(14px) saturate(1.15);
-  /* 0.52, not 0.30. At 0.30 the border composited to 2.84-3.03:1 against the
-     darkest footage in the hero window — straddling WCAG 1.4.11's 3:1 rather
-     than clearing it. The fill stays quiet; only the boundary is raised, so
-     the hierarchy against the accent-filled primary is unaffected. */
-  border: 1px solid rgba(253, 248, 240, 0.52);
-  color: #fcfbf8;
-}
-.glassQuiet:hover { background: rgba(253, 248, 240, 0.17); }
+/*
+ * Secondary on paper. 0.55 alpha on the hairline, not 0.28: measured, the
+ * lighter border was 1.82:1, well under WCAG 1.4.11's 3:1 for a control
+ * boundary — the same class of failure the #B9551A edge exists to fix on the
+ * accent fill.
+ */
 .outlineInk {
   background: transparent;
-  /* 0.55, not 0.28. Measured on paper the lighter hairline was 1.82:1, well
-     under 1.4.11's 3:1 for a control boundary — the same class of failure the
-     #B9551A edge exists to fix on the accent fill. */
   border: 1px solid rgba(3, 9, 23, 0.55);
   color: #030917;
+}
+.outlineInk:hover {
+  background: rgba(3, 9, 23, 0.05);
+}
+
+/*
+ * Secondary over footage. `outlineInk` resolves its ink against the light
+ * theme, which measured 1.62:1 on film; this inverts and carries the same
+ * 1.4.11 duty on its boundary.
+ */
+.outlineOnMedia {
+  background: transparent;
+  border: 1px solid rgba(252, 251, 248, 0.62);
+  color: #fcfbf8;
+}
+.outlineOnMedia:hover {
+  background: rgba(252, 251, 248, 0.14);
 }
 
 /* ---------- label swap ------------------------------------------------ */
@@ -152,6 +114,25 @@
 .alt {
   transform: translateX(-135%);
 }
+
+/*
+ * Knockout halo, applied only when the route line is present.
+ *
+ * Running the path behind the label fixed the underline reading, but on a
+ * solid fill a dark stroke crossing the words reads as a STRIKETHROUGH, which
+ * is worse. Maps solved this long ago: the label knocks a gap out of the road
+ * it sits on, so the line reads as passing behind rather than through.
+ *
+ * The halo is the fill colour, so the ground under the glyph edges is still
+ * #FB8A00 and the label's 8.28:1 is unaffected — confirmed by measurement,
+ * not assumed. Stacked shadows because one pass is too faint to fully clear
+ * a 1.75px stroke.
+ */
+.knockout {
+  text-shadow:
+    0 0 6px var(--accent), 0 0 5px var(--accent), 0 0 4px var(--accent),
+    0 0 4px var(--accent), 0 0 3px var(--accent), 0 0 2px var(--accent);
+}
 .btn:hover .rest,
 .btn:focus-visible .rest {
   transform: translateX(135%);
@@ -162,103 +143,49 @@
   transition-delay: 90ms;
 }
 
-/* ---------- shared icon shell ----------------------------------------
-   Three colour roles, because they are not interchangeable:
-     --icon-fill    a backing SHAPE (the circle, the notification card)
-     --icon-stroke  detail drawn ON that shape
-     --icon-mark    a mark drawn straight onto the button, with nothing behind
-   E, G and H have no backing shape. Using --icon-stroke for them put the
-   accent on an accent-filled button and rendered them invisible. */
-
-.icon {
-  z-index: 1;
-  flex: none;
-  overflow: visible;
-}
-.ring {
-  fill: transparent;
-  transition: fill 200ms cubic-bezier(0.22, 0.61, 0.36, 1);
-}
-.btn:hover .ring,
-.btn:focus-visible .ring {
-  fill: var(--icon-fill);
-}
-
-/* ---------- A — checkmark draws (60 + 250 = 310ms) ------------------- */
-
-.check {
-  fill: none;
-  stroke: var(--icon-stroke);
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  /* pathLength=1 makes the dash maths independent of the path's geometry. */
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  transition: stroke-dashoffset 250ms cubic-bezier(0.22, 0.61, 0.36, 1);
-}
-.btn:hover .check,
-.btn:focus-visible .check {
-  stroke-dashoffset: 0;
-  transition-delay: 60ms;
-}
-
-/* ---------- D — location pin drops and settles (60 + 270 = 330ms) ---- */
-
-.pin,
-.pinHole {
-  opacity: 0;
-  transform: translateY(-8px);
-  transition:
-    transform 270ms cubic-bezier(0.34, 1.5, 0.64, 1),
-    opacity 140ms ease-out;
-}
-.pin { fill: var(--icon-stroke); }
-.pinHole { fill: var(--icon-fill); }
-.btn:hover .pin,
-.btn:focus-visible .pin,
-.btn:hover .pinHole,
-.btn:focus-visible .pinHole {
-  opacity: 1;
-  transform: translateY(0);
-  transition-delay: 60ms;
-}
-
-/* ---------- E — route line, three glass treatments -------------------
+/* ---------- the route line (300ms) ------------------------------------
    The path runs BEHIND the label, across the whole button, with real
-   vertical amplitude. The earlier version sat on the bottom edge as a
-   hairline under text and read as a link underline, not a route. A track
-   the label sits ON cannot be mistaken for one the label sits ABOVE.
+   vertical amplitude. As a hairline on the bottom edge it read as a link
+   underline; a track the label sits ON cannot be confused with one it sits
+   ABOVE.
 
-   A 1-2px stroke has nothing behind it to blur, so none of these try to
-   make the stroke glass. The SURFACE is glass; the line is light on it. */
+   The stroke is ink, not light. #FDF8F0 on #FB8A00 is 2.15:1 and fails
+   1.4.11 as a UI component; ink on the same fill is 8.36:1. */
 
 .route {
   position: absolute;
   inset: 0;
-  z-index: 0;            /* behind the label, above the sheen */
+  z-index: 0;            /* behind the label, above the fill */
   pointer-events: none;
   overflow: visible;
 }
-
-/* Shared: the drawn path. */
 .routePath {
   fill: none;
+  stroke: var(--icon-mark);
   stroke-width: 1.75;
   stroke-linecap: round;
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
+  /* A soft light edge under a dark core reads as an engraved line rather
+     than a stroke painted on top. */
+  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.5));
   transition: stroke-dashoffset 300ms cubic-bezier(0.33, 0.9, 0.4, 1);
 }
 .btn:hover .routePath,
-.btn:focus-visible .routePath { stroke-dashoffset: 0; }
+.btn:focus-visible .routePath {
+  stroke-dashoffset: 0;
+}
 
-/* Shared: the travelling dot. offset-path puts it ON the same curve the
-   line draws, so the two cannot drift apart. */
+/* offset-path puts the dot ON the same curve the line draws, so the two
+   cannot drift apart the way a separate translate would. This path() string
+   and the SVG's `d` are asserted equal in the tests. */
 .routeDot {
-  offset-path: path("M0 38 C 62 14, 128 46, 186 22 C 214 11, 230 22, 240 26");
+  fill: var(--icon-mark);
+  offset-path: path("M0 25 C 32 45, 72 49, 122 47 C 172 45, 206 33, 240 21");
   offset-distance: 0%;
   offset-rotate: 0deg;
   opacity: 0;
+  filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.85));
   transition:
     offset-distance 300ms cubic-bezier(0.33, 0.9, 0.4, 1),
     opacity 90ms ease-out;
@@ -269,173 +196,6 @@
   opacity: 1;
 }
 
-/* --- E1: luminous line on a true-glass surface --- */
-/* Light-coloured, with an outer glow, so it reads as light rather than paint.
-   Only legitimate on a DARK ground: paper cannot carry a white glow. */
-.lumPath {
-  stroke: rgba(252, 251, 248, 0.92);
-  filter: drop-shadow(0 0 3px rgba(252, 251, 248, 0.75))
-          drop-shadow(0 0 7px rgba(251, 138, 0, 0.45));
-}
-.lumDot {
-  fill: #fcfbf8;
-  filter: drop-shadow(0 0 4px rgba(252, 251, 248, 0.9))
-          drop-shadow(0 0 9px rgba(251, 138, 0, 0.6));
-}
-
-/* --- E2: ink line drawn through a glass layer over the solid fill --- */
-/* Ink, not light: #FDF8F0 on #FB8A00 is 2.15:1 and fails 1.4.11 as a UI
-   component. Ink is 8.36:1. The "light" reading comes from a white halo
-   around a dark core, which is how an engraved line behaves. */
-.inkPath {
-  stroke: var(--icon-mark);
-  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.5));
-}
-.inkDot {
-  fill: var(--icon-mark);
-  filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.85));
-}
-
-/* --- E3: frosted groove, visible AT REST --- */
-/* The groove is surface texture and is decorative by design — it carries no
-   information on its own, so it is not held to 1.4.11. The travelling dot is
-   the meaningful mark and takes the ink. */
-.groove {
-  fill: none;
-  stroke: rgba(255, 255, 255, 0.42);
-  stroke-width: 3.5;
-  stroke-linecap: round;
-  filter: drop-shadow(0 1px 0.5px rgba(3, 9, 23, 0.28));
-}
-/* The bright trail: a short dash that travels the path, so the groove
-   brightens behind the dot and dims once it has passed. Not a growing line —
-   a moving segment. */
-.trail {
-  fill: none;
-  stroke: rgba(255, 255, 255, 0.95);
-  stroke-width: 3.5;
-  stroke-linecap: round;
-  stroke-dasharray: 0.22 1;
-  stroke-dashoffset: 0.22;
-  opacity: 0;
-  transition:
-    stroke-dashoffset 300ms cubic-bezier(0.33, 0.9, 0.4, 1),
-    opacity 110ms ease-out;
-}
-.btn:hover .trail,
-.btn:focus-visible .trail {
-  stroke-dashoffset: -0.78;
-  opacity: 1;
-}
-
-/* ---------- F — notification arrives (300ms) ------------------------- */
-
-/* Rises from BELOW the button's bottom edge; the button's own overflow:hidden
-   does the clipping, so it reads as arriving from off-screen rather than
-   fading in inside a box. The overshoot is the settle. */
-.notify {
-  transform: translateY(30px);
-  opacity: 0;
-  transition:
-    transform 300ms cubic-bezier(0.34, 1.42, 0.64, 1),
-    opacity 120ms ease-out;
-}
-.btn:hover .notify,
-.btn:focus-visible .notify {
-  transform: translateY(0);
-  opacity: 1;
-}
-.notifyCard { fill: var(--icon-fill); }
-.notifyBar { fill: var(--icon-stroke); }
-.notifyBadge { fill: var(--icon-stroke); }
-
-/* ---------- G — signal arcs pulse outward once (140 + 200 = 340ms) --- */
-
-.arc {
-  fill: none;
-  stroke: var(--icon-mark);
-  stroke-width: 2.4;
-  stroke-linecap: round;
-  opacity: 0;
-  transform: scale(0.55);
-  transform-origin: 18px 25px;
-  transition:
-    transform 200ms cubic-bezier(0.22, 0.61, 0.36, 1),
-    opacity 200ms ease-out;
-}
-.btn:hover .arc,
-.btn:focus-visible .arc {
-  opacity: 1;
-  transform: scale(1);
-}
-.btn:hover .arc2,
-.btn:focus-visible .arc2 { transition-delay: 70ms; }
-.btn:hover .arc3,
-.btn:focus-visible .arc3 { transition-delay: 140ms; }
-.signalCore {
-  fill: var(--icon-mark);
-  opacity: 0;
-  transition: opacity 160ms ease-out;
-}
-.btn:hover .signalCore,
-.btn:focus-visible .signalCore { opacity: 1; }
-
-/* ---------- H — two dots connect (240 + 120 = 360ms) ----------------- */
-
-.link {
-  fill: none;
-  stroke: var(--icon-mark);
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  transition: stroke-dashoffset 240ms cubic-bezier(0.33, 0.9, 0.4, 1);
-}
-.btn:hover .link,
-.btn:focus-visible .link { stroke-dashoffset: 0; }
-.node {
-  fill: var(--icon-mark);
-  transition: transform 120ms cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-.nodeA { transform-origin: 7px 18px; }
-.nodeB { transform-origin: 29px 18px; }
-.btn:hover .nodeA,
-.btn:focus-visible .nodeA { transform: scale(1.38); }
-/* Fires as the line lands, so the second dot reads as being REACHED. */
-.btn:hover .nodeB,
-.btn:focus-visible .nodeB {
-  transform: scale(1.38);
-  transition-delay: 240ms;
-}
-
-/* ---------- C — arrow sweep ------------------------------------------ */
-
-.arrowTrack {
-  position: relative;
-  z-index: 1;
-  display: inline-block;
-  width: 20px;
-  height: 20px;
-  overflow: hidden;
-}
-.arrow {
-  position: absolute;
-  inset: 0;
-  transition: transform 200ms cubic-bezier(0.22, 0.61, 0.36, 1);
-}
-.arrowIn {
-  transform: translateX(-150%);
-}
-.btn:hover .arrowOut,
-.btn:focus-visible .arrowOut {
-  transform: translateX(150%);
-}
-.btn:hover .arrowIn,
-.btn:focus-visible .arrowIn {
-  transform: translateX(0);
-  transition-delay: 70ms;
-}
-
 /* ---------- reduced motion: disabled ENTIRELY ------------------------ */
 /* Not "faster" — off. The hover state still changes (a hover with no
    feedback is worse), it simply arrives without being animated. */
@@ -444,19 +204,8 @@
   .btn *,
   .rest,
   .alt,
-  .ring,
-  .check,
-  .pin,
-  .pinHole,
   .routePath,
-  .routeDot,
-  .trail,
-  .notify,
-  .arc,
-  .signalCore,
-  .link,
-  .node,
-  .arrow {
+  .routeDot {
     transition: none !important;
     transition-delay: 0ms !important;
     animation: none !important;
@@ -464,10 +213,9 @@
   .btn:active {
     transform: none;
   }
-  /* E3 keeps its groove — it is the resting state, not motion. Only the
-     travelling dot and trail are suppressed. */
-  .routeDot,
-  .trail {
+  /* A dot that cannot travel has nothing to say. The line still draws in
+     full, so the hover state stays legible without it. */
+  .routeDot {
     display: none;
   }
 }
