@@ -1,0 +1,232 @@
+/*
+ * CTA hover variants, for evaluation.
+ *
+ * Timing note: the Uiverse reference runs 500ms transitions with 300ms delays,
+ * so the swap completes at ~800ms. The house guideline is 150-300ms for a
+ * micro-interaction. Magnitudes AND durations are scaled down here: 200ms
+ * moves with a 90ms stagger, landing at ~290ms.
+ */
+
+.btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  height: 56px;
+  padding: 0 28px;
+  border-radius: 999px;
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  isolation: isolate;
+  overflow: hidden;
+  text-decoration: none;
+  transition:
+    transform 180ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    box-shadow 180ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    background-color 180ms ease;
+}
+.btn:active {
+  transform: scale(0.985);
+  transition-duration: 90ms;
+}
+.btn:focus-visible {
+  outline: 3px solid var(--ring, #030917);
+  outline-offset: 2px;
+}
+
+/* ---------- fills ---------------------------------------------------- */
+
+/* Solid accent. Goes through the .accent-fill utility rather than writing
+   #FB8A00 here: that utility bundles the fill with --accent-edge, and the
+   token neutralises the edge to transparent on dark grounds. Hardcoding
+   #b9551a would paint a dark hairline onto the button over dark footage,
+   where the design deliberately has none — so this is a behavioural fix, not
+   just compliance with __tests__/accent-usage.test.ts. */
+.solid {
+  composes: accent-fill from global;
+}
+.solid:hover {
+  filter: brightness(1.04);
+}
+
+/* G2 — opaque #FB8A00 underneath, glass read from a highlight layer on top.
+   The sheen sits BELOW the label (z-index 0 vs 1), so it does change the
+   label's ground and has to be measured, not assumed. */
+/* Composes the global utility DIRECTLY. `composes: solid` does not chain
+   through to .solid's own `composes: ... from global`, which silently left
+   this button with no fill at all — measured as paper, 1.11:1 over footage. */
+.glassLayer {
+  composes: accent-fill from global;
+}
+.glassLayer::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.34) 0%,
+    rgba(255, 255, 255, 0.14) 38%,
+    rgba(255, 255, 255, 0) 62%
+  );
+}
+/* Inner top-edge light line — the thing that actually reads as glass. */
+.glassLayer::after {
+  content: "";
+  position: absolute;
+  inset: 1px 1px auto 1px;
+  z-index: 0;
+  height: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.78) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+}
+
+/* G3 — true glass: translucent fill, real backdrop blur, hairline border. */
+.glassTrue {
+  background: rgba(253, 248, 240, 0.18);
+  backdrop-filter: blur(14px) saturate(1.25);
+  -webkit-backdrop-filter: blur(14px) saturate(1.25);
+  border: 1px solid rgba(253, 248, 240, 0.42);
+  color: #fcfbf8;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.34);
+}
+.glassTrue:hover {
+  background: rgba(253, 248, 240, 0.26);
+}
+
+/* G1's secondary — glass, but tuned so the label is the light one. */
+.glassSecondary {
+  composes: glassTrue;
+}
+/* Same hover lift as .solid, since it no longer inherits one. */
+.glassLayer:hover {
+  filter: brightness(1.04);
+}
+
+/* The existing paper-surface secondary, for reference on flat sections. */
+.outlineInk {
+  background: transparent;
+  border: 1px solid rgba(3, 9, 23, 0.28);
+  color: #030917;
+}
+
+/* ---------- label swap (variants A and B) ---------------------------- */
+
+.labels {
+  position: relative;
+  display: inline-grid;
+  z-index: 1;
+  overflow: hidden;
+}
+/* Both labels occupy the same grid cell, so the button never resizes
+   mid-swap — a width change here would reflow the whole CTA row. */
+.rest,
+.alt {
+  grid-area: 1 / 1;
+  white-space: nowrap;
+  transition: transform 200ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.alt {
+  transform: translateX(-135%);
+}
+.btn:hover .rest,
+.btn:focus-visible .rest {
+  transform: translateX(135%);
+}
+.btn:hover .alt,
+.btn:focus-visible .alt {
+  transform: translateX(0);
+  transition-delay: 90ms;
+}
+
+/* ---------- icon: circle + drawn checkmark (variant A) ---------------- */
+
+.icon {
+  z-index: 1;
+  flex: none;
+  overflow: visible;
+}
+.ring {
+  fill: transparent;
+  transition:
+    fill 200ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    stroke 200ms ease;
+}
+.btn:hover .ring,
+.btn:focus-visible .ring {
+  fill: var(--check-fill);
+}
+.check {
+  fill: none;
+  stroke: var(--check-stroke);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  /* pathLength=1 makes the dash maths independent of the path's geometry. */
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset 250ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.btn:hover .check,
+.btn:focus-visible .check {
+  stroke-dashoffset: 0;
+  transition-delay: 60ms;
+}
+
+/* ---------- arrow sweep (variant C) ---------------------------------- */
+
+.arrowTrack {
+  position: relative;
+  z-index: 1;
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  overflow: hidden;
+}
+.arrow {
+  position: absolute;
+  inset: 0;
+  transition: transform 200ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.arrowIn {
+  transform: translateX(-150%);
+}
+.btn:hover .arrowOut,
+.btn:focus-visible .arrowOut {
+  transform: translateX(150%);
+}
+.btn:hover .arrowIn,
+.btn:focus-visible .arrowIn {
+  transform: translateX(0);
+  transition-delay: 70ms;
+}
+
+/* ---------- reduced motion: disabled ENTIRELY ------------------------ */
+/* Not "faster" — off. The hover state still changes (a hover with no
+   feedback is worse), it simply arrives without being animated. */
+@media (prefers-reduced-motion: reduce) {
+  .btn,
+  .btn *,
+  .rest,
+  .alt,
+  .ring,
+  .check,
+  .arrow {
+    transition: none !important;
+    transition-delay: 0ms !important;
+    animation: none !important;
+  }
+  .btn:active {
+    transform: none;
+  }
+}
