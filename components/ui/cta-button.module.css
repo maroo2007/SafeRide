@@ -3,8 +3,11 @@
  *
  * Timing note: the Uiverse reference runs 500ms transitions with 300ms delays,
  * so the swap completes at ~800ms. The house guideline is 150-300ms for a
- * micro-interaction. Magnitudes AND durations are scaled down here: 200ms
- * moves with a 90ms stagger, landing at ~290ms.
+ * micro-interaction and the brief's hard ceiling is 400ms. Magnitudes AND
+ * durations are scaled down: 200ms moves with a 90ms stagger, ~290ms total.
+ *
+ * Every icon treatment below is budgeted to finish inside 400ms. Where an icon
+ * staggers its parts, the stagger counts toward the total.
  */
 
 .btn {
@@ -53,14 +56,18 @@
 }
 
 /* G2 — opaque #FB8A00 underneath, glass read from a highlight layer on top.
-   The sheen sits BELOW the label (z-index 0 vs 1), so it does change the
-   label's ground and has to be measured, not assumed. */
-/* Composes the global utility DIRECTLY. `composes: solid` does not chain
+   Composes the global utility DIRECTLY. `composes: solid` does not chain
    through to .solid's own `composes: ... from global`, which silently left
    this button with no fill at all — measured as paper, 1.11:1 over footage. */
 .glassLayer {
   composes: accent-fill from global;
 }
+.glassLayer:hover {
+  filter: brightness(1.04);
+}
+/* The sheen sits BELOW the label (z-index 0 vs 1). Measured: it reaches zero
+   above the label's cap height, so the label ground samples as pure #FB8A00
+   and every number matches the solid fill. */
 .glassLayer::before {
   content: "";
   position: absolute;
@@ -75,7 +82,6 @@
     rgba(255, 255, 255, 0) 62%
   );
 }
-/* Inner top-edge light line — the thing that actually reads as glass. */
 .glassLayer::after {
   content: "";
   position: absolute;
@@ -92,7 +98,7 @@
   );
 }
 
-/* G3 — true glass: translucent fill, real backdrop blur, hairline border. */
+/* G3 — true glass. Measured 1.02:1 on paper; kept only for the comparison. */
 .glassTrue {
   background: rgba(253, 248, 240, 0.18);
   backdrop-filter: blur(14px) saturate(1.25);
@@ -104,24 +110,16 @@
 .glassTrue:hover {
   background: rgba(253, 248, 240, 0.26);
 }
-
-/* G1's secondary — glass, but tuned so the label is the light one. */
 .glassSecondary {
   composes: glassTrue;
 }
-/* Same hover lift as .solid, since it no longer inherits one. */
-.glassLayer:hover {
-  filter: brightness(1.04);
-}
-
-/* The existing paper-surface secondary, for reference on flat sections. */
 .outlineInk {
   background: transparent;
   border: 1px solid rgba(3, 9, 23, 0.28);
   color: #030917;
 }
 
-/* ---------- label swap (variants A and B) ---------------------------- */
+/* ---------- label swap ------------------------------------------------ */
 
 .labels {
   position: relative;
@@ -150,7 +148,13 @@
   transition-delay: 90ms;
 }
 
-/* ---------- icon: circle + drawn checkmark (variant A) ---------------- */
+/* ---------- shared icon shell ----------------------------------------
+   Three colour roles, because they are not interchangeable:
+     --icon-fill    a backing SHAPE (the circle, the notification card)
+     --icon-stroke  detail drawn ON that shape
+     --icon-mark    a mark drawn straight onto the button, with nothing behind
+   E, G and H have no backing shape. Using --icon-stroke for them put the
+   accent on an accent-filled button and rendered them invisible. */
 
 .icon {
   z-index: 1;
@@ -159,17 +163,18 @@
 }
 .ring {
   fill: transparent;
-  transition:
-    fill 200ms cubic-bezier(0.22, 0.61, 0.36, 1),
-    stroke 200ms ease;
+  transition: fill 200ms cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 .btn:hover .ring,
 .btn:focus-visible .ring {
-  fill: var(--check-fill);
+  fill: var(--icon-fill);
 }
+
+/* ---------- A — checkmark draws (60 + 250 = 310ms) ------------------- */
+
 .check {
   fill: none;
-  stroke: var(--check-stroke);
+  stroke: var(--icon-stroke);
   stroke-linecap: round;
   stroke-linejoin: round;
   /* pathLength=1 makes the dash maths independent of the path's geometry. */
@@ -183,7 +188,149 @@
   transition-delay: 60ms;
 }
 
-/* ---------- arrow sweep (variant C) ---------------------------------- */
+/* ---------- D — location pin drops and settles (60 + 270 = 330ms) ---- */
+
+.pin,
+.pinHole {
+  opacity: 0;
+  transform: translateY(-8px);
+  transition:
+    transform 270ms cubic-bezier(0.34, 1.5, 0.64, 1),
+    opacity 140ms ease-out;
+}
+.pin { fill: var(--icon-stroke); }
+.pinHole { fill: var(--icon-fill); }
+.btn:hover .pin,
+.btn:focus-visible .pin,
+.btn:hover .pinHole,
+.btn:focus-visible .pinHole {
+  opacity: 1;
+  transform: translateY(0);
+  transition-delay: 60ms;
+}
+
+/* ---------- E — route line drawn across the button (300ms) ----------- */
+
+.route {
+  position: absolute;
+  z-index: 1;
+  left: 18px;
+  right: 18px;
+  bottom: 10px;
+  height: 12px;
+  pointer-events: none;
+  overflow: visible;
+}
+.routePath {
+  fill: none;
+  stroke: var(--icon-mark);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset 300ms cubic-bezier(0.33, 0.9, 0.4, 1);
+}
+.routeDot {
+  fill: var(--icon-mark);
+  opacity: 0;
+  /* offset-path puts the dot ON the same curve the line draws, so the two
+     cannot drift apart the way a separate translate would. */
+  offset-path: path("M0 6 C 60 1, 140 11, 200 6");
+  offset-distance: 0%;
+  offset-rotate: 0deg;
+  transition:
+    offset-distance 300ms cubic-bezier(0.33, 0.9, 0.4, 1),
+    opacity 90ms ease-out;
+}
+.btn:hover .routePath,
+.btn:focus-visible .routePath { stroke-dashoffset: 0; }
+.btn:hover .routeDot,
+.btn:focus-visible .routeDot {
+  offset-distance: 100%;
+  opacity: 1;
+}
+
+/* ---------- F — notification arrives (300ms) ------------------------- */
+
+/* Rises from BELOW the button's bottom edge; the button's own overflow:hidden
+   does the clipping, so it reads as arriving from off-screen rather than
+   fading in inside a box. The overshoot is the settle. */
+.notify {
+  transform: translateY(30px);
+  opacity: 0;
+  transition:
+    transform 300ms cubic-bezier(0.34, 1.42, 0.64, 1),
+    opacity 120ms ease-out;
+}
+.btn:hover .notify,
+.btn:focus-visible .notify {
+  transform: translateY(0);
+  opacity: 1;
+}
+.notifyCard { fill: var(--icon-fill); }
+.notifyBar { fill: var(--icon-stroke); }
+.notifyBadge { fill: var(--icon-stroke); }
+
+/* ---------- G — signal arcs pulse outward once (140 + 200 = 340ms) --- */
+
+.arc {
+  fill: none;
+  stroke: var(--icon-mark);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  opacity: 0;
+  transform: scale(0.55);
+  transform-origin: 18px 25px;
+  transition:
+    transform 200ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    opacity 200ms ease-out;
+}
+.btn:hover .arc,
+.btn:focus-visible .arc {
+  opacity: 1;
+  transform: scale(1);
+}
+.btn:hover .arc2,
+.btn:focus-visible .arc2 { transition-delay: 70ms; }
+.btn:hover .arc3,
+.btn:focus-visible .arc3 { transition-delay: 140ms; }
+.signalCore {
+  fill: var(--icon-mark);
+  opacity: 0;
+  transition: opacity 160ms ease-out;
+}
+.btn:hover .signalCore,
+.btn:focus-visible .signalCore { opacity: 1; }
+
+/* ---------- H — two dots connect (240 + 120 = 360ms) ----------------- */
+
+.link {
+  fill: none;
+  stroke: var(--icon-mark);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset 240ms cubic-bezier(0.33, 0.9, 0.4, 1);
+}
+.btn:hover .link,
+.btn:focus-visible .link { stroke-dashoffset: 0; }
+.node {
+  fill: var(--icon-mark);
+  transition: transform 120ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.nodeA { transform-origin: 7px 18px; }
+.nodeB { transform-origin: 29px 18px; }
+.btn:hover .nodeA,
+.btn:focus-visible .nodeA { transform: scale(1.38); }
+/* Fires as the line lands, so the second dot reads as being REACHED. */
+.btn:hover .nodeB,
+.btn:focus-visible .nodeB {
+  transform: scale(1.38);
+  transition-delay: 240ms;
+}
+
+/* ---------- C — arrow sweep ------------------------------------------ */
 
 .arrowTrack {
   position: relative;
@@ -221,6 +368,15 @@
   .alt,
   .ring,
   .check,
+  .pin,
+  .pinHole,
+  .routePath,
+  .routeDot,
+  .notify,
+  .arc,
+  .signalCore,
+  .link,
+  .node,
   .arrow {
     transition: none !important;
     transition-delay: 0ms !important;
