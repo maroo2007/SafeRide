@@ -100,10 +100,13 @@ function edgeContrast(img, r) {
         await sleep(600);
       }
     }
-    const info = JSON.parse(await ev(`(()=>{
+    const raw = await ev(`(()=>{
       const row=document.querySelector('${section} [data-row="${rowId}"]');
       const out=[...row.querySelectorAll('a')].map((a,i)=>{
-        const lab=a.querySelector('span > span');
+        /* The swap renders [data-label] > span; the single label renders
+           [data-label] itself. Assuming the nested form threw and killed the
+           whole run, which a grep for FAILS then read as a clean pass. */
+        const lab=a.querySelector('[data-label] > span') || a.querySelector('[data-label]');
         const r=a.getBoundingClientRect();
         return {role:i?'secondary':'primary', color:getComputedStyle(lab).color,
                 x:r.x,y:r.y,w:r.width,h:r.height};});
@@ -112,7 +115,9 @@ function edgeContrast(img, r) {
          with its effects stripped and read as the base fill. */
       row.querySelectorAll('a [data-label], a svg').forEach(e=>e.style.visibility='hidden');
       return JSON.stringify(out);
-    })()`));
+    })()`);
+    if (!raw) throw new Error(`readState(${section} ${rowId}) returned nothing — the page expression threw`);
+    const info = JSON.parse(raw);
     await sleep(120);
     const img = await shoot();
     await ev(`document.querySelectorAll('${section} a [data-label], ${section} a svg').forEach(e=>e.style.visibility='')`);
@@ -126,17 +131,22 @@ function edgeContrast(img, r) {
     }).filter(Boolean);
   }
 
-  const rows = ["B1", "R2a", "R2b"];
+  const rows = ["below", "top", "none"];
   const verdict = (cr, edge) => (cr >= 4.5 ? (edge >= 3 ? "PASS" : "EDGE FAILS") : "LABEL FAILS");
 
-  for (const [section, name] of [["#route-paper", "ON PAPER (#FDF8F0)"], ["#route-footage", "OVER FOOTAGE (worst of 6 frames in the hero window)"]]) {
+  const SECTIONS = [
+    ["#route-paper", "ON PAPER (#FDF8F0)", ["below", "top", "none"]],
+    ["#route-footage", "OVER FOOTAGE (worst of 6 frames in the hero window)", ["below", "top", "none"]],
+    ["#secondary", "SECONDARY HOVER, ON PAPER", ["sec-fill", "sec-border"]],
+  ];
+  for (const [section, name, sectionRows] of SECTIONS) {
     console.log(`\n=== ${name} ===`);
     console.log("  candidate  state".padEnd(30) + "label".padEnd(18) + "ground".padEnd(18) + "label CR".padEnd(11) + "edge".padEnd(9) + "verdict");
     await ev(`document.querySelector('${section}').scrollIntoView({block:'start'}); 1`);
     await sleep(700);
 
     const frames = section === "#route-footage" ? FRAMES : [null];
-    for (const rowId of rows) {
+    for (const rowId of sectionRows ?? rows) {
       const states = [["rest", [], null], ...SEEKS.map((ms) => [`hover ${ms}ms`, ["hover"], ms]), ["active", ["hover", "active"], null]];
       for (const [label, classes, seekMs] of states) {
         // Worst reading across the sampled video frames.

@@ -3,129 +3,112 @@
 import s from "./cta-button.module.css";
 
 /**
- * The hero CTA.
+ * The hero CTA — lift and press.
  *
- * One mechanic, chosen from the A/D/E/F/G/H evaluation: a route line that
- * draws across the button on hover with a dot travelling the path, alongside
- * a label swap. 300ms total, inside the 400ms ceiling.
+ * Rest flat; hover lifts 4px with a hard shadow offset by exactly that much,
+ * so the button appears to rise off its own footprint; press punches 2px below
+ * the resting plane and drops the shadow.
  *
- * The glass treatments (E1/E2/E3, G1/G2/G3) and the rejected icons are
- * REMOVED, not disabled — they remain in git history at b844831 and e406575
- * if the evaluation ever needs revisiting.
+ * Button 2 (expanding fill / shine / ripple) is REMOVED, not disabled. It is
+ * in git history at c43a3db along with the measurements that ruled it out.
  */
 
-export type CtaFill = "solid" | "outlineInk" | "outlineOnMedia";
-
-/**
- * Which candidate's behaviour the button wears.
- *   lift    Button 1 — lift and hard footprint shadow, press punches through
- *   invert  Button 2 R2a — fill expands to --accent-edge, label flips to paper
- *   sheen   Button 2 R2b — fill expands to a lighter tint of the same orange,
- *           so the contrast argument never moves
- */
-export type CtaBehaviour = "lift" | "invert" | "sheen";
+export type CtaFill =
+  | "solid"
+  /** Secondary on paper: fills faintly on hover. */
+  | "outlineInk"
+  /** Secondary on paper: stays empty, border deepens. */
+  | "outlineInkBorder"
+  /** Secondary over footage: fills faintly on hover. */
+  | "outlineOnMedia"
+  /** Secondary over footage: stays empty, border deepens. */
+  | "outlineOnMediaBorder";
 
 const FILL_CLASS: Record<CtaFill, string> = {
   solid: s.solid,
   outlineInk: s.outlineInk,
+  outlineInkBorder: s.outlineInkBorder,
   outlineOnMedia: s.outlineOnMedia,
+  outlineOnMediaBorder: s.outlineOnMediaBorder,
 };
 
 /**
- * The route path. ONE definition, shared by the SVG's `d` and — asserted by
- * the test suite — by the dot's offset-path in CSS. If the two drift the dot
- * leaves the line, and nothing would fail loudly; it would just look subtly
- * wrong.
+ * Where the route line sits relative to the label.
  *
- * Shaped so its middle runs BELOW the label's baseline and it rises only at
- * the ends, where there are no glyphs. Two readings had to be avoided at
- * once: a flat hairline on the bottom edge read as a link underline, and a
- * line crossing the x-height read as a strikethrough — worse. This clears the
- * text but keeps enough amplitude (25 -> 47 -> 21 in a 56-tall box) to read
- * as a route rather than a rule.
+ * It may never cross the words. In the 56-unit box the label runs roughly
+ * y=22..39 (cap height to descender), so both placements clear it with margin.
+ * Both are inset 18/240 horizontally so the curve cannot run into the 16px
+ * corner radius and get clipped at either end.
  */
-export const ROUTE_D = "M0 25 C 32 45, 72 49, 122 47 C 172 45, 206 33, 240 21";
+export type RoutePlacement = "below" | "top" | "none";
+
+export const ROUTE_PATHS: Record<Exclude<RoutePlacement, "none">, string> = {
+  below: "M18 47 C 58 43, 96 50, 136 46 C 172 42, 200 48, 222 44",
+  top: "M18 10 C 58 6, 96 13, 136 9 C 172 5, 200 11, 222 7",
+};
 
 /**
- * The colour of the route mark.
- *
- * On the accent fill this is ink: #FDF8F0 on #FB8A00 is 2.15:1 and fails
- * WCAG 1.4.11 as a UI component, while ink on the same fill is 8.36:1. On a
- * dark ground the mark inverts to paper.
+ * The colour of the route mark. On the accent fill this is ink: #FDF8F0 on
+ * #FB8A00 is 2.15:1 and fails WCAG 1.4.11 as a UI component, while ink on the
+ * same fill is 8.36:1. On a dark ground the mark inverts to paper.
  */
 function markColour(fill: CtaFill) {
-  return fill === "outlineOnMedia" ? "#fcfbf8" : "#030917";
+  return fill.startsWith("outlineOnMedia") ? "#fcfbf8" : "#030917";
 }
 
 export type CtaButtonProps = {
   href: string;
-  /** Resting label. This is the accessible name and it never changes. */
+  /** The label. Verbatim from the live site; this is the accessible name. */
   label: string;
-  /** Revealed on hover. Decorative — see `aria-hidden` below. */
+  /**
+   * Second label revealed on hover. OPTIONAL and off by default: the spec
+   * takes copy verbatim from the live site, which carries one string per
+   * button, so a swap needs copy that does not exist yet. With no altLabel
+   * the button renders a single label and no swap markup at all.
+   */
   altLabel?: string;
   fill: CtaFill;
   /** The route line is the primary's flourish; the secondary stays plain. */
-  route?: boolean;
-  behaviour?: CtaBehaviour;
+  route?: RoutePlacement;
   className?: string;
-  /** Merged over the component's own custom properties. Used by the lab to
-   *  vary --lift; not needed in normal use. */
   style?: React.CSSProperties;
 };
 
 export function CtaButton({
-  href, label, altLabel, fill, route = false, behaviour = "lift", className, style,
+  href, label, altLabel, fill, route = "none", className, style,
 }: CtaButtonProps) {
-  /* Primary only. On an outline secondary the expanding fill turns a
-     subordinate control into a filled one, which collapses the hierarchy the
-     whole palette is built around — photographed before this guard existed. */
-  const expands = behaviour !== "lift" && fill === "solid";
+  const d = route === "none" ? null : ROUTE_PATHS[route];
   return (
     <a
       href={href}
-      className={[
-        s.btn,
-        // Button 2 replaces the fill class so it gets the softer deep shadow
-        // instead of Button 1's hard footprint.
-        expands && fill === "solid" ? s.expand : FILL_CLASS[fill],
-        // Tied to `expands`, not to the behaviour: the secondary has no dark
-        // fill arriving, so flipping its label to paper left it at 1.12:1.
-        expands && behaviour === "invert" ? s.invertLabel : "",
-        className ?? "",
-      ].filter(Boolean).join(" ")}
+      className={`${s.btn} ${FILL_CLASS[fill]} ${className ?? ""}`}
       /* The accessible name stays the RESTING label. Without this the name
          becomes both spans concatenated ("Explore Platform See it in action"),
          which is what the reference button does and is a defect, not a style. */
       aria-label={label}
-      style={{ "--icon-mark": markColour(fill), ...style } as React.CSSProperties}
+      style={{
+        "--icon-mark": markColour(fill),
+        // One constant drives both the stroke's `d` and the dot's offset-path.
+        ...(d ? { "--route": `path("${d}")` } : {}),
+        ...style,
+      } as React.CSSProperties}
     >
-      {/* Three layers, one job each. The source gives ::after both the shine
-          and the ripple, so its ripple never runs. */}
-      {expands && (
-        <>
-          <span aria-hidden="true"
-                className={`${s.expandFill} ${behaviour === "invert" ? s.fillInvert : s.fillSheen}`} />
-          <span aria-hidden="true" className={`${s.ripple} ${s.rippleInk}`} />
-        </>
+      {altLabel ? (
+        <span className={s.labels} aria-hidden="true" data-label>
+          <span className={s.rest}>{label}</span>
+          <span className={s.alt}>{altLabel}</span>
+        </span>
+      ) : (
+        <span className={s.single} aria-hidden="true" data-label>{label}</span>
       )}
 
-      <span className={s.labels} aria-hidden="true" data-label>
-        {/* The knockout only matters where a line passes behind the words. */}
-        <span className={`${s.rest} ${route ? s.knockout : ""}`}>{label}</span>
-        <span className={`${s.alt} ${route ? s.knockout : ""}`}>{altLabel ?? label}</span>
-      </span>
-
-      {/* Sweeps OVER the label, which is the point of it and also the thing
-          that has to hold up mid-transition. */}
-      {expands && <span aria-hidden="true" className={s.shine} />}
-
-      {route && (
+      {d && (
         /* preserveAspectRatio none stretches the path to the button's width;
            non-scaling-stroke keeps the line the same weight regardless, so a
            longer label cannot thin it out. */
         <svg className={s.route} viewBox="0 0 240 56" preserveAspectRatio="none"
              aria-hidden="true" focusable="false">
-          <path className={s.routePath} d={ROUTE_D} pathLength={1}
+          <path className={s.routePath} d={d} pathLength={1}
                 vectorEffect="non-scaling-stroke" />
           <circle className={s.routeDot} cx="0" cy="0" r="2.8" />
         </svg>

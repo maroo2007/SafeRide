@@ -176,6 +176,15 @@ const get = (u) => new Promise((res, rej) =>
   await sleep(600);
   await shot("route-09-paper-active.png", r);
   await setState("#route-paper a", []);
+  /* 5. secondary hover comparison */
+  r = await rectOf("#secondary");
+  await sleep(500);
+  await shot("sec-01-resting.png", r);
+  await setHover("#secondary a", true);
+  await sleep(700);
+  await shot("sec-02-hovered.png", r);
+  await shot("sec-03-hovered-zoom2x.png", r, 2);
+  await setHover("#secondary a", false);
   console.log(`  (forced :hover on ${n} controls)`);
 
   ws.close(); chrome.kill(); process.exit(0);

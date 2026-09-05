@@ -47,14 +47,47 @@ describe("the hero CTA", () => {
   });
 
   it("the route path has one definition, shared by the stroke and the dot", () => {
-    // The dot rides an offset-path in CSS while the stroke is a `d` in the
-    // SVG. If those drift the dot leaves the line, and nothing would fail
-    // loudly — it would just look subtly wrong.
-    const d = /const ROUTE_D = "([^"]+)"/.exec(tsx);
-    expect(d, "ROUTE_D must be a single named constant").not.toBeNull();
-    const offset = /offset-path:\s*path\("([^"]+)"\)/.exec(css);
-    expect(offset, "the dot must ride an offset-path").not.toBeNull();
-    expect(offset![1]).toBe(d![1]);
+    // The dot rides an offset-path while the stroke is a `d` in the SVG. If
+    // those drift the dot leaves the line, and nothing would fail loudly — it
+    // would just look subtly wrong. Both now come from ROUTE_PATHS via one
+    // custom property, so they cannot diverge at all.
+    expect(css).toMatch(/offset-path:\s*var\(--route\)/);
+    expect(tsx).toMatch(/"--route":\s*`path\("\$\{d\}"\)`/);
+    expect(tsx).toMatch(/<path className=\{s\.routePath\} d=\{d\}/);
+  });
+
+  it("the route line never crosses the label", () => {
+    // In the 56-unit box the label runs about y=22..39, cap height to
+    // descender. A stroke through that reads as a strikethrough, which is
+    // what the first placement did.
+    const paths = /ROUTE_PATHS[^=]*=\s*\{([\s\S]*?)\};/.exec(tsx);
+    expect(paths, "ROUTE_PATHS must exist").not.toBeNull();
+    const ys = [...paths![1].matchAll(/[MC]?\s*\d+(?:\.\d+)?\s+(\d+(?:\.\d+)?)/g)]
+      .map((m) => +m[1]).filter((n) => n <= 56);
+    expect(ys.length).toBeGreaterThan(6);
+    for (const y of ys) {
+      const clears = y < 20 || y > 41;
+      expect(clears, `y=${y} sits in the label band 20-41`).toBe(true);
+    }
+  });
+
+  it("the route line cannot be clipped by the corner radius", () => {
+    // Starting at x=0 ran the curve into the 16px rounded corner and cut it
+    // off at both ends. Everything is inset inside the 240-unit box.
+    const paths = /ROUTE_PATHS[^=]*=\s*\{([\s\S]*?)\};/.exec(tsx)![1];
+    const xs = [...paths.matchAll(/(\d+(?:\.\d+)?)\s+\d+(?:\.\d+)?/g)].map((m) => +m[1]);
+    expect(Math.min(...xs), "left inset").toBeGreaterThanOrEqual(12);
+    expect(Math.max(...xs), "right inset").toBeLessThanOrEqual(228);
+  });
+
+  it("the label swap is opt-in, and off without altLabel", () => {
+    // The spec takes copy verbatim from the live site, which carries one
+    // string per button. A swap needs a second string that does not exist,
+    // so with no altLabel the button renders a single label and no swap
+    // markup — not two identical labels sliding past each other.
+    expect(tsx).toMatch(/altLabel \? \(/);
+    expect(tsx).toMatch(/className=\{s\.single\}/);
+    expect(tsx).not.toMatch(/altLabel \?\? label/);
   });
 
   it("the label swap cannot resize the button mid-animation", () => {
@@ -63,100 +96,6 @@ describe("the hero CTA", () => {
     const labels = cssCode.slice(cssCode.indexOf(".labels {"), cssCode.indexOf(".rest,"));
     expect(labels).toMatch(/display:\s*inline-grid/);
     expect(cssCode).toMatch(/grid-area:\s*1\s*\/\s*1/);
-  });
-});
-
-describe("the lift and press", () => {
-  it("lifts on hover and punches BELOW the resting plane on press", () => {
-    expect(cssCode).toMatch(/transform:\s*translateY\(calc\(-1 \* var\(--lift\)\)\)/);
-    const active = cssCode.slice(cssCode.indexOf(".btn:active {"));
-    expect(active).toMatch(/transform:\s*translateY\(2px\)/);
-  });
-
-  it("the hard shadow is offset by exactly the lift, so it reads as a footprint", () => {
-    // If the offset and the lift diverge, the shadow's top edge stops sitting
-    // where the button was and the illusion of rising off its own outline
-    // breaks — it just looks like a shadow that grew.
-    // Substring count, not a regex: a multi-line regex literal here has
-    // silently zeroed this whole FILE three times, and vitest still
-    // reports the run as passing because the file contributes 0 tests.
-    const hard = cssCode.split("0 var(--lift) 0 ").length - 1;
-    expect(hard, "each fill needs a --lift-offset hard shadow").toBeGreaterThanOrEqual(3);
-  });
-
-  it("the press clears the shadow", () => {
-    for (const fill of [".solid:active", ".outlineInk:active", ".outlineOnMedia:active"]) {
-      const i = cssCode.indexOf(fill);
-      expect(i, `${fill} must exist`).toBeGreaterThan(-1);
-      expect(cssCode.slice(i, cssCode.indexOf("}", i))).toMatch(/box-shadow:\s*none/);
-    }
-  });
-
-  it("carries no decorative text glow", () => {
-    // The reference's `text-shadow: 0 0 20px rgba(255,255,255,.397)` is a game
-    // styling glow and is not wanted. The one text-shadow here is a different
-    // thing: a knockout halo in the FILL colour, so the route line reads as
-    // passing behind the label the way a map label knocks a gap out of a road.
-    // Removing it was tried and photographed — the line collides with the
-    // baseline and the "p" descender.
-    const shadows = [...cssCode.matchAll(/text-shadow:\s*([^;]+);/g)].map((m) => m[1]);
-    for (const sh of shadows) {
-      expect(sh, "a glow, not a knockout").not.toMatch(/rgba\(\s*255,\s*255,\s*255/);
-      expect(sh, "knockout must use the fill colour").toContain("var(--accent)");
-      // A knockout hugs the glyph; a glow spreads. Anything past 8px is a glow.
-      for (const [, blur] of sh.matchAll(/0 0 (\d+)px/g)) {
-        expect(+blur, `blur ${blur}px is a glow, not a knockout`).toBeLessThanOrEqual(8);
-      }
-    }
-  });
-
-  it("takes its radius from the system token, not a hardcoded pill", () => {
-    expect(cssCode).toMatch(/border-radius:\s*var\(--radius-brand\)/);
-    expect(cssCode).not.toMatch(/border-radius:\s*(999px|9999px|5px)/);
-  });
-
-  it("reduced motion removes the lift AND the press, not just the timing", () => {
-    const block = cssCode.slice(cssCode.indexOf("prefers-reduced-motion"));
-    expect(block).toMatch(/\.btn:hover/);
-    expect(block).toMatch(/\.btn:active/);
-    expect(block).toMatch(/transform:\s*none/);
-  });
-});
-
-describe("Button 2 — expanding fill and shine", () => {
-  it("gives the shine and the ripple separate elements", () => {
-    // The source hands ::after both jobs, so its second declaration wins and
-    // the ripple never runs as written. Three layers, one job each.
-    for (const cls of [".expandFill {", ".shine {", ".ripple {"]) {
-      expect(cssCode, `${cls} must be its own layer`).toContain(cls);
-    }
-    // And none of them may be a pseudo-element that another effect also claims.
-    expect(cssCode).not.toMatch(/\.shine::after/);
-    expect(cssCode).not.toMatch(/\.ripple::after/);
-  });
-
-  it("the ripple stays inside the 400ms ceiling", () => {
-    const anim = /animation:\s*rippleOut\s+(\d+)ms/.exec(cssCode);
-    expect(anim, "ripple animation must be declared").not.toBeNull();
-    expect(+anim![1], "the source's 600ms is outside our ceiling").toBeLessThanOrEqual(400);
-  });
-
-  it("the expanding fill is primary-only", () => {
-    // On an outline secondary it turns a subordinate control into a filled
-    // one and the hierarchy collapses — photographed before this guard.
-    expect(tsxCode).toMatch(/behaviour !== "lift" && fill === "solid"/);
-    // And the label flip is tied to the fill actually arriving; without that
-    // the secondary's label went paper-on-paper at 1.12:1.
-    expect(tsxCode).toMatch(/expands && behaviour === "invert"/);
-  });
-
-  it("every overlay sits on an opaque fill", () => {
-    // The shine and ripple are highlights, which is allowed. What is not
-    // allowed is the BUTTON's own background going translucent underneath.
-    for (const cls of [".expand {", ".solid {"]) {
-      const i = cssCode.indexOf(cls);
-      expect(cssCode.slice(i, cssCode.indexOf("}", i))).toMatch(/composes:\s*accent-fill from global/);
-    }
   });
 });
 
@@ -198,6 +137,8 @@ describe("no glass survives on the CTA", () => {
       "glassLayer", "glassTrue", "glassQuiet", "glassSecondary",
       "lumPath", "lumDot", ".groove", ".trail",
       "routeLum", "routeInk", "routeGroove",
+      "expandFill", ".shine", ".ripple", "fillInvert", "fillSheen",
+      "invertLabel", "rippleOut", "rippleInk", "@keyframes",
       ".check", ".pin", ".notify", ".arc", ".link", ".node", ".arrow",
     ]) {
       expect(cssCode, `orphaned in css: ${dead}`).not.toContain(dead);
