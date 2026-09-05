@@ -11,6 +11,7 @@ import {
 } from "@/lib/hero-captions";
 import { useSmoothScroll } from "@/components/providers/smooth-scroll-provider";
 import { CtaButton } from "@/components/ui/cta-button";
+import { VariableProximity } from "@/components/hero/variable-proximity";
 
 /**
  * The scrub hero, built CLAMPED-first.
@@ -253,7 +254,7 @@ export function ScrubVideoHero() {
               className="mt-5 text-5xl sm:text-6xl lg:text-7xl"
               style={{ color: "#fcfbf8", textWrap: "balance" }}
             >
-              {HERO.headline}
+              <VariableProximity text={HERO.headline} />
             </h1>
             {/* CTAs are never gated on MODE — clamped, full or no-scroll, they
                 are present and clickable from first paint. They do fade with
