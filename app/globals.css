@@ -56,7 +56,10 @@
      fix this. A larger, heavier button gains area but its edge stays 2.27:1.
      The boundary is the only lever. */
   --accent-edge: #b9551a;
-  --accent-lift: 0 10px 20px rgba(120, 60, 10, 0.2), 0 2px 6px rgba(120, 60, 10, 0.14);
+  /* Deliberately shallow. A 10px offset with a 20px blur reads as a card
+     floating off the page; this is a button sitting on it. Warm-tinted rather
+     than grey so it belongs to the orange rather than greying it. */
+  --accent-lift: 0 2px 5px rgba(120, 60, 10, 0.13), 0 1px 2px rgba(120, 60, 10, 0.1);
 
   /* Warm neutrals derived from --neutral-warm, not from a blue ramp. The
      periwinkle secondary is deliberately gone: nothing in the film or the app
@@ -156,7 +159,11 @@
      Setting the token to transparent means .accent-fill is correct on BOTH
      grounds without any component branching. */
   --accent-edge: transparent;
-  --accent-lift: none;
+  /* On dark the shadow is not decoration — it is the only thing separating a
+     bright fill from busy footage, since the edge is deliberately absent
+     here. Kept smaller than the paper value because the ground is already
+     dark and a heavy shadow just smudges. */
+  --accent-lift: 0 2px 6px rgba(0, 0, 0, 0.3);
 
   --muted: #141310;
   --muted-foreground: #b0aa9e;
