@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { ScrubVideoHero } from "@/components/hero/scrub-video-hero";
 import { SterlingGateNavigation } from "@/components/ui/sterling-gate-kinetic-navigation";
+import { ParallaxTransition } from "@/components/ui/parallax-scrolling";
 
 /**
  * Phase 1 shell.
@@ -33,6 +34,10 @@ export default function Home() {
     <main id="main">
       <SterlingGateNavigation />
       <ScrubVideoHero />
+
+      {/* Spec §3: the bridge out of the film. Fires as the hero's pin
+          releases and lands the reader in the content sections. */}
+      <ParallaxTransition />
 
       <section
         id="features"

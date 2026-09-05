@@ -70,7 +70,29 @@ Exposure is narrower than it first appears: iOS Safari falls back to the 720p
 mobile variant below 768px and does not scrub at all, so this is **desktop Safari
 on macOS only**.
 
-### 5. Parallax layer images not yet produced
+### 5. Parallax layer images not yet produced — SPEC NOW SETTLED
+
+Geometry measured with `node build/measure-parallax.js <profile> <out>`. Each
+layer is `height: <N>svh; width: 100%; object-fit: cover`, so the browser crops
+the asset to the box — **the aspect below is a guide, not a contract.**
+
+| layer | height | rendered at 1440x900 | aspect there | **deliver at** | aspect |
+|---|---|---|---|---|---|
+| 1 back | 40svh | 1440x360 | 4.00:1 | **2560x576** | 4.44:1 |
+| 2 mid | 46svh | 1440x414 | 3.48:1 | **2560x662** | 3.87:1 |
+| 4 front | 60svh | 1440x540 | 2.67:1 | **2560x864** | 2.96:1 |
+
+2560x1440 is the largest viewport the sizes are computed for, so nothing
+upscales. Keep the subject vertically centred; the sides crop on narrower
+viewports. WebP, under 300 KB each and 800 KB total (§3.6).
+
+Travel, which is what makes the parallax read, is `yPercent x the layer's own
+height` — so these heights ARE the motion: layer 1 travels 247px (0.27vh),
+layer 2 223px (0.25vh), layer 4 53px (0.06vh) over a one-viewport scrub.
+
+Solid-colour placeholders are in place (#0d0b08 / #1c1a16 / #3a2416, 3.7 KB
+each) and the whole thing is built and measured against them.
+
 `§3.2` requires three owned layer images:
 - `public/images/parallax/layer-1.webp` (back, yPercent 70)
 - `public/images/parallax/layer-2.webp` (mid, yPercent 55)
