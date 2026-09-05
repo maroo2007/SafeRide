@@ -56,6 +56,15 @@
      fix this. A larger, heavier button gains area but its edge stays 2.27:1.
      The boundary is the only lever. */
   --accent-edge: #b9551a;
+
+  /* The route line drawn inside the CTA.
+     NOT the label's ink. A stroke in the same colour as the type, running
+     under the words, reads as an underline — and underline means link, on a
+     button. Taking it off the label's colour is what stops it being read as
+     text decoration. Darker than --accent-edge so it still clears WCAG
+     1.4.11's 3:1 against the fill (3.49:1; --accent-edge itself is only
+     2.00:1 there and would be a decorative-only stroke). */
+  --route-mark: #7a3d10;
   /* Deliberately shallow. A 10px offset with a 20px blur reads as a card
      floating off the page; this is a button sitting on it. Warm-tinted rather
      than grey so it belongs to the orange rather than greying it. */

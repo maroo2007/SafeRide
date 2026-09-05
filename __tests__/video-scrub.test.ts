@@ -381,7 +381,11 @@ describe("3 · CTAs never gate on video progress", () => {
     // a scrimmed ground — 1.62:1, invisible. Media grounds get outlineOnMedia.
     const src = readFileSync(join(process.cwd(), "components", "hero", "scrub-video-hero.tsx"), "utf8");
     expect(src).not.toMatch(/variant="outline"/);
-    expect(src).toMatch(/variant="outlineOnMedia"/);
+    expect(src).not.toMatch(/fill="outlineInk/);
+    // The hero now uses CtaButton. The property under test is unchanged: the
+    // secondary over footage must carry light ink, not the light theme's.
+    expect(src).toMatch(/fill="outlineOnMediaBorder"/);
+    expect(src).toMatch(/route="below"/);
   });
 
   it("the faded copy block goes inert, so invisible controls cannot be hit", () => {

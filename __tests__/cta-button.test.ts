@@ -56,6 +56,14 @@ describe("the hero CTA", () => {
     expect(tsx).toMatch(/<path className=\{s\.routePath\} d=\{d\}/);
   });
 
+  it("the route line is not the label's colour", () => {
+    // A stroke in the type's own colour, running under the words, reads as an
+    // underline — and underline means link, on a button. Photographed both
+    // ways before this guard existed.
+    expect(tsx).toMatch(/var\(--route-mark\)/);
+    expect(tsx).not.toMatch(/markColour[\s\S]*?"#030917"/);
+  });
+
   it("the route line never crosses the label", () => {
     // In the 56-unit box the label runs about y=22..39, cap height to
     // descender. A stroke through that reads as a strikethrough, which is

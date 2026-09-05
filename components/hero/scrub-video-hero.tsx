@@ -10,7 +10,7 @@ import {
   heroScrimOpacity,
 } from "@/lib/hero-captions";
 import { useSmoothScroll } from "@/components/providers/smooth-scroll-provider";
-import { Button } from "@/components/ui/button";
+import { CtaButton } from "@/components/ui/cta-button";
 
 /**
  * The scrub hero, built CLAMPED-first.
@@ -262,13 +262,21 @@ export function ScrubVideoHero() {
                 was simply false, since a parent's opacity applies to its whole
                 subtree and cannot be undone by a child. */}
             <div className="mt-10 flex flex-wrap gap-4">
-              <Button variant="cta" size="lg" asChild>
-                <a href={HERO.primaryCta.href}>{HERO.primaryCta.label}</a>
-              </Button>
-              {/* Over footage, not over paper. See `outlineOnMedia`. */}
-              <Button variant="outlineOnMedia" size="lg" asChild>
-                <a href={HERO.ghostCta.href}>{HERO.ghostCta.label}</a>
-              </Button>
+              <CtaButton
+                href={HERO.primaryCta.href}
+                label={HERO.primaryCta.label}
+                fill="solid"
+                route="below"
+              />
+              {/* Over footage, not over paper — outlineInk resolves its ink
+                  against the light theme and measured 1.62:1 on film. The
+                  border variant keeps the outline empty on hover, which holds
+                  the hierarchy and takes the boundary to 13.36:1. */}
+              <CtaButton
+                href={HERO.ghostCta.href}
+                label={HERO.ghostCta.label}
+                fill="outlineOnMediaBorder"
+              />
             </div>
           </div>
 

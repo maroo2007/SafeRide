@@ -43,17 +43,23 @@ const FILL_CLASS: Record<CtaFill, string> = {
 export type RoutePlacement = "below" | "top" | "none";
 
 export const ROUTE_PATHS: Record<Exclude<RoutePlacement, "none">, string> = {
-  below: "M18 47 C 58 43, 96 50, 136 46 C 172 42, 200 48, 222 44",
+  /* Amplitude 43..53 rather than a 7-unit ripple. A shallow wave under text
+     is a rule; a curve that visibly swings reads as a path. Still clear of
+     the descender line at y=39 and inside the 2px border at y=54. */
+  below: "M18 44 C 54 52, 88 43, 128 48 C 168 53, 198 44, 222 47",
   top: "M18 10 C 58 6, 96 13, 136 9 C 172 5, 200 11, 222 7",
 };
 
 /**
- * The colour of the route mark. On the accent fill this is ink: #FDF8F0 on
- * #FB8A00 is 2.15:1 and fails WCAG 1.4.11 as a UI component, while ink on the
- * same fill is 8.36:1. On a dark ground the mark inverts to paper.
+ * The colour of the route mark.
+ *
+ * On the accent fill it is --route-mark, deliberately NOT the label's ink:
+ * a stroke matching the type, running under the words, reads as an underline,
+ * and underline means link. 3.49:1 against the fill, so it clears 1.4.11's
+ * 3:1 as well. On a dark ground the mark inverts to paper.
  */
 function markColour(fill: CtaFill) {
-  return fill.startsWith("outlineOnMedia") ? "#fcfbf8" : "#030917";
+  return fill.startsWith("outlineOnMedia") ? "#fcfbf8" : "var(--route-mark)";
 }
 
 export type CtaButtonProps = {
@@ -110,7 +116,11 @@ export function CtaButton({
              aria-hidden="true" focusable="false">
           <path className={s.routePath} d={d} pathLength={1}
                 vectorEffect="non-scaling-stroke" />
-          <circle className={s.routeDot} cx="0" cy="0" r="2.8" />
+          {/* The dot rides the LEADING EDGE of the stroke — same curve, same
+              timing — so the line reads as being laid down behind a moving
+              object rather than an underline wiping in. That, plus the
+              amplitude, is what separates it from text decoration. */}
+          <circle className={s.routeDot} cx="0" cy="0" r="3.2" />
         </svg>
       )}
     </a>
