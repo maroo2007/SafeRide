@@ -217,7 +217,24 @@ export function SterlingGateNavigation() {
       toggle,
     ].filter((el) => getComputedStyle(el).visibility !== "hidden");
 
-    cycle()[0]?.focus();
+    /*
+     * preventScroll IS THE POINT, not a nicety.
+     *
+     * An overflow:hidden box is still programmatically scrollable, and .focus()
+     * scrolls every ancestor to reveal its target. The first link starts its
+     * entrance translated 140% below its 65px row, so focusing it made the
+     * browser scroll THAT ROW down 50px to bring it into view. Measured
+     * (build/diagnose-links.js): row scrolled at t=78ms and held until 785ms.
+     *
+     * The tween was never the problem — all six travel 90.72px, 55/91/122/195/
+     * 248ms apart, ~490ms each. But Features was visually 50px ahead of its own
+     * transform for the whole entrance: half revealed before it started moving,
+     * then carried 13px PAST its resting place before the scroll clamped back.
+     * Which reads exactly as "the first one is already settled".
+     *
+     * Nothing here needs scrolling into view: the panel is on screen already.
+     */
+    cycle()[0]?.focus({ preventScroll: true });
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Tab") return;
@@ -228,7 +245,8 @@ export function SterlingGateNavigation() {
         ? here <= 0 ? list.length - 1 : here - 1
         : here === -1 || here === list.length - 1 ? 0 : here + 1;
       e.preventDefault();
-      list[next].focus();
+      // Same reason: a Tab landing mid-entrance would scroll that link's row.
+      list[next].focus({ preventScroll: true });
     };
 
     document.addEventListener("keydown", onKey);
@@ -237,7 +255,7 @@ export function SterlingGateNavigation() {
 
   /* ---- §2.4 focus returns to the toggle on close ---------------------- */
   useEffect(() => {
-    if (wasOpen.current && !isMenuOpen) toggleRef.current?.focus();
+    if (wasOpen.current && !isMenuOpen) toggleRef.current?.focus({ preventScroll: true });
     wasOpen.current = isMenuOpen;
   }, [isMenuOpen]);
 

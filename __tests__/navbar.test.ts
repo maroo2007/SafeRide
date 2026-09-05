@@ -163,6 +163,29 @@ describe("the link mask exists, because the timeline needs it", () => {
   });
 });
 
+describe("focus never scrolls anything", () => {
+  /*
+   * An overflow:hidden box is still programmatically scrollable, and .focus()
+   * scrolls every ancestor to reveal its target. Each link starts its entrance
+   * translated 140% below its 65px row, so focusing one made the browser scroll
+   * THAT ROW down 50px — and the link then read as already settled while the
+   * other five were still hidden, and finished 14px past its resting line.
+   *
+   * The tween was never involved: measured, all six travel 90.72px in ~485ms,
+   * staggered 46/96/152/199/265ms. A guard on the timeline would have passed.
+   * build/diagnose-links.js is the one that catches it, in a browser.
+   */
+  it("every focus() call opts out of scrolling", () => {
+    const calls = code.match(/\.focus\([^)]*\)/g) ?? [];
+    // NO-OP HALF: §2.4 requires focus to move into the panel and back to the
+    // toggle, so "no bare focus() calls" must not be satisfiable by having none.
+    expect(calls.length, "focus management must exist to be guarded").toBeGreaterThanOrEqual(3);
+    for (const c of calls) {
+      expect(c, `bare ${c} will scroll the row it lands in`).toMatch(/preventScroll:\s*true/);
+    }
+  });
+});
+
 describe("the panel carries its own ground", () => {
   /*
    * The defect this guards: .menuContent had no background, so the only

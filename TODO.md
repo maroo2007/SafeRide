@@ -808,3 +808,76 @@ write, all in one frame.
 
 So the jank was the look of the defect, not a frame budget problem. **No
 durations were changed.**
+
+
+---
+
+## The first link entered differently, and the tween was innocent
+
+"Features" looked settled while the other five were still rising. It was not a
+stagger problem and not a target-set problem.
+
+Measured per frame with `build/diagnose-links.js`, decomposing each link's
+computed transform matrix rather than reading the tween config:
+
+| idx | label | travel | starts | ends | duration |
+|---|---|---|---|---|---|
+| 0 | Features | 90.72px | 326ms | 809ms | 483ms |
+| 1 | AI Platform | 90.72px | 381ms | 871ms | 490ms |
+| 2 | Coverage | 90.72px | 417ms | 903ms | 486ms |
+| 3 | Pricing | 90.72px | 448ms | 961ms | 513ms |
+| 4 | FAQ | 90.72px | 521ms | 1026ms | 505ms |
+| 5 | Contact | 90.72px | 574ms | 1072ms | 498ms |
+
+Identical travel, identical duration, a clean ~50ms stagger in DOM order. The
+selector resolved to exactly six elements in DOM order; no `:first-child` rule
+exists in the module; no link carried `data-menu-fade` (it is on the footer
+div); every link had the same inline from-state.
+
+### What it actually was: focus scrolled the row
+
+**An `overflow: hidden` box is still programmatically scrollable, and
+`.focus()` scrolls every ancestor to reveal its target.** §2.4's focus-into-
+the-panel moves focus to the first link, which at that moment is translated
+140% below its own 65px row. The browser did the only thing it could: it
+scrolled that row down 50px to bring the link into view.
+
+`rowScroll` for Features went to 50px at **t=78ms** — the focus call — and held
+until 785ms, when the shrinking transform no longer left enough scrollable
+overflow to sustain it. The visible position of a link is its transform minus
+its row's scroll:
+
+| t | transform | rowScroll | visible offset |
+|---|---|---|---|
+| 78ms | 90.7px | 50 | **40.7px** (others: 90.7px, fully hidden) |
+| 362ms | 81.2px | 50 | 31.2px |
+| 487ms | 43.4px | 50 | **-6.6px** — past its resting line |
+| 550ms | 29.7px | 43 | **-13.3px** |
+| 903ms | 0 | 0 | 0 |
+
+So Features was half-revealed before it began moving, then carried 13px above
+where it lands, then dropped back as the scroll clamped. Which is exactly
+"already settled while the others are still rising".
+
+Fixed with `focus({ preventScroll: true })` on all three focus calls — the
+entry, the trap's Tab handling, and the return to the toggle. Nothing here
+needs scrolling into view; the panel is on screen already.
+
+### The guard, and what a plausible one would have missed
+
+`build/diagnose-links.js` asserts five things and exits non-zero: rows never
+scrolled, equal travel, equal duration, stagger in DOM order, and no link
+crossing its resting line. Run against the broken build:
+
+```
+rows never scrolled            FAIL
+equal travel                   PASS  (90.72px)
+equal duration                 PASS  (spread 22ms)
+stagger in DOM order           PASS
+no link overshoots its slot    FAIL  (worst -14.3px, Features at t=565ms)
+```
+
+**Three of the five pass on the broken build**, including every check anyone
+would think to write about a stagger. The tween was correct; a guard on the
+tween proves nothing. The two that fail are the ones that look at what the
+element ended up doing rather than at what it was told to do.
