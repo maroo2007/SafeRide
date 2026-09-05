@@ -94,8 +94,17 @@ const get = (u) => new Promise((res, rej) =>
         r(JSON.stringify({x:Math.max(0,b.x+scrollX),y:Math.max(0,b.y+scrollY),
                           width:Math.min(${VW},b.width),height:b.height}));},700));})()`));
 
+  /* 0. lift ladder, hover forced */
+  let r = await rectOf("#lift-ladder");
+  await shot("lift-00-ladder-resting.png", r);
+  await setHover("#lift-ladder a", true);
+  await sleep(700);
+  await shot("lift-01-ladder-hovered.png", r);
+  await shot("lift-02-ladder-hovered-zoom2x.png", r, 2);
+  await setHover("#lift-ladder a", false);
+
   /* 1. over footage: resting, hovered */
-  let r = await rectOf("#route-footage");
+  r = await rectOf("#route-footage");
   await sleep(600);
   await shot("route-03-footage-resting.png", r);
   const n = await setHover("#route-footage a", true);
@@ -152,6 +161,18 @@ const get = (u) => new Promise((res, rej) =>
   await shot("route-04b-footage-hovered-zoom3x.png", r, 3);
   await setHover("#route-footage a", false);
 
+  /* 3c. :active — the press. Forced through the real pseudo-class. */
+  const setState = async (selector, classes) => {
+    const ids = await nodesFor(selector);
+    await Promise.all(ids.map((nodeId) =>
+      send("CSS.forcePseudoState", { nodeId, forcedPseudoClasses: classes })));
+  };
+  r = await rectOf("#route-footage");
+  await setState("#route-footage a", ["hover", "active"]);
+  await sleep(600);
+  await shot("route-08-footage-active.png", r);
+  await setState("#route-footage a", []);
+
   /* 4. on paper: resting, hovered */
   r = await rectOf("#route-paper");
   await sleep(500);
@@ -160,6 +181,10 @@ const get = (u) => new Promise((res, rej) =>
   await sleep(900);
   await shot("route-07-paper-hovered.png", r);
   await setHover("#route-paper a", false);
+  await setState("#route-paper a", ["hover", "active"]);
+  await sleep(600);
+  await shot("route-09-paper-active.png", r);
+  await setState("#route-paper a", []);
   console.log(`  (forced :hover on ${n} controls)`);
 
   ws.close(); chrome.kill(); process.exit(0);

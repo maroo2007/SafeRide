@@ -66,6 +66,63 @@ describe("the hero CTA", () => {
   });
 });
 
+describe("the lift and press", () => {
+  it("lifts on hover and punches BELOW the resting plane on press", () => {
+    expect(cssCode).toMatch(/transform:\s*translateY\(calc\(-1 \* var\(--lift\)\)\)/);
+    const active = cssCode.slice(cssCode.indexOf(".btn:active {"));
+    expect(active).toMatch(/transform:\s*translateY\(2px\)/);
+  });
+
+  it("the hard shadow is offset by exactly the lift, so it reads as a footprint", () => {
+    // If the offset and the lift diverge, the shadow's top edge stops sitting
+    // where the button was and the illusion of rising off its own outline
+    // breaks — it just looks like a shadow that grew.
+    // Substring count, not a regex: a multi-line regex literal here has
+    // silently zeroed this whole FILE three times, and vitest still
+    // reports the run as passing because the file contributes 0 tests.
+    const hard = cssCode.split("0 var(--lift) 0 ").length - 1;
+    expect(hard, "each fill needs a --lift-offset hard shadow").toBeGreaterThanOrEqual(3);
+  });
+
+  it("the press clears the shadow", () => {
+    for (const fill of [".solid:active", ".outlineInk:active", ".outlineOnMedia:active"]) {
+      const i = cssCode.indexOf(fill);
+      expect(i, `${fill} must exist`).toBeGreaterThan(-1);
+      expect(cssCode.slice(i, cssCode.indexOf("}", i))).toMatch(/box-shadow:\s*none/);
+    }
+  });
+
+  it("carries no decorative text glow", () => {
+    // The reference's `text-shadow: 0 0 20px rgba(255,255,255,.397)` is a game
+    // styling glow and is not wanted. The one text-shadow here is a different
+    // thing: a knockout halo in the FILL colour, so the route line reads as
+    // passing behind the label the way a map label knocks a gap out of a road.
+    // Removing it was tried and photographed — the line collides with the
+    // baseline and the "p" descender.
+    const shadows = [...cssCode.matchAll(/text-shadow:\s*([^;]+);/g)].map((m) => m[1]);
+    for (const sh of shadows) {
+      expect(sh, "a glow, not a knockout").not.toMatch(/rgba\(\s*255,\s*255,\s*255/);
+      expect(sh, "knockout must use the fill colour").toContain("var(--accent)");
+      // A knockout hugs the glyph; a glow spreads. Anything past 8px is a glow.
+      for (const [, blur] of sh.matchAll(/0 0 (\d+)px/g)) {
+        expect(+blur, `blur ${blur}px is a glow, not a knockout`).toBeLessThanOrEqual(8);
+      }
+    }
+  });
+
+  it("takes its radius from the system token, not a hardcoded pill", () => {
+    expect(cssCode).toMatch(/border-radius:\s*var\(--radius-brand\)/);
+    expect(cssCode).not.toMatch(/border-radius:\s*(999px|9999px|5px)/);
+  });
+
+  it("reduced motion removes the lift AND the press, not just the timing", () => {
+    const block = cssCode.slice(cssCode.indexOf("prefers-reduced-motion"));
+    expect(block).toMatch(/\.btn:hover/);
+    expect(block).toMatch(/\.btn:active/);
+    expect(block).toMatch(/transform:\s*none/);
+  });
+});
+
 /* ------------------------------------------------------------------ *
  * The glass revert. Every translucent treatment measured 1.02:1 for the
  * label and 1.01:1 for the boundary on paper — invisible, and not

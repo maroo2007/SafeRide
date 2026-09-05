@@ -23,7 +23,14 @@
   gap: 12px;
   height: 56px;
   padding: 0 28px;
-  border-radius: 999px;
+  /* The system token, not a hardcoded pill. This had drifted to 999px while
+     components/ui/button.tsx uses rounded-brand; the two are now the same
+     shape. Not the reference's 5px either. */
+  border-radius: var(--radius-brand);
+  /* Lift distance. The hard shadow is offset by exactly this, so its top edge
+     stays glued to where the button was — the button appears to rise off its
+     own footprint rather than to grow a shadow. */
+  --lift: 4px;
   font-size: 1.125rem;
   font-weight: 600;
   line-height: 1;
@@ -31,14 +38,22 @@
   isolation: isolate;
   overflow: hidden;
   text-decoration: none;
+  /* No bounce. An overshoot curve would make this a hop; the press should
+     feel like weight moving, so both directions are plain ease-out. */
   transition:
-    transform 180ms cubic-bezier(0.22, 0.61, 0.36, 1),
-    box-shadow 180ms cubic-bezier(0.22, 0.61, 0.36, 1),
-    background-color 180ms ease;
+    transform 170ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    box-shadow 170ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+/* Lift on hover, punch through the resting plane on press. The press is
+   faster than the lift: a control should answer a click immediately. */
+.btn:hover,
+.btn:focus-visible {
+  transform: translateY(calc(-1 * var(--lift)));
 }
 .btn:active {
-  transform: scale(0.985);
-  transition-duration: 90ms;
+  transform: translateY(2px);
+  box-shadow: none;
+  transition-duration: 80ms;
 }
 .btn:focus-visible {
   outline: 3px solid var(--ring, #030917);
@@ -62,8 +77,17 @@
 .solid {
   composes: accent-fill from global;
 }
-.solid:hover {
-  filter: brightness(1.04);
+/* The cast shadow is --accent-edge, the film's darker orange, so it reads as
+   a real shadow belonging to the fill rather than a grey smear. The soft pair
+   underneath gives it depth; the hard one gives it the footprint. */
+.solid:hover,
+.solid:focus-visible {
+  box-shadow:
+    0 var(--lift) 0 var(--accent-edge),
+    0 calc(var(--lift) + 5px) 11px rgba(120, 60, 10, 0.24);
+}
+.solid:active {
+  box-shadow: none;
 }
 
 /*
@@ -77,8 +101,17 @@
   border: 1px solid rgba(3, 9, 23, 0.55);
   color: #030917;
 }
-.outlineInk:hover {
+/* Same lift, quieter shadow. The physics stay consistent between the two
+   buttons; the hierarchy is carried by the fill, not by different motion. */
+.outlineInk:hover,
+.outlineInk:focus-visible {
   background: rgba(3, 9, 23, 0.05);
+  box-shadow:
+    0 var(--lift) 0 rgba(3, 9, 23, 0.3),
+    0 calc(var(--lift) + 5px) 11px rgba(3, 9, 23, 0.14);
+}
+.outlineInk:active {
+  box-shadow: none;
 }
 
 /*
@@ -91,8 +124,17 @@
   border: 1px solid rgba(252, 251, 248, 0.62);
   color: #fcfbf8;
 }
-.outlineOnMedia:hover {
+.outlineOnMedia:hover,
+.outlineOnMedia:focus-visible {
   background: rgba(252, 251, 248, 0.14);
+  /* On footage a dark cast shadow has nothing to fall on, so the secondary's
+     footprint is light — the same trick inverted. */
+  box-shadow:
+    0 var(--lift) 0 rgba(252, 251, 248, 0.42),
+    0 calc(var(--lift) + 5px) 11px rgba(3, 9, 23, 0.4);
+}
+.outlineOnMedia:active {
+  box-shadow: none;
 }
 
 /* ---------- label swap ------------------------------------------------ */
@@ -210,8 +252,27 @@
     transition-delay: 0ms !important;
     animation: none !important;
   }
+  /* No lift, no press, nothing. A physical metaphor is exactly the kind of
+     motion this setting exists to switch off. */
+  .btn:hover,
+  .btn:focus-visible,
   .btn:active {
     transform: none;
+  }
+  /* And the footprint goes with it. A hard offset shadow is the shadow of a
+     RAISED object; leaving it on a button that no longer rises reads as a
+     rendering fault rather than a hover state. The resting elevation stays,
+     so the control still looks like a control. */
+  .solid:hover,
+  .solid:focus-visible,
+  .outlineInk:hover,
+  .outlineInk:focus-visible,
+  .outlineOnMedia:hover,
+  .outlineOnMedia:focus-visible {
+    box-shadow: var(--accent-lift);
+  }
+  .btn:active {
+    box-shadow: var(--accent-lift);
   }
   /* A dot that cannot travel has nothing to say. The line still draws in
      full, so the hover state stays legible without it. */

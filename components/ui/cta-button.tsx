@@ -58,10 +58,13 @@ export type CtaButtonProps = {
   /** The route line is the primary's flourish; the secondary stays plain. */
   route?: boolean;
   className?: string;
+  /** Merged over the component's own custom properties. Used by the lab to
+   *  vary --lift; not needed in normal use. */
+  style?: React.CSSProperties;
 };
 
 export function CtaButton({
-  href, label, altLabel, fill, route = false, className,
+  href, label, altLabel, fill, route = false, className, style,
 }: CtaButtonProps) {
   return (
     <a
@@ -71,7 +74,7 @@ export function CtaButton({
          becomes both spans concatenated ("Explore Platform See it in action"),
          which is what the reference button does and is a defect, not a style. */
       aria-label={label}
-      style={{ "--icon-mark": markColour(fill) } as React.CSSProperties}
+      style={{ "--icon-mark": markColour(fill), ...style } as React.CSSProperties}
     >
       <span className={s.labels} aria-hidden="true">
         {/* The knockout only matters where a line passes behind the words. */}

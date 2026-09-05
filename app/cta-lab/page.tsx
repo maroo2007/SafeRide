@@ -22,6 +22,21 @@ export default function CtaLab() {
 
   return (
     <main className="min-h-svh bg-[var(--paper)]">
+      {/* ---- lift ladder, on paper where the cast shadow reads most ---- */}
+      <section id="lift-ladder" className="px-10 py-8">
+        <p className="label-mono mb-4">lift ladder — 3 / 4 / 5 / 6px (hover forced)</p>
+        <div className="flex flex-wrap gap-8">
+          {[3, 4, 5, 6].map((px) => (
+            <div key={px} className="flex flex-col gap-2" data-lift={px}>
+              <CtaButton href="#features" label="Explore Platform"
+                         altLabel="See it in action" fill="solid" route
+                         style={{ "--lift": `${px}px` } as React.CSSProperties} />
+              <span className="label-mono">{px}px</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* ---- over real footage ---------------------------------------- */}
       <section id="route-footage" className="relative h-[260px] overflow-hidden bg-surface-dark">
         <video
