@@ -180,6 +180,18 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /*
+   * THE PANEL'S OWN GROUND. Load-bearing, and its absence was a real defect.
+   *
+   * Without it the only opaque thing in the panel was the three sliding
+   * .backdropLayer elements, so until the last of them landed (0.815s) the
+   * copy was painted over bare film. The timeline could not tell me this:
+   * a background that never animates leaves no trace in the GSAP numbers,
+   * which is the limit of inferring geometry from motion.
+   *
+   * The layers are a tonal sweep OVER this, not the ground itself.
+   */
+  background: var(--surface-dark, #030302);
 }
 
 /* The panels enter from xPercent 101, so this must clip them until they land. */

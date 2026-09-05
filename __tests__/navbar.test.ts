@@ -162,3 +162,38 @@ describe("the link mask exists, because the timeline needs it", () => {
     expect(rule(".menuBg")).toMatch(/overflow:\s*hidden/);
   });
 });
+
+describe("the panel carries its own ground", () => {
+  /*
+   * The defect this guards: .menuContent had no background, so the only
+   * opaque thing in the panel was the three sliding .backdropLayer elements.
+   * The links start 0.35s in and the last layer lands at 0.815s, so for 465ms
+   * the copy was painted over bare film — measured at 400ms with the layers
+   * at x = 946 / 1052 / 1207, the panel's left edge at 880 and the first link
+   * at 920.
+   *
+   * "The menu opened" was true throughout. build/diagnose-menu.js is the
+   * guard that actually catches it, frame by frame in a browser; these two
+   * catch the cause in the source, where vitest can see it.
+   */
+  it("declares an opaque background, so content is never over film", () => {
+    const panel = rule(".menuContent");
+    expect(panel).toMatch(/background:\s*var\(--surface-dark/);
+    expect(panel, "a transparent panel is the bug").not.toMatch(/background:\s*(transparent|none)/);
+    // NO-OP HALF: the layers must still exist, or "the panel is opaque" is
+    // satisfied by deleting the sweep the panel is supposed to be a ground for.
+    expect(cssCode).toMatch(/\.backdropFirst\s*\{/);
+    expect(cssCode).toMatch(/\.backdropSecond\s*\{/);
+  });
+
+  it("slides in, so the ground arrives with the panel and not after it", () => {
+    // A bare `set` puts the panel's rect in place instantly while its paint
+    // arrives layer by layer. The panel has to be the thing that moves.
+    const open = code.slice(code.indexOf("if (isMenuOpen) {"), code.indexOf("} else {"));
+    expect(open).toMatch(/fromTo\(menu,\s*\{\s*xPercent:\s*101\s*\}/);
+    expect(open, "setting the panel straight to 0 is what broke it").not.toMatch(/gsap\.set\(menu/);
+    // Close is a slide already; open must match it or the two are asymmetric.
+    const close = code.slice(code.indexOf("} else {"));
+    expect(close).toMatch(/xPercent:\s*120/);
+  });
+});

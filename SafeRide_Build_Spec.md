@@ -682,6 +682,21 @@ stroke with SafeRide brand tones drawn from the site at
 https://safe-ridee.vercel.app/ and the video's palette. Keep the same alpha
 values — the shapes are meant to be ambient, not loud.
 
+> **The CSS block §2.2 C refers to is not in this document.** §2.1's TSX is
+> complete, but there is no `<style>` block and no CSS for any of the ~25
+> classes the component depends on. All of the panel geometry is therefore
+> *inferred from the GSAP timeline*, which is the only specification of the
+> layout that exists.
+>
+> That cost something concrete. The panel shipped with no background of its
+> own — a background that never animates leaves no trace in the GSAP numbers —
+> so the three sliding `.backdrop-layer` elements became the ground instead of
+> a sweep over it, and for 465ms of every open the menu copy was painted over
+> bare film. Fixed by giving `.menu-content` `--surface-dark` and animating the
+> panel itself. Guarded frame by frame by `node build/diagnose-menu.js`.
+> **The inference reproduces everything that moves and nothing that stands
+> still**; assume anything static is missing and check it in a browser.
+
 **C. Replace the `:root` variables.** The component's CSS block ships with
 `--color-primary: #6366f1` and a neutral ramp. **Do not paste that block as
 written** — it would override SafeRide's design tokens with a generic indigo

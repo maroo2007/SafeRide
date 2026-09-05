@@ -154,8 +154,27 @@ export function SterlingGateNavigation() {
         // frame 0 does not render until the next ticker tick; gsap.set applies
         // now.
         gsap.set(wrap, { display: "block" });
-        gsap.set(menu, { xPercent: 0 });
-        tl.fromTo(overlay, { autoAlpha: 0 }, { autoAlpha: 1 })
+        /*
+         * THE PANEL SLIDES IN; it used to be set straight to xPercent 0.
+         *
+         * The reference only `set`s the menu and slides the three backdrop
+         * layers, which works there because the panel has a ground of its own
+         * and the layers are a flourish over it. My inferred CSS gave the
+         * panel no ground, so the layers WERE the ground — and the links start
+         * at +0.35s while the last layer does not land until 0.24 + 0.575 =
+         * 0.815s. For those 465ms the copy was painted over whatever the
+         * layers had not reached yet: bare film at the panel's left edge, and
+         * the transient orange beside it. Measured at 400ms, layers at
+         * x = 946 / 1052 / 1207 with the panel's left edge at 880 and the
+         * first link at 920.
+         *
+         * .menuContent now carries --surface-dark, and the panel itself
+         * animates, so its ground arrives with it and its content can never
+         * outrun it. It also makes open and close symmetric — close has always
+         * been a slide (xPercent 120).
+         */
+        tl.fromTo(menu, { xPercent: 101 }, { xPercent: 0, duration: 0.575 })
+          .fromTo(overlay, { autoAlpha: 0 }, { autoAlpha: 1 }, "<")
           .fromTo(panels, { xPercent: 101 }, { xPercent: 0, stagger: 0.12, duration: 0.575 }, "<")
           .fromTo(links, { yPercent: 140, rotate: 10 }, { yPercent: 0, rotate: 0, stagger: 0.05 }, "<+=0.35")
           .fromTo(fades, { autoAlpha: 0, yPercent: 50 }, { autoAlpha: 1, yPercent: 0, stagger: 0.04, clearProps: "all" }, "<+=0.2");

@@ -624,7 +624,8 @@ on. §2.2 C's instruction (map their variables onto SafeRide tokens) makes
 writing it ourselves the intended end state anyway, but the structural geometry
 — panel reveal, overlay layering, link-mask sizing — is being inferred from the
 class names and the GSAP code, not copied. Flagged so it is not mistaken for a
-faithful port.
+faithful port. **This cost something concrete** — see "The panel had no ground
+of its own" below.
 
 
 ---
@@ -735,3 +736,75 @@ consequence is a modal that can be scrolled behind, not a broken hero.
 **Recommendation:** `scrollbar-gutter: stable` on `<html>` plus
 `overflow: hidden` while any modal is open, added to `stopScroll`/`startScroll`
 so future modals inherit it. Wants a yes before it goes in.
+
+
+---
+
+## The panel had no ground of its own — the clearest cost of inferring CSS
+
+The open animation looked broken: an orange slab with no content, "Features"
+apparently outside the panel over the video and clipped mid-word, the other
+five links missing.
+
+The rects were never wrong. Sampled every frame with `build/diagnose-menu.js`:
+**0 of 123 frames had a link outside the panel's rect**, and all six ended
+inside it, unmasked, at opacity 1. The links were animating in the right
+coordinate space the whole time.
+
+What was wrong is that **the panel's rect is not the panel's paint.**
+`.menuContent` had no background, so the only opaque thing in it was the three
+`.backdropLayer` elements sliding in from the right. The links start at +0.35s;
+the last layer does not land until 0.24 + 0.575 = **0.815s**. For 465ms the
+copy was painted over whatever the layers had not reached — bare film at the
+panel's left edge, and the transient orange beside it. Measured at 400ms:
+layers at x = 946 / 1052 / 1207, panel's left edge at 880, first link at 920.
+
+**The timeline could not have told me this.** A background that never animates
+leaves no trace in the GSAP numbers, and the GSAP numbers were the only
+specification of the layout available. This is the sharpest example so far of
+what "inferred, not ported" costs: the inference reproduces everything that
+moves and nothing that stands still.
+
+### Fixed by giving the panel a ground and making it the thing that slides
+
+`.menuContent` carries `--surface-dark`; the three layers are a tonal sweep
+over it rather than the ground itself. And the panel animates
+`xPercent: 101 -> 0` instead of being `set` to 0, so its ground arrives with
+it and its content cannot outrun it. That also makes open and close symmetric
+— close has always been a slide (`xPercent: 120`).
+
+### The guard, and why the obvious one would have passed
+
+`build/diagnose-menu.js` checks three things every frame and exits non-zero:
+containment, **ground** (is anything opaque behind this link), and the end
+state (unmasked, opacity 1). Run against the broken build it reports
+`17/123 frames with a link over bare film — 359ms of copy over film`; against
+the fix, `0/129`.
+
+Two no-op findings on the guard itself:
+
+- A check of "the menu opened" passes on the broken build. It did open.
+- The first version of the ground check counted the ambient-shapes container
+  as a backdrop layer. That container is full-width from the first frame, so
+  every link always looked covered and **the check could never fail**. It
+  reported "over bare video: none" on the build that is 465ms over bare video.
+
+### Performance: measured, and it does not need tuning
+
+Production build (`next build && next start` on :3100), Chrome **headed on a
+real GPU** — headless rasterises in software here and is not a fair clock; its
+baseline for a still page is 18.4ms p50 with a 30.5ms p95.
+
+| | p50 | p95 | max | frames > 32ms |
+|---|---|---|---|---|
+| baseline, menu shut, video playing | 16.6ms | 17.2ms | 19.3ms | 0 |
+| during the open | 16.6ms | 22-28ms | 54-61ms | **1-2** |
+
+60fps median. The one or two long frames sit at t = 51-68ms and t = 123-149ms,
+reproducibly. Removing the ambient shapes does not move them; removing the
+video does not move them. They are the cost of the panel's first paint —
+`display: none` to block, layer creation, React's commit and GSAP's first
+write, all in one frame.
+
+So the jank was the look of the defect, not a frame budget problem. **No
+durations were changed.**
