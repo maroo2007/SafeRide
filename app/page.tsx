@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { ScrubVideoHero } from "@/components/hero/scrub-video-hero";
+import { SterlingGateNavigation } from "@/components/ui/sterling-gate-kinetic-navigation";
 
 /**
  * Phase 1 shell.
@@ -30,6 +31,7 @@ const FEATURES = [
 export default function Home() {
   return (
     <main id="main">
+      <SterlingGateNavigation />
       <ScrubVideoHero />
 
       <section

@@ -710,15 +710,43 @@ frames — dark studio, solid orange, pure white-out, flat map, dark ink
 wordmark. A fixed-color header will become invisible at several points.
 Implement one of these, and verify at multiple scroll positions:
 
-- **Preferred:** a scroll-progress-aware color inversion. Sample the video's
-  approximate brightness at known progress ranges (they're predictable from
-  the clip breakdown in Section 1.2) and switch the header between light and
-  dark text accordingly, with a smooth transition.
-- **Simpler fallback:** a persistent `backdrop-filter: blur()` surface behind
-  the header with a subtle scrim, so the text always has contrast regardless
-  of the frame behind it.
+- ~~**Preferred:** a scroll-progress-aware color inversion.~~ **MEASURED AND
+  REJECTED — do not re-propose this.** Sampled across all 209 frames of the
+  film at 4 fps, worst pixel in the top 72px band, at 1440x900 and 1920x1080:
+  **151 of 209 frames have no ink that clears 4.5:1 in either direction.**
+  Neither dark nor light. The best contiguous run in the whole film bottoms
+  out at 3.00:1.
 
-Do not ship a header that becomes unreadable during the white-out at clip 4.
+  The reason is geometric, not a matter of scheduling. A full-width band
+  across the top of the frame crosses bright and dark regions
+  **simultaneously** in most frames — dark studio ceiling beside a lit bus
+  roof, dark map beside a glowing node. A single ink cannot serve both ends
+  of the same band, so there is nothing to invert *to*. No amount of
+  progress-aware switching fixes it. This option was written from the clip
+  breakdown rather than from pixels.
+
+  Reproduce with `node build/header-ground.js <frames-dir>`.
+
+- **SPECIFIED APPROACH:** a persistent surface behind the header — a dark
+  tint of `--surface-dark` carrying the text, with `backdrop-filter: blur()`
+  over it for the glass read. **Unprefixed only**: Gecko does not support
+  `-webkit-backdrop-filter` (verified, Firefox 155).
+
+  Tint alpha sized by measurement, blur deliberately excluded from the model
+  because blur only reduces local extremes — a tint that passes without it
+  passes with it:
+
+  | tint alpha | worst frame | frames under 4.5:1 |
+  |---|---|---|
+  | 0.50 | 3.79:1 | 72 |
+  | 0.55 | 4.52:1 | 0 |
+  | **0.60** | **5.44:1** | **0** |
+
+  0.55 is the floor. **Ship 0.60** — 4.52:1 clears by 0.02, and bare-minimum
+  margins have twice proved fragile in this project.
+
+The white-out at clip 4 is not the special case this section originally
+assumed; 72% of the film fails without a surface.
 
 **Scroll locking.** When the menu opens, Lenis must be stopped
 (`lenis.stop()`) so the page cannot scroll behind the overlay — and critically,

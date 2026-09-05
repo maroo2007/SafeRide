@@ -1,0 +1,356 @@
+/*
+ * Sterling Gate kinetic navigation — SafeRide.
+ *
+ * INFERRED, NOT PORTED. The spec carries the component's TSX (§2.1) but not
+ * its CSS, so there is no reference geometry. Every value below is derived
+ * from the GSAP timeline in §2.1, which is now the only specification of the
+ * layout. Where the timeline does not constrain a value it is a house
+ * decision and says so.
+ *
+ * What the timeline forces:
+ *   .backdrop-layer   xPercent 101 -> 0        panels are the full width of
+ *                                              their parent and enter from the
+ *                                              right; the parent must clip.
+ *   .menu-content     xPercent 120 on close    the panel is right-anchored and
+ *                                              leaves by its OWN width, so its
+ *                                              width is the translation unit.
+ *   .nav-link         yPercent 140, rotate 10  the link starts 1.4x its own
+ *                                              height below its slot, so the
+ *                                              slot must clip it; the rotation
+ *                                              lifts corners by ~0.087 x width,
+ *                                              which the clip also has to hide.
+ *   button <p>        yPercent 0 -> -100       "Menu"/"Close" are stacked in a
+ *                                              one-line mask.
+ *
+ * §2.2 C: none of the component's own :root block is used. SafeRide tokens
+ * only. The structural variables it names do not exist here, so they are
+ * declared locally rather than globally.
+ */
+
+.root {
+  --nav-h: 72px;
+  --nav-panel-w: min(560px, 100vw);
+  --nav-ease: cubic-bezier(0.65, 0.01, 0.05, 0.99);
+}
+
+/* ---------- header ---------------------------------------------------- */
+
+.headerWrapper {
+  position: fixed;
+  inset: 0 0 auto 0;
+  /*
+   * ABOVE the overlay, not below it. §2.2 F requires the utilities to survive
+   * the menu-open state or animate out with it. At z-index 40 they did
+   * neither: the 560px panel lands exactly on top of them, so the Menu/Close
+   * button was invisible while open and Escape or a blind click on the
+   * backdrop were the only ways out. Photographed before this was raised.
+   */
+  z-index: 60;
+  pointer-events: none;
+}
+
+/*
+ * The surface. Measured, not chosen: across all 209 frames of the film, in
+ * the top 72px band at both target viewports, 151 frames have NO ink that
+ * clears 4.5:1 against the bare video. A dark tint at 0.55 alpha is the floor
+ * that clears every frame (4.52:1); 0.60 ships because 0.02 of margin has
+ * twice proved fragile here. See build/header-ground.js.
+ *
+ * backdrop-filter is UNPREFIXED only — Gecko has no -webkit- form (verified,
+ * Firefox 155) — and is a bonus on top of the tint, never the thing carrying
+ * the contrast. The tint alone is what was measured.
+ */
+.header {
+  height: var(--nav-h);
+  background: rgba(3, 3, 2, 0.6);
+  backdrop-filter: blur(14px) saturate(1.15);
+  border-bottom: 1px solid rgba(252, 251, 248, 0.14);
+  color: #fcfbf8;
+  pointer-events: auto;
+}
+
+.navRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 100%;
+  max-width: 1152px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.logoRow {
+  display: inline-flex;
+  align-items: center;
+  height: 40px;
+  border-radius: 6px;
+}
+.logoRow img {
+  height: 28px;
+  width: auto;
+  display: block;
+}
+
+.navRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Language toggle + Log In. §2.2 F. */
+.utility {
+  display: inline-flex;
+  align-items: center;
+  /* 44px min target, §2.5. */
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: #fcfbf8;
+  text-decoration: none;
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+.utility:hover {
+  background: rgba(252, 251, 248, 0.12);
+}
+.langToggle {
+  font-variant-numeric: tabular-nums;
+}
+.langSep {
+  opacity: 0.5;
+  margin: 0 6px;
+}
+.langActive {
+  font-weight: 700;
+}
+
+/* ---------- the Menu / Close button ----------------------------------- */
+
+.closeBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(252, 251, 248, 0.42);
+  background: transparent;
+  color: #fcfbf8;
+  cursor: pointer;
+}
+.closeBtn:hover {
+  background: rgba(252, 251, 248, 0.14);
+}
+
+/*
+ * The timeline moves the two <p> by yPercent -100 with a 0.2 stagger, so they
+ * are stacked and the wrapper is a one-line mask. Height is set from the line
+ * box, not guessed, so "Close" lands exactly where "Menu" was.
+ */
+.buttonText {
+  position: relative;
+  overflow: hidden;
+  height: 1.2em;
+  line-height: 1.2;
+  font-size: 1rem;
+  font-weight: 600;
+}
+.buttonText p {
+  margin: 0;
+  height: 1.2em;
+  line-height: 1.2;
+}
+
+.iconWrap {
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+}
+.menuButtonIcon {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+/* ---------- the overlay ----------------------------------------------- */
+
+.menuContainer {
+  position: relative;
+  z-index: 50;
+}
+
+.overlayWrapper {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(3, 3, 2, 0.72);
+}
+
+/*
+ * Right-anchored, because close animates xPercent 120 — a positive translation
+ * of the panel's own width. If it were left-anchored the panel would exit
+ * across the content instead of off the near edge.
+ */
+.menuContent {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: var(--nav-panel-w);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* The panels enter from xPercent 101, so this must clip them until they land. */
+.menuBg {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+/*
+ * Three layers, each the full width of .menuBg — xPercent 101 is relative to
+ * the element's own width, so anything narrower would not cover. Staggered
+ * 0.12s apart, so they need distinct tones or the stagger is invisible.
+ */
+.backdropLayer {
+  position: absolute;
+  inset: 0;
+  background: var(--surface-dark, #030302);
+}
+.backdropFirst {
+  background: var(--accent-edge-solid, #b9551a);
+}
+.backdropSecond {
+  background: #1c1a16;
+}
+
+/* ---------- ambient shapes -------------------------------------------- */
+
+.ambientShapes {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.bgShape {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  visibility: hidden;
+}
+.bgShape.active {
+  visibility: visible;
+}
+
+/* ---------- menu list -------------------------------------------------- */
+
+.contentWrapper {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 24px;
+  height: 100%;
+  padding: calc(var(--nav-h) + 24px) 40px 40px;
+  overflow-y: auto;      /* §2.5: six links plus utilities may overflow */
+}
+
+.menuList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/*
+ * The clip the timeline requires. The link starts at yPercent 140 — 1.4x its
+ * own height below the slot — and rotates in from 10deg, which lifts its
+ * corners by about 0.087 x width. Both have to be hidden, so the mask is the
+ * item and the link is what moves inside it.
+ */
+.menuListItem {
+  overflow: hidden;
+}
+
+.navLink {
+  display: block;
+  text-decoration: none;
+  color: #fcfbf8;
+  padding: 6px 0;
+  position: relative;
+}
+.navLinkText {
+  margin: 0;
+  /* §2.5: desktop sizing overflows a 375px viewport, so it scales down. */
+  font-size: clamp(1.75rem, 7vw, 3rem);
+  line-height: 1.1;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.navLink:focus-visible {
+  outline: 3px solid var(--accent-warm, #fae6b7);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+.navLinkHoverBg {
+  position: absolute;
+  inset: 0;
+  background: rgba(252, 251, 248, 0.06);
+  opacity: 0;
+  transition: opacity 200ms var(--nav-ease);
+  pointer-events: none;
+}
+.navLink:hover .navLinkHoverBg {
+  opacity: 1;
+}
+
+.menuFooter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* ---------- reduced motion (§2.4) -------------------------------------- */
+/* The menu opens and closes INSTANTLY. Not faster — none. The JS skips the
+   timeline entirely; this covers the CSS transitions. */
+@media (prefers-reduced-motion: reduce) {
+  .navLinkHoverBg,
+  .utility,
+  .closeBtn {
+    transition: none !important;
+  }
+}
+
+/* ---------- mobile (§2.5) ---------------------------------------------- */
+@media (max-width: 640px) {
+  .root {
+    --nav-panel-w: 100vw;
+  }
+  .contentWrapper {
+    padding: calc(var(--nav-h) + 16px) 20px 24px;
+  }
+  .utility {
+    padding: 0 10px;
+    font-size: 0.875rem;
+  }
+}
