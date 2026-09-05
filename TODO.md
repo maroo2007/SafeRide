@@ -460,3 +460,57 @@ with no compression and no CDN, so on a throttled connection the time is
 dominated by JavaScript, not by the 336 KB video. The spec's 405 ms figure
 needs `next build && next start` to confirm or refute. Until then it is
 UNVERIFIED.
+
+---
+
+## The 405ms claim does not hold. Measured against a production build.
+
+`next build && next start` on :3100, Chrome, cache disabled, Fast 3G emulated
+at the 204 KB/s / 562ms RTT profile this project measured.
+
+### Full page, cold load
+
+| | production |
+|---|---|
+| hero markup present | 2313 ms |
+| **IDLE first decoded frame** | **5534 ms** |
+| SCRUB first decoded frame | 7706 ms |
+| unthrottled, idle first frame | 1371 ms |
+
+### Each file fetched ALONE, nothing competing
+
+| file | first decoded frame |
+|---|---|
+| `saferide-hero-idle.mp4` (336 KB) | **822 ms** |
+| `saferide-hero-scrub.webm` | 2085 ms |
+| `saferide-hero-scrub.mp4` | 1263 ms |
+
+### Verdict
+
+**405 ms was never achievable and the arithmetic says so.** At 204 KB/s,
+405 ms buys about 83 KB of transfer. The idle file is 336 KB. Even fetched
+alone with nothing else on the wire it needs 822 ms — and that is already
+faster than a full transfer because `readyState 2` arrives after 0.22 s of
+buffered video, not the whole file.
+
+**The split is still worth keeping, but for a smaller reason than the spec
+gave.** Head to head, the idle file shows film **1263 ms** sooner than the
+webm scrub (which is what Chrome selects) and 441 ms sooner than the mp4. In
+the real page the gap measures 2172 ms, though part of that is our own design
+withholding the scrub's sources until the idle paints.
+
+So: roughly **one to two seconds** sooner to first frame, not an order of
+magnitude. Worth the 336 KB. The "405 ms instead of 15 stalls" framing should
+not be repeated.
+
+### Dev overlay — absent in production, confirmed
+
+| | production (:3100) | dev (:3000) |
+|---|---|---|
+| dev overlay elements | `[]` | `nextjs-portal` |
+| react-refresh / HMR scripts | none | none in DOM |
+| custom elements | `next-route-announcer` only | `nextjs-portal`, `next-route-announcer` |
+
+`next-route-announcer` is the visually-hidden accessibility live region, not
+the overlay. This closes the cyan/green line question with evidence: those
+lines were the dev overlay's, and it does not exist in a production build.

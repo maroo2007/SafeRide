@@ -6,7 +6,7 @@
  */
 const { spawn } = require("child_process"); const fs=require("fs"); const path=require("path"); const http=require("http");
 const CHROME="C:/Program Files/Google/Chrome/Application/chrome.exe";
-const P=process.argv[2], OUT=process.argv[3], THROTTLE=process.argv[4]==="slow", PORT=9641;
+const P=process.argv[2], OUT=process.argv[3], THROTTLE=process.argv[4]==="slow", URL=process.argv[5]||"http://localhost:3000/", PORT=9641;
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const get=u=>new Promise((res,rej)=>http.get(u,r=>{let d="";r.on("data",c=>d+=c);r.on("end",()=>res(JSON.parse(d)))}).on("error",rej));
 (async()=>{
@@ -33,7 +33,7 @@ const get=u=>new Promise((res,rej)=>http.get(u,r=>{let d="";r.on("data",c=>d+=c)
       downloadThroughput:204*1024,uploadThroughput:84*1024,connectionType:"cellular3g"});
   }
   const t0=Date.now();
-  await send("Page.navigate",{url:"http://localhost:3000/"});
+  await send("Page.navigate",{url:URL});
   // Poll until the IDLE video has actually decoded a frame.
   let ttff=null;
   for(let i=0;i<600 && ttff===null;i++){
