@@ -149,7 +149,12 @@ variant and changes no decision. One apparent outlier in run 1 (H.264 `-g 3`
 max 325ms) did not reproduce in run 2 (max 26ms) and was a cold-start artifact.
 
 ### Network
-- Idle loop on Fast 3G: first frame 405ms, playing 565ms, buffered 1.88s.
+- **Idle loop first decoded frame, Chrome, Fast 3G (204 KB/s, 562ms RTT):**
+  405ms fetched alone on a warm connection; 822ms alone cold with cache
+  disabled; 5534ms as part of a full cold production page load. For
+  comparison, cold and alone: `saferide-hero-scrub.webm` 2085ms,
+  `saferide-hero-scrub.mp4` 1263ms. The split is justified by the idle
+  showing film 1263ms sooner than the webm source Chrome selects.
 - **Scrub time-to-fully-buffered on Regular 4G: VP9 109.8s, H.264 `-g 3` 119.6s.**
 
 110s is above the 90s threshold at which CLAMPED mode was said to need to feel
@@ -444,7 +449,7 @@ by breaking it.
 3. **Safari and Firefox remain UNVERIFIED** (entry 4 above). All scrub
    measurements in this project are Chrome/Blink only.
 
-### Idle-loop handoff — built, but the 405ms claim is still unverified
+### Idle-loop handoff — built; timings verified against a production build
 
 The handoff works (spec 1.4.1-2): the idle file plays immediately, the scrub
 file's sources are withheld until the idle has painted, and the first scroll
@@ -462,13 +467,12 @@ The ordering is right — the idle wins the race, which is the entire point of
 withholding the scrub's sources. But **8984 ms is not the production number
 and must not be quoted as one.** A Next dev server sends unminified bundles
 with no compression and no CDN, so on a throttled connection the time is
-dominated by JavaScript, not by the 336 KB video. The spec's 405 ms figure
-needs `next build && next start` to confirm or refute. Until then it is
-UNVERIFIED.
+dominated by JavaScript, not by the 336 KB video. Superseded by the
+production measurements below.
 
 ---
 
-## The 405ms claim does not hold. Measured against a production build.
+## Idle-loop timings, measured against a production build
 
 `next build && next start` on :3100, Chrome, cache disabled, Fast 3G emulated
 at the 204 KB/s / 562ms RTT profile this project measured.
@@ -492,17 +496,17 @@ at the 204 KB/s / 562ms RTT profile this project measured.
 
 ### Verdict
 
-**CORRECTION to an earlier claim in this file.** I first wrote that 405 ms was
-"arithmetically impossible" because 405 ms buys ~83 KB at 204 KB/s while the
-file is 336 KB. That reasoning is wrong, and I am retracting it: `readyState 2`
-needs only the first frames, measured here as 0.22 s of buffered video, so a
-first frame from ~80 KB is entirely plausible.
+**Warm versus cold connection is the explanation, not an error in either
+number.** 405ms was the file fetched alone over an already-open connection
+(`build/serve-throttled.js`). 822ms is the same file alone through the
+production build with the cache explicitly disabled, so it pays a fresh
+connection. Under a 562ms RTT a cold fetch cannot return a first frame in
+405ms; a warm one can.
 
-The two numbers are not in conflict — they measure different things. 405 ms
-came from `build/serve-throttled.js` timing the video fetch on an already-open
-connection. 822 ms is the same file through the production build with the
-cache explicitly disabled, so it pays a cold connection. Under a 562 ms RTT a
-cold fetch cannot return a first frame in 405 ms; a warm one can.
+An earlier revision of this entry called 405ms "arithmetically impossible"
+because it buys ~83 KB against a 336 KB file. That reasoning was wrong and is
+withdrawn: `readyState 2` needs only the first frames — 0.22s of buffered
+video here — so a first frame from ~80 KB is plausible.
 
 **What actually matters is neither.** A real visitor pays the full cold page
 load: **5534 ms** to first idle frame in production on Fast 3G. That is the
@@ -515,8 +519,9 @@ the real page the gap measures 2172 ms, though part of that is our own design
 withholding the scrub's sources until the idle paints.
 
 So: roughly **one to two seconds** sooner to first frame, not an order of
-magnitude. Worth the 336 KB. The "405 ms instead of 15 stalls" framing should
-not be repeated.
+magnitude. Worth the 336 KB. Quote the condition with the number: the split
+buys 1263 ms against the webm source, and a first-time visitor waits 5534 ms
+for film on Fast 3G.
 
 ### Dev overlay — absent in production, confirmed
 
@@ -555,3 +560,61 @@ artefacts of the iframe never scrolling: `w.scrollTo` alone had no effect, so
 `scrollingElement.scrollTop` fixed it. A check that cannot distinguish "passed"
 from "never ran" is not a check — the harness now records scrollY alongside
 every reading.
+
+---
+
+## Navbar ground change: §2.3's preferred option cannot work. Measured.
+
+Spec 2.3 offers scroll-progress-aware colour inversion as **preferred**, with a
+blurred surface as the simpler fallback. Measured across all 209 frames of the
+film at 4 fps, worst pixel in the top 72px band, both target viewports:
+
+**151 of 209 frames have NO ink that clears 4.5:1.** Not dark, not light.
+
+| progress | dark ink | paper ink | best available |
+|---|---|---|---|
+| 0.000 | 4.41 | 2.55 | 4.41 |
+| 0.115 | 1.05 | 1.22 | 1.22 |
+| 0.363 | 1.00 | 1.06 | 1.06 |
+| 0.574 | 1.00 | 1.05 | 1.05 |
+| 0.784 | 1.00 | 1.39 | 1.39 |
+
+The reason is structural, not incidental: a full-width band across the top of
+the frame crosses bright and dark regions **simultaneously** in most frames —
+dark studio ceiling beside a lit bus roof, dark map beside a glowing node. A
+single ink cannot serve both ends of the same band, so there is nothing to
+invert *to*. The best merged run in the whole film bottoms out at 3.00:1.
+
+The spec warns "do not ship a header that becomes unreadable during the
+white-out at clip 4". The white-out is not the problem; 72% of the film is.
+
+### The surface, sized by measurement
+
+A dark tint of `--surface-dark` under paper ink, blur deliberately NOT modelled
+because blur only reduces local extremes — a tint that passes without it passes
+with it:
+
+| tint alpha | worst frame | frames under 4.5 |
+|---|---|---|
+| 0.30 | 2.03:1 | 173 |
+| 0.50 | 3.79:1 | 72 |
+| **0.55** | **4.52:1** | **0** |
+| 0.60 | 5.44:1 | 0 |
+| 0.70 | 8.01:1 | 0 |
+
+**0.55 is the floor; shipping 0.60.** 4.52:1 clears by 0.02, and bare-minimum
+margins have already bitten twice in this project. `backdrop-filter: blur()`
+goes on top of the tint for the glass read, unprefixed only — Gecko does not
+support `-webkit-backdrop-filter`.
+
+### Also: the component's CSS block is not in the spec
+
+§2.1's TSX is complete and its fence closes at line 635. But §2.2 C says "the
+component's CSS block ships with `--color-primary: #6366f1`" and instructs me
+not to paste it — and **that block does not appear anywhere in the file.** No
+`<style>`, no CSS, no styling for any of the ~25 classes the component depends
+on. §2.2 C's instruction (map their variables onto SafeRide tokens) makes
+writing it ourselves the intended end state anyway, but the structural geometry
+— panel reveal, overlay layering, link-mask sizing — is being inferred from the
+class names and the GSAP code, not copied. Flagged so it is not mistaken for a
+faithful port.

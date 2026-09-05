@@ -158,7 +158,10 @@ fastest-seeking one, so the untested risk costs nothing. See `TODO.md`.
 Measured against a server-side token-bucket throttle (verified 94–99% accurate,
 byte-integrity checked).
 
-- **Idle loop, Fast 3G (200 KB/s):** first frame 405ms, playing 565ms, buffered 1.88s.
+- **Idle loop first frame, Fast 3G (204 KB/s, 562ms RTT):** 405ms alone on a
+  warm connection, 822ms alone cold, 5534ms in a full cold production page
+  load. Cold and alone the scrub sources are 2085ms (webm) and 1263ms (mp4),
+  so the split buys 1263ms against the source Chrome selects.
   The loop is a separate 336 KB file — reading it from the 53 MB scrub file instead
   gives 15 stalls and 11.1s to buffer. Sizing is deliberate: ≤400 KB is the threshold
   for the download to complete within one 2s playthrough at 200 KB/s.

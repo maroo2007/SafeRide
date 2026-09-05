@@ -215,6 +215,27 @@ will stutter.
    `IDLE_LOOP_END` (2.0s). Implement with a `timeupdate` listener that
    resets `currentTime` to 0 when it passes `IDLE_LOOP_END`.
 
+   > **AS BUILT.** A dedicated 336 KB `saferide-hero-idle.mp4` holding the
+   > first two seconds is used instead, so it loops natively and no
+   > `timeupdate` listener is needed. Its `<source>` elements for the scrub
+   > file are withheld until the idle has painted, or the two race for
+   > bandwidth and the small file loses.
+   >
+   > Measured, Chrome, Fast 3G at 204 KB/s and 562 ms RTT:
+   >
+   > | condition | first decoded frame |
+   > |---|---|
+   > | idle file alone, warm connection (`build/serve-throttled.js`) | 405 ms |
+   > | idle file alone, cold, cache disabled | 822 ms |
+   > | `saferide-hero-scrub.webm` alone, cold | 2085 ms |
+   > | `saferide-hero-scrub.mp4` alone, cold | 1263 ms |
+   > | idle frame in a full cold production page load | 5534 ms |
+   >
+   > The split is justified by the third and first rows: the idle shows film
+   > 1263 ms sooner than the webm source Chrome selects. The 405 ms figure is
+   > a warm-connection measurement of the file alone and is not what a
+   > first-time visitor experiences.
+
 2. **On first scroll input** (wheel, touchmove, or any ScrollTrigger
    progress > 0): pause the idle loop, remove the `timeupdate` handler,
    and hand control to ScrollTrigger.
