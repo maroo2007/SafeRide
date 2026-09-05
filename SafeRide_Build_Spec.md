@@ -323,7 +323,14 @@ The navigation is the **Sterling Gate kinetic navigation** component from
 staggered link entrances, and ambient hover shapes.
 
 **This same component serves both desktop and mobile.** It is an overlay
-menu by design — there is no separate hamburger implementation needed.
+menu by design.
+
+> **STRUCTURE CHANGE, 2026-09-05, on instruction — this section is written
+> around a fixed header bar that no longer exists.** There is no header. The
+> logo and the Menu/Close text button went with it. The trigger is a floating
+> hamburger, fixed in the top-right above everything; the language toggle and
+> Log In moved inside the overlay panel. Read §2.2 E/F and §2.3's z-index and
+> legibility notes with that in mind — each is annotated below.
 
 ### 2.1 Component Source
 
@@ -687,28 +694,46 @@ already exist.
 "click me". Either remove it entirely or replace it with something purposeful
 for SafeRide. It is a demo artifact.
 
-**E. Add the logo.** `.nav-logo-row` is currently an empty anchor. Put the
-SafeRide logo in it, linked to `#top`.
+**E. ~~Add the logo.~~ DROPPED with the header.** `.nav-logo-row` was an empty
+anchor in a header bar; there is no header bar, so there is nowhere for it to
+sit. The site currently carries no mark above the fold. Open question, not a
+decision: the asset is a square 159x159 mark with no wordmark.
 
-**F. Add the right-side utilities.** The header needs, alongside the Menu
-button:
+**F. Add the utilities.** ~~The header needs, alongside the Menu button:~~
+**They live in the overlay panel now**, below the six links:
 - A language toggle (EN / العربية) — the site is bilingual
 - A "Log In" link → `https://safe-ridee.vercel.app/login`
 
-Both must survive the menu-open state or animate out with it — decide which
-and be consistent.
+~~Both must survive the menu-open state or animate out with it.~~ Settled by
+the move: they are inside the panel, so they arrive and leave with it. They
+are unreachable while the menu is shut, which is the trade the floating
+trigger buys.
+
+**G. Replace the trigger.** The reference's `.nav-toggle-label` /
+`.nav-close-btn` pair is replaced by a floating hamburger (Uiverse, by
+JulanDeAlb): two SVG paths morphing to an X through `stroke-dasharray` and a
+-45deg rotation. Three things do not port as written:
+
+- Its state comes from a `<label>` wrapping a hidden checkbox. That has no
+  role, no `aria-expanded` and no accessible name, and it duplicates state
+  React already owns. Ship a real `<button>` carrying `data-open`, and let
+  the CSS key off that — one source of truth.
+- `stroke: white` is hardcoded. See §2.3.
+- 600ms is long for a control reporting its own state. It runs on
+  `--dur-state` (260ms), which also takes it to 0ms under reduced motion.
 
 ### 2.3 Integration With the Scrub Video
 
 This is the part the component does not handle out of the box.
 
-**Z-index:** the header must sit above the sticky video hero. The full-screen
-menu overlay must sit above everything including the header.
+**Z-index:** ~~the header~~ **the trigger** must sit above the sticky video
+hero, and above the overlay too — it is also the close control. Shipped:
+trigger 70, overlay 50.
 
 **Legibility over the video.** The video passes through radically different
 frames — dark studio, solid orange, pure white-out, flat map, dark ink
-wordmark. A fixed-color header will become invisible at several points.
-Implement one of these, and verify at multiple scroll positions:
+wordmark. A fixed-color ~~header~~ **mark** will become invisible at several
+points. Implement one of these, and verify at multiple scroll positions:
 
 - ~~**Preferred:** a scroll-progress-aware color inversion.~~ **MEASURED AND
   REJECTED — do not re-propose this.** Sampled across all 209 frames of the
@@ -725,12 +750,17 @@ Implement one of these, and verify at multiple scroll positions:
   progress-aware switching fixes it. This option was written from the clip
   breakdown rather than from pixels.
 
-  Reproduce with `node build/header-ground.js <frames-dir>`.
+  Reproduce with `node build/header-ground.js <frames-dir>`, and the
+  button-scoped version with `node build/hamburger-ground.js <frames-dir>`.
 
-- **SPECIFIED APPROACH:** a persistent surface behind the header — a dark
-  tint of `--surface-dark` carrying the text, with `backdrop-filter: blur()`
-  over it for the glass read. **Unprefixed only**: Gecko does not support
-  `-webkit-backdrop-filter` (verified, Firefox 155).
+- **SPECIFIED APPROACH, SUPERSEDED BY THE STRUCTURE CHANGE:** a persistent
+  surface behind the header — a dark tint of `--surface-dark` carrying the
+  text, with `backdrop-filter: blur()` over it for the glass read.
+  **Unprefixed only**: Gecko does not support `-webkit-backdrop-filter`
+  (verified, Firefox 155).
+
+  This shipped, briefly, and the numbers below are sound. It is recorded
+  rather than deleted because it is the reference point for what replaced it.
 
   Tint alpha sized by measurement, blur deliberately excluded from the model
   because blur only reduces local extremes — a tint that passes without it
@@ -747,6 +777,47 @@ Implement one of these, and verify at multiple scroll positions:
 
 The white-out at clip 4 is not the special case this section originally
 assumed; 72% of the film fails without a surface.
+
+- **SHIPPED: a collar on the stroke, and no surface at all.** With the header
+  gone there is no band to tint — only a 48px square in one corner. Re-measured
+  scoped to that square (`node build/hamburger-ground.js <frames-dir>`, 209
+  frames, worst pixel anywhere in the button's box, at 1440x900 / 1920x1080 /
+  390x844):
+
+  | | full-width 72px band | 48px corner |
+  |---|---|---|
+  | frames where NEITHER ink clears 3:1 | 151 / 209 | **58 / 209** |
+  | bare white stroke, worst frame | — | **1.00:1** |
+  | bare white stroke, frames under 3:1 | — | **146 / 209** |
+
+  The corner is far easier than the band and still nowhere near safe. A 48px
+  tint plate would work (0.45 alpha clears 3:1 on every frame) but that is a
+  header by another name, and it has to be large enough to cover wherever the
+  stroke sweeps as the icon rotates.
+
+  What ships instead is a **collar**: the same two paths painted underneath at
+  `stroke-width: 7` against the ink's `3`, in `rgba(3,3,2,.62)`. It cannot
+  miss, because it travels with the ink. The colour immediately adjacent to
+  the white is then known, and the film reaches it only through 38%
+  transmission.
+
+  | ground | modelled | as painted (`build/shoot-hamburger.js`) |
+  |---|---|---|
+  | worst frame of the film | 5.86:1 | 5.96:1 |
+  | white-out | — | 6.01:1 |
+  | `--paper`, the sections below the hero | 6.05:1 | 5.91:1 |
+  | over the open panel | 19.94:1 | 19.51:1 |
+  | half way through the morph | — | 12.31:1 |
+
+  0 frames under 4.5:1, so this clears the text threshold and not merely
+  1.4.11's 3:1.
+
+  **The sections below the hero are the case the film measurement cannot
+  see.** The trigger is fixed and always visible, so it also floats over
+  `--paper`, where a bare white stroke is **1.02:1**. The collar is what makes
+  the mark work there, and the focus ring carries the same collar for the same
+  reason — `--ring` resolves to `--accent-warm`, which is about 1.2:1 on
+  paper on its own.
 
 **Scroll locking.** When the menu opens, Lenis must be stopped
 (`lenis.stop()`) so the page cannot scroll behind the overlay — and critically,

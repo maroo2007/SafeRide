@@ -565,6 +565,13 @@ every reading.
 
 ## Navbar ground change: §2.3's preferred option cannot work. Measured.
 
+> **SUPERSEDED IN PART, same day.** The header bar this section sizes a tint
+> for was removed on instruction; there is no header and no 0.60 surface in
+> the shipped page. The colour-inversion finding below still stands and is why
+> inversion must not be re-proposed. The tint table is now the reference point
+> for what replaced it, not a description of what ships — see **The header is
+> gone** below.
+
 Spec 2.3 offers scroll-progress-aware colour inversion as **preferred**, with a
 blurred surface as the simpler fallback. Measured across all 209 frames of the
 film at 4 fps, worst pixel in the top 72px band, both target viewports:
@@ -602,7 +609,7 @@ with it:
 | 0.60 | 5.44:1 | 0 |
 | 0.70 | 8.01:1 | 0 |
 
-**0.55 is the floor; shipping 0.60.** 4.52:1 clears by 0.02, and bare-minimum
+**0.55 was the floor; 0.60 shipped for about an hour.** 4.52:1 clears by 0.02, and bare-minimum
 margins have already bitten twice in this project. `backdrop-filter: blur()`
 goes on top of the tint for the glass read, unprefixed only — Gecko does not
 support `-webkit-backdrop-filter`.
@@ -618,3 +625,113 @@ writing it ourselves the intended end state anyway, but the structural geometry
 — panel reveal, overlay layering, link-mask sizing — is being inferred from the
 class names and the GSAP code, not copied. Flagged so it is not mistaken for a
 faithful port.
+
+
+---
+
+## The header is gone; the trigger is a floating hamburger
+
+On instruction: no fixed bar, no logo, no Menu/Close text button. The language
+toggle and Log In moved inside the overlay panel. The trigger is the Uiverse
+hamburger (JulanDeAlb) — two SVG paths morphing to an X on `stroke-dasharray`
+plus a -45deg rotation — fixed top-right at 48px, above the overlay because it
+is also the close control.
+
+### The corner is easier than the band, and still not safe
+
+The prediction going in was that a 48px square crossing one region rather than
+the whole frame "should be far easier — you may find a small local tint or a
+soft shadow is enough, or nothing at all". Two of those three are right.
+
+Re-measured with `build/hamburger-ground.js`, 209 frames, worst pixel anywhere
+in the button's box, at 1440x900 / 1920x1080 / 390x844:
+
+| | full-width 72px band | 48px corner |
+|---|---|---|
+| frames where NEITHER ink clears 3:1 | 151 / 209 | **58 / 209** |
+| bare white stroke, worst frame | — | **1.00:1** |
+| bare white stroke, frames under 3:1 | — | **146 / 209** |
+
+So: much easier, and **nothing at all is not an option** — a bare white stroke
+misses WCAG 1.4.11's 3:1 on 70% of the film.
+
+### What ships: a collar, not a plate
+
+A 48px tint plate works (0.45 alpha clears 3:1 on every frame) but it is a
+header by another name, and it has to be big enough to cover wherever the
+stroke sweeps as the icon rotates. A collar — the same two paths painted
+underneath at `stroke-width: 7` against the ink's `3`, in `rgba(3,3,2,.62)` —
+**cannot miss, because it travels with the ink**, and it is the same idea as
+the soft shadow, made exact: the colour immediately adjacent to the white is
+known, and the film reaches it only through 38% transmission.
+
+| ground | modelled | as painted (`build/shoot-hamburger.js`) |
+|---|---|---|
+| worst frame of the film | 5.86:1 | 5.96:1 |
+| white-out | — | 6.01:1 |
+| `--paper`, the sections below the hero | 6.05:1 | 5.91:1 |
+| over the open panel | 19.94:1 | 19.51:1 |
+| half way through the morph | — | 12.31:1 |
+
+Model and paint agree within 0.15 across five grounds. 0 frames under 4.5:1, so
+this clears the text threshold, not merely 1.4.11's 3:1.
+
+### The case the film measurement could not see
+
+The trigger is fixed and always visible, so it also floats over the content
+sections below the hero, where the ground is `--paper` and a bare white stroke
+is **1.02:1**. No amount of measuring the film would have found that. The
+collar covers it (5.91:1 as painted), and the focus ring carries the same
+collar for the same reason — `--ring` resolves to `--accent-warm`, which is
+about 1.2:1 on paper on its own.
+
+### Placement
+
+48px at a 20px inset (14px under 640px). Checked by geometry at 11 scroll
+positions at both 1440x900 and 390x844: no intersection with the headline, the
+eyebrow, or either CTA at any of them; nearest approach 662px on desktop and
+182px on mobile. The hero copy is left-aligned and vertically centred, so the
+top-right corner is empty at every scroll position.
+
+### Timing
+
+600ms went to `--dur-state` (260ms). That is the project's token for a control
+reporting its own state, and it is also why the morph needs no reduced-motion
+rule of its own: globals.css zeroes every `--dur-*` under
+`prefers-reduced-motion`. Confirmed in-browser — five transitions, all 260ms,
+and `transition-duration: 1e-05s` under emulated reduced motion.
+
+The icon now finishes well before the panel (GSAP defaults to 0.7s). That is
+deliberate: the button reports its own state immediately and the panel arrives
+after. If it reads as a desync, the fix is a longer icon morph, not a shorter
+panel.
+
+---
+
+## Open: the scroll lock does not cover reduced-motion visitors
+
+§2.3's scroll lock is `lenis.stop()`, and it is verified working — trusted
+CDP wheel input moves the page 0px with the menu open and 1200px with it
+closed, at both 1440x900 and 390x844.
+
+But `getLenis()` returns `null` under `prefers-reduced-motion`, by design
+(spec 12: reduced motion means no smooth scroll at all). So for those visitors
+`stopScroll()` is a no-op and **the page scrolls behind the open overlay**.
+
+Not shipped as a fix because every option has a cost the brief did not ask me
+to spend:
+
+- `overflow: hidden` on `<html>` removes the scrollbar, which widens the page
+  by its width and shifts content behind a 72%-opaque overlay.
+- The same plus a `padding-right` compensation fixes flow content but not
+  fixed-position elements, which reposition against the wider viewport.
+- `scrollbar-gutter: stable` site-wide removes the shift entirely and is
+  probably the right long-term answer, but it reserves the gutter on every
+  page at every time, which is a visual decision beyond this change.
+
+The video does not scrub under reduced motion (the hero shows a still), so the
+consequence is a modal that can be scrolled behind, not a broken hero.
+
+**Recommendation:** `scrollbar-gutter: stable` on `<html>` plus
+`overflow: hidden` while any modal is open, added to `stopScroll`/`startScroll`
+so future modals inherit it. Wants a yes before it goes in.

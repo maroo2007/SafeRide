@@ -1,11 +1,15 @@
 /*
  * Sterling Gate kinetic navigation — SafeRide.
  *
+ * STRUCTURAL DEVIATION FROM THE SPEC, ON INSTRUCTION. §2.2 E and F put a logo
+ * and the utilities in a fixed header bar. There is no header bar any more:
+ * the trigger is a floating hamburger and the utilities live inside the panel.
+ * §2.2 E (the logo) therefore has nothing to attach to and is dropped; §2.2 F
+ * is satisfied inside the overlay instead of beside it.
+ *
  * INFERRED, NOT PORTED. The spec carries the component's TSX (§2.1) but not
- * its CSS, so there is no reference geometry. Every value below is derived
- * from the GSAP timeline in §2.1, which is now the only specification of the
- * layout. Where the timeline does not constrain a value it is a house
- * decision and says so.
+ * its CSS, so the overlay geometry below is derived from the GSAP timeline in
+ * §2.1, which is the only specification of the layout.
  *
  * What the timeline forces:
  *   .backdrop-layer   xPercent 101 -> 0        panels are the full width of
@@ -19,8 +23,6 @@
  *                                              slot must clip it; the rotation
  *                                              lifts corners by ~0.087 x width,
  *                                              which the clip also has to hide.
- *   button <p>        yPercent 0 -> -100       "Menu"/"Close" are stacked in a
- *                                              one-line mask.
  *
  * §2.2 C: none of the component's own :root block is used. SafeRide tokens
  * only. The structural variables it names do not exist here, so they are
@@ -28,153 +30,120 @@
  */
 
 .root {
-  --nav-h: 72px;
+  /* The button, and the space the panel has to leave for it. */
+  --nav-inset: 20px;
+  --nav-btn: 48px;
+  --nav-clear: calc(var(--nav-inset) * 2 + var(--nav-btn));
+
   --nav-panel-w: min(560px, 100vw);
   --nav-ease: cubic-bezier(0.65, 0.01, 0.05, 0.99);
-}
 
-/* ---------- header ---------------------------------------------------- */
-
-.headerWrapper {
-  position: fixed;
-  inset: 0 0 auto 0;
   /*
-   * ABOVE the overlay, not below it. §2.2 F requires the utilities to survive
-   * the menu-open state or animate out with it. At z-index 40 they did
-   * neither: the 560px panel lands exactly on top of them, so the Menu/Close
-   * button was invisible while open and Escape or a blind click on the
-   * backdrop were the only ways out. Photographed before this was raised.
+   * THE STROKE, AND WHY IT IS TWO STROKES.
+   *
+   * The reference hardcodes `stroke: white`. Measured against the film
+   * (build/hamburger-ground.js, 209 frames, worst pixel anywhere in the
+   * button's box, at 1440x900 / 1920x1080 / 390x844): a bare white stroke
+   * bottoms out at 1.00:1 and misses WCAG 1.4.11's 3:1 on 146 of 209 frames.
+   * Scoping to a 48px corner instead of a full-width band did help — frames
+   * where NEITHER ink works fall from 151/209 to 58/209 — but "helped" is not
+   * "solved".
+   *
+   * A 48px tint plate would work (0.45 alpha clears 3:1 on every frame) but
+   * that is a small header by another name, and it has to be big enough to
+   * cover wherever the stroke sweeps as the icon rotates.
+   *
+   * A collar cannot miss, because it travels with the ink: the same paths
+   * painted underneath, wider, in --surface-dark at 0.62. The colour
+   * immediately adjacent to the white is then known, and the film only reaches
+   * it through 38% transmission:
+   *
+   *     over the film       worst frame 5.86:1, 0 frames under 4.5:1
+   *     over --paper        6.05:1        (the content sections below the hero,
+   *     over --card         5.83:1         where a bare white stroke is 1.02:1)
+   *     over --surface-dark 19.94:1
    */
-  z-index: 60;
-  pointer-events: none;
+  --nav-ink: #fcfbf8;
+  --nav-collar: rgba(3, 3, 2, 0.62);
 }
 
-/*
- * The surface. Measured, not chosen: across all 209 frames of the film, in
- * the top 72px band at both target viewports, 151 frames have NO ink that
- * clears 4.5:1 against the bare video. A dark tint at 0.55 alpha is the floor
- * that clears every frame (4.52:1); 0.60 ships because 0.02 of margin has
- * twice proved fragile here. See build/header-ground.js.
- *
- * backdrop-filter is UNPREFIXED only — Gecko has no -webkit- form (verified,
- * Firefox 155) — and is a bonus on top of the tint, never the thing carrying
- * the contrast. The tint alone is what was measured.
- */
-.header {
-  height: var(--nav-h);
-  background: rgba(3, 3, 2, 0.6);
-  backdrop-filter: blur(14px) saturate(1.15);
-  border-bottom: 1px solid rgba(252, 251, 248, 0.14);
-  color: #fcfbf8;
-  pointer-events: auto;
-}
+/* ---------- the floating hamburger ------------------------------------ */
 
-.navRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  height: 100%;
-  max-width: 1152px;
-  margin: 0 auto;
-  padding: 0 24px;
-}
-
-.logoRow {
-  display: inline-flex;
-  align-items: center;
-  height: 40px;
-  border-radius: 6px;
-}
-.logoRow img {
-  height: 28px;
-  width: auto;
-  display: block;
-}
-
-.navRight {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-/* Language toggle + Log In. §2.2 F. */
-.utility {
-  display: inline-flex;
-  align-items: center;
-  /* 44px min target, §2.5. */
-  min-height: 44px;
-  padding: 0 12px;
-  border-radius: 8px;
-  font-size: 0.9375rem;
-  font-weight: 500;
-  color: #fcfbf8;
-  text-decoration: none;
-  background: transparent;
-  border: 1px solid transparent;
-  cursor: pointer;
-}
-.utility:hover {
-  background: rgba(252, 251, 248, 0.12);
-}
-.langToggle {
-  font-variant-numeric: tabular-nums;
-}
-.langSep {
-  opacity: 0.5;
-  margin: 0 6px;
-}
-.langActive {
-  font-weight: 700;
-}
-
-/* ---------- the Menu / Close button ----------------------------------- */
-
-.closeBtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 44px;
-  padding: 0 14px;
-  border-radius: 8px;
-  border: 1px solid rgba(252, 251, 248, 0.42);
-  background: transparent;
-  color: #fcfbf8;
-  cursor: pointer;
-}
-.closeBtn:hover {
-  background: rgba(252, 251, 248, 0.14);
-}
-
-/*
- * The timeline moves the two <p> by yPercent -100 with a 0.2 stagger, so they
- * are stacked and the wrapper is a one-line mask. Height is set from the line
- * box, not guessed, so "Close" lands exactly where "Menu" was.
- */
-.buttonText {
-  position: relative;
-  overflow: hidden;
-  height: 1.2em;
-  line-height: 1.2;
-  font-size: 1rem;
-  font-weight: 600;
-}
-.buttonText p {
-  margin: 0;
-  height: 1.2em;
-  line-height: 1.2;
-}
-
-.iconWrap {
-  width: 16px;
-  height: 16px;
+.hamburger {
+  position: fixed;
+  top: var(--nav-inset);
+  right: var(--nav-inset);
+  /* Above the overlay (50), because it is also the close control. */
+  z-index: 70;
+  /* §2.5: 44px minimum. 48 = the reference's 3em at a 16px root. */
+  width: var(--nav-btn);
+  height: var(--nav-btn);
   display: grid;
   place-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  /* The rotated icon reaches outside the axis-aligned box; that is ink, not
+     layout, and the collar goes with it. */
+  overflow: visible;
+  -webkit-tap-highlight-color: transparent;
 }
-.menuButtonIcon {
-  width: 16px;
-  height: 16px;
-  display: block;
+
+/*
+ * A focus ring has the same problem the stroke had, and gets the same answer.
+ * --ring resolves to --accent-warm on this dark-scoped root; #fae6b7 on the
+ * light sections below the hero is about 1.2:1 on its own, so the ring carries
+ * its own dark collar and is legible on any ground.
+ */
+.hamburger:focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 8px;
+  box-shadow: 0 0 0 7px var(--nav-collar);
+}
+
+.icon {
+  width: var(--nav-btn);
+  height: var(--nav-btn);
+  overflow: visible;
+  /*
+   * The reference runs this at 600ms. --dur-state is 260ms: this is a control
+   * reporting its own state, and the project already has a token for that.
+   * It is also why no reduced-motion rule is needed here — globals.css sets
+   * every --dur-* to 0ms under prefers-reduced-motion, so the morph becomes a
+   * flip rather than a faster morph.
+   */
+  transition: transform var(--dur-state) var(--ease-out);
+}
+
+.line {
+  fill: none;
+  stroke: var(--nav-ink);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3;
+  transition:
+    stroke-dasharray var(--dur-state) var(--ease-out),
+    stroke-dashoffset var(--dur-state) var(--ease-out);
+}
+
+/* The collar: same geometry, same timing, painted under and wider. */
+.collar {
+  stroke: var(--nav-collar);
+  stroke-width: 7;
+}
+
+.lineTopBottom {
+  stroke-dasharray: 12 63;
+}
+
+.hamburger[data-open="true"] .icon {
+  transform: rotate(-45deg);
+}
+.hamburger[data-open="true"] .lineTopBottom {
+  stroke-dasharray: 20 300;
+  stroke-dashoffset: -32.42;
 }
 
 /* ---------- the overlay ----------------------------------------------- */
@@ -267,7 +236,8 @@
   justify-content: center;
   gap: 24px;
   height: 100%;
-  padding: calc(var(--nav-h) + 24px) 40px 40px;
+  /* Clears the floating button, which sits over this corner. */
+  padding: calc(var(--nav-clear) + 16px) 40px 40px;
   overflow-y: auto;      /* §2.5: six links plus utilities may overflow */
 }
 
@@ -293,7 +263,7 @@
 .navLink {
   display: block;
   text-decoration: none;
-  color: #fcfbf8;
+  color: var(--nav-ink);
   padding: 6px 0;
   position: relative;
 }
@@ -306,7 +276,7 @@
   letter-spacing: -0.01em;
 }
 .navLink:focus-visible {
-  outline: 3px solid var(--accent-warm, #fae6b7);
+  outline: 3px solid var(--ring);
   outline-offset: 4px;
   border-radius: 4px;
 }
@@ -315,12 +285,14 @@
   inset: 0;
   background: rgba(252, 251, 248, 0.06);
   opacity: 0;
-  transition: opacity 200ms var(--nav-ease);
+  transition: opacity var(--dur-state) var(--nav-ease);
   pointer-events: none;
 }
 .navLink:hover .navLinkHoverBg {
   opacity: 1;
 }
+
+/* ---------- utilities, now inside the panel (§2.2 F) ------------------- */
 
 .menuFooter {
   display: flex;
@@ -328,29 +300,59 @@
   align-items: center;
   gap: 8px;
   margin-top: 8px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(252, 251, 248, 0.16);
 }
 
-/* ---------- reduced motion (§2.4) -------------------------------------- */
-/* The menu opens and closes INSTANTLY. Not faster — none. The JS skips the
-   timeline entirely; this covers the CSS transitions. */
-@media (prefers-reduced-motion: reduce) {
-  .navLinkHoverBg,
-  .utility,
-  .closeBtn {
-    transition: none !important;
-  }
+.utility {
+  display: inline-flex;
+  align-items: center;
+  /* 44px min target, §2.5. */
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--nav-ink);
+  text-decoration: none;
+  background: transparent;
+  border: 1px solid rgba(252, 251, 248, 0.28);
+  cursor: pointer;
 }
+.utility:hover {
+  background: rgba(252, 251, 248, 0.12);
+}
+.utility:focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: 3px;
+}
+.langToggle {
+  font-variant-numeric: tabular-nums;
+}
+.langSep {
+  opacity: 0.5;
+  margin: 0 6px;
+}
+.langActive {
+  font-weight: 700;
+}
+
+/* ---------- reduced motion (§2.4) --------------------------------------
+   The menu opens and closes INSTANTLY. Not faster — none. The JS skips the
+   timeline entirely; globals.css zeroes every --dur-* token, which covers the
+   CSS transitions above, including the icon morph. */
 
 /* ---------- mobile (§2.5) ---------------------------------------------- */
 @media (max-width: 640px) {
   .root {
     --nav-panel-w: 100vw;
+    --nav-inset: 14px;
   }
   .contentWrapper {
-    padding: calc(var(--nav-h) + 16px) 20px 24px;
+    padding: calc(var(--nav-clear) + 12px) 20px 24px;
   }
   .utility {
-    padding: 0 10px;
-    font-size: 0.875rem;
+    padding: 0 12px;
+    font-size: 0.9375rem;
   }
 }

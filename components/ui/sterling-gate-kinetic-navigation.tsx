@@ -1,25 +1,31 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import Image from "next/image";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { gsap, registerGsap } from "@/lib/gsap";
+import { useSmoothScroll } from "@/components/providers/smooth-scroll-provider";
 import s from "./sterling-gate-kinetic-navigation.module.css";
 
 /**
  * Sterling Gate kinetic navigation, adapted for SafeRide (spec 2).
  *
- * Adaptations applied here (§2.2):
+ * STRUCTURE CHANGE, ON INSTRUCTION, AFTER THE FIRST PORT.
+ * There is no fixed header bar. The logo and the Menu/Close text button are
+ * gone with it; the trigger is a floating hamburger, and the utilities live
+ * inside the panel. That resolves §2.2 E (the logo anchor) by removing what it
+ * attached to, and moves §2.2 F inside the overlay.
+ *
+ * Adaptations still in force (§2.2):
  *   A  six links, not five, each with a matching ambient shape
  *   B  ambient shapes recoloured off indigo/violet/pink onto brand tones,
  *      alphas unchanged so they stay ambient
  *   C  none of the component's :root block — SafeRide tokens only
  *   D  the "click me" demo label is gone
- *   E  the empty logo anchor carries the wordmark, linked to #top
- *   F  language toggle and Log In on the right
+ *   E  dropped: there is no header for a logo to sit in
+ *   F  language toggle and Log In, now in the panel footer
  *
- * NOT yet done, deliberately, so the next step is visible: the §2.4
- * accessibility work beyond the trivial fixes — focus trap, dialog role,
- * focus return, reduced-motion instant open — and the §2.3 Lenis stop.
+ * §2.3: Lenis is stopped while the menu is open, so the film cannot scrub
+ * behind the overlay. §2.4 in full: dialog role, focus trap, focus return,
+ * visible rings, and instant open/close under reduced motion.
  *
  * The upstream component calls `gsap.registerPlugin(CustomEase)` at module
  * scope. It must not: spec 12 requires one registration, and a second one is
@@ -40,10 +46,30 @@ const LINKS: NavLink[] = [
 
 const LOGIN_HREF = "https://safe-ridee.vercel.app/login";
 
+/**
+ * The two paths, verbatim from the reference (Uiverse, JulanDeAlb). The morph
+ * is entirely stroke-dasharray on the first path plus a -45deg rotation of the
+ * whole icon, so the geometry must not be touched: the 12/63 and 20/300 dash
+ * pairs and the -32.42 offset are measured against THESE path lengths.
+ */
+const PATH_TOP_BOTTOM =
+  "M27 10 13 10C10.8 10 9 8.2 9 6 9 3.5 10.8 2 13 2 15.2 2 17 3.8 17 6L17 26C17 28.2 18.8 30 21 30 23.2 30 25 28.2 25 26 25 23.8 23.2 22 21 22L7 22";
+const PATH_MIDDLE = "M7 16 27 16";
+
+const FOCUSABLE =
+  'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 export function SterlingGateNavigation() {
   const containerRef = useRef<HTMLDivElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const wasOpen = useRef(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [lang, setLang] = useState<"en" | "ar">("en");
+
+  const { stop, start } = useSmoothScroll();
+
+  const close = useCallback(() => setIsMenuOpen(false), []);
 
   /* ---- one registration, counted ------------------------------------ */
   useEffect(() => {
@@ -103,13 +129,12 @@ export function SterlingGateNavigation() {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     const ctx = gsap.context(() => {
-      const wrap = root.querySelector<HTMLElement>(`.${s.overlayWrapper}`);
+      const wrap = wrapperRef.current;
       const menu = root.querySelector(`.${s.menuContent}`);
       const overlay = root.querySelector(`.${s.overlay}`);
       const panels = root.querySelectorAll(`.${s.backdropLayer}`);
       const links = root.querySelectorAll(`.${s.navLink}`);
-      const btnTexts = root.querySelectorAll(`.${s.buttonText} p`);
-      const icon = root.querySelector(`.${s.menuButtonIcon}`);
+      const fades = root.querySelectorAll("[data-menu-fade]");
 
       if (reduced) {
         // §2.4: instantly. No stagger, no entrance, no shape animation.
@@ -118,25 +143,25 @@ export function SterlingGateNavigation() {
         gsap.set(overlay, { autoAlpha: isMenuOpen ? 1 : 0 });
         gsap.set(panels, { xPercent: 0 });
         gsap.set(links, { yPercent: 0, rotate: 0 });
-        gsap.set(btnTexts, { yPercent: isMenuOpen ? -100 : 0 });
-        gsap.set(icon, { rotate: isMenuOpen ? 315 : 0 });
+        gsap.set(fades, { autoAlpha: 1, yPercent: 0 });
         return;
       }
 
       const tl = gsap.timeline();
       if (isMenuOpen) {
-        tl.set(wrap, { display: "block" })
-          .set(menu, { xPercent: 0 }, "<")
-          .fromTo(btnTexts, { yPercent: 0 }, { yPercent: -100, stagger: 0.2 })
-          .fromTo(icon, { rotate: 0 }, { rotate: 315 }, "<")
-          .fromTo(overlay, { autoAlpha: 0 }, { autoAlpha: 1 }, "<")
+        // gsap.set, NOT tl.set: the focus effect below runs in the same commit
+        // and cannot focus anything inside a display:none subtree. A timeline's
+        // frame 0 does not render until the next ticker tick; gsap.set applies
+        // now.
+        gsap.set(wrap, { display: "block" });
+        gsap.set(menu, { xPercent: 0 });
+        tl.fromTo(overlay, { autoAlpha: 0 }, { autoAlpha: 1 })
           .fromTo(panels, { xPercent: 101 }, { xPercent: 0, stagger: 0.12, duration: 0.575 }, "<")
-          .fromTo(links, { yPercent: 140, rotate: 10 }, { yPercent: 0, rotate: 0, stagger: 0.05 }, "<+=0.35");
+          .fromTo(links, { yPercent: 140, rotate: 10 }, { yPercent: 0, rotate: 0, stagger: 0.05 }, "<+=0.35")
+          .fromTo(fades, { autoAlpha: 0, yPercent: 50 }, { autoAlpha: 1, yPercent: 0, stagger: 0.04, clearProps: "all" }, "<+=0.2");
       } else {
         tl.to(overlay, { autoAlpha: 0 })
           .to(menu, { xPercent: 120 }, "<")
-          .to(btnTexts, { yPercent: 0 }, "<")
-          .to(icon, { rotate: 0 }, "<")
           .set(wrap, { display: "none" });
       }
     }, containerRef);
@@ -144,75 +169,117 @@ export function SterlingGateNavigation() {
     return () => ctx.revert();
   }, [isMenuOpen]);
 
+  /* ---- §2.3 scroll lock ---------------------------------------------- */
+  useEffect(() => {
+    if (!isMenuOpen) return;
+    stop();
+    return () => start();
+  }, [isMenuOpen, stop, start]);
+
+  /* ---- §2.4 focus trap ------------------------------------------------ */
+  useEffect(() => {
+    if (!isMenuOpen) return;
+    const wrap = wrapperRef.current;
+    const toggle = toggleRef.current;
+    if (!wrap || !toggle) return;
+
+    // The toggle is the close control and sits outside the panel in the DOM,
+    // so it belongs to the cycle: trapping strictly inside the panel would put
+    // the only visible close button out of Tab's reach. It goes last, so Tab
+    // from the final link reaches it and then wraps to the first link.
+    // Filtered on visibility, not on offsetParent: the footer arrives on an
+    // autoAlpha tween, so for the first fraction of a second it is
+    // visibility:hidden — which the browser already skips in sequential focus.
+    // A trap that hands focus to it would make Tab look dead. offsetParent is
+    // the usual idiom and is unusable here: jsdom has no layout, so it is null
+    // for everything and the filter would empty the cycle in tests.
+    const cycle = () => [
+      ...wrap.querySelectorAll<HTMLElement>(FOCUSABLE),
+      toggle,
+    ].filter((el) => getComputedStyle(el).visibility !== "hidden");
+
+    cycle()[0]?.focus();
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Tab") return;
+      const list = cycle();
+      if (list.length === 0) return;
+      const here = list.indexOf(document.activeElement as HTMLElement);
+      const next = e.shiftKey
+        ? here <= 0 ? list.length - 1 : here - 1
+        : here === -1 || here === list.length - 1 ? 0 : here + 1;
+      e.preventDefault();
+      list[next].focus();
+    };
+
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [isMenuOpen]);
+
+  /* ---- §2.4 focus returns to the toggle on close ---------------------- */
+  useEffect(() => {
+    if (wasOpen.current && !isMenuOpen) toggleRef.current?.focus();
+    wasOpen.current = isMenuOpen;
+  }, [isMenuOpen]);
+
   /* ---- Escape --------------------------------------------------------- */
   useEffect(() => {
     if (!isMenuOpen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setIsMenuOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [isMenuOpen]);
+  }, [isMenuOpen, close]);
 
   const shapeFill = (a: number) => `rgba(251,138,0,${a})`;
   const shapeAlt = (a: number) => `rgba(185,85,26,${a})`;
   const shapeWarm = (a: number) => `rgba(197,191,171,${a})`;
 
   return (
-    <div ref={containerRef} className={s.root}>
-      <div className={s.headerWrapper}>
-        <header className={s.header}>
-          <nav className={s.navRow} aria-label="Primary">
-            {/* §2.2 E — was an empty anchor. */}
-            <a href="#top" aria-label="SafeRide home" className={s.logoRow}>
-              {/* The asset is a square 159x159 MARK, not a wordmark. Declaring 140x28
-                  gave next/image a 5:1 intrinsic aspect for a 1:1 file. */}
-              <Image src="/images/saferide-logo.png" alt="SafeRide" width={159} height={159} priority />
-            </a>
-
-            <div className={s.navRight}>
-              {/* §2.2 F */}
-              <button
-                type="button"
-                className={`${s.utility} ${s.langToggle}`}
-                onClick={() => setLang((l) => (l === "en" ? "ar" : "en"))}
-                aria-label={lang === "en" ? "Switch to Arabic" : "التبديل إلى الإنجليزية"}
-              >
-                <span className={lang === "en" ? s.langActive : undefined}>EN</span>
-                <span className={s.langSep} aria-hidden="true">/</span>
-                <span className={lang === "ar" ? s.langActive : undefined} lang="ar">العربية</span>
-              </button>
-
-              <a className={s.utility} href={LOGIN_HREF}>Log In</a>
-
-              {/* §2.2 D: the "click me" label is gone. §2.4: role="button" on a
-                  <button> was redundant and is removed. */}
-              <button
-                type="button"
-                className={s.closeBtn}
-                onClick={() => setIsMenuOpen((v) => !v)}
-                aria-expanded={isMenuOpen}
-                aria-controls="site-menu"
-                aria-label={isMenuOpen ? "Close menu" : "Open menu"}
-              >
-                <span className={s.buttonText} aria-hidden="true">
-                  <p>Menu</p>
-                  <p>Close</p>
-                </span>
-                <span className={s.iconWrap} aria-hidden="true">
-                  <svg viewBox="0 0 16 16" fill="none" className={s.menuButtonIcon}>
-                    <path d="M7.33333 16L7.33333 0L8.66667 0L8.66667 16L7.33333 16Z" fill="currentColor" />
-                    <path d="M16 8.66667L0 8.66667L0 7.33333L16 7.33333L16 8.66667Z" fill="currentColor" />
-                  </svg>
-                </span>
-              </button>
-            </div>
-          </nav>
-        </header>
-      </div>
+    /* `dark` is load-bearing: it is what resolves --ring to --accent-warm and
+       the foreground tokens to the film's paper. The hero shipped for weeks
+       with a dark-ground token that never applied because this class was
+       missing there. */
+    <div ref={containerRef} className={`dark ${s.root}`}>
+      {/*
+        A real <button>, not the reference's label-wrapping-checkbox: that
+        pattern has no role, no expanded state, and no accessible name. The
+        checkbox is gone entirely rather than made controlled — React already
+        owns isMenuOpen, and data-open is the only thing the CSS needs.
+      */}
+      <button
+        ref={toggleRef}
+        type="button"
+        className={s.hamburger}
+        data-open={isMenuOpen}
+        onClick={() => setIsMenuOpen((v) => !v)}
+        aria-expanded={isMenuOpen}
+        aria-controls="site-menu"
+        aria-label={isMenuOpen ? "Close menu" : "Open menu"}
+      >
+        <svg className={s.icon} viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+          {/* The collar, first so it paints underneath. Same paths, same
+              classes, so it morphs with the ink instead of trailing it. */}
+          <path className={`${s.line} ${s.collar} ${s.lineTopBottom}`} d={PATH_TOP_BOTTOM} />
+          <path className={`${s.line} ${s.collar}`} d={PATH_MIDDLE} />
+          <path className={`${s.line} ${s.lineTopBottom}`} d={PATH_TOP_BOTTOM} />
+          <path className={s.line} d={PATH_MIDDLE} />
+        </svg>
+      </button>
 
       <section className={s.menuContainer}>
-        <div id="site-menu" data-nav={isMenuOpen ? "open" : "closed"} className={s.overlayWrapper}>
+        <div
+          ref={wrapperRef}
+          id="site-menu"
+          data-nav={isMenuOpen ? "open" : "closed"}
+          className={s.overlayWrapper}
+          /* §2.4. Only while open: a dialog that is not showing must not
+             claim to be modal. */
+          role={isMenuOpen ? "dialog" : undefined}
+          aria-modal={isMenuOpen ? true : undefined}
+          aria-label={isMenuOpen ? "Site menu" : undefined}
+        >
           {/* §2.4: decorative, keyboard users close with Escape. */}
-          <div className={s.overlay} onClick={() => setIsMenuOpen(false)} aria-hidden="true" />
+          <div className={s.overlay} onClick={close} aria-hidden="true" />
           <nav className={s.menuContent} aria-label="Site">
             <div className={s.menuBg}>
               <div className={`${s.backdropLayer} ${s.backdropFirst}`} />
@@ -269,14 +336,28 @@ export function SterlingGateNavigation() {
               <ul className={s.menuList}>
                 {LINKS.map((l) => (
                   <li key={l.shape} className={s.menuListItem} data-shape={l.shape}>
-                    <a href={l.href} className={s.navLink} onClick={() => setIsMenuOpen(false)}>
+                    <a href={l.href} className={s.navLink} onClick={close}>
                       <p className={s.navLinkText}>{l.label}</p>
                       <span className={s.navLinkHoverBg} aria-hidden="true" />
                     </a>
                   </li>
                 ))}
               </ul>
+
+              {/* §2.2 F, relocated: the utilities are in the panel now, so
+                  they animate in with it rather than surviving beside it. */}
               <div className={s.menuFooter} data-menu-fade>
+                <button
+                  type="button"
+                  className={`${s.utility} ${s.langToggle}`}
+                  onClick={() => setLang((l) => (l === "en" ? "ar" : "en"))}
+                  aria-label={lang === "en" ? "Switch to Arabic" : "التبديل إلى الإنجليزية"}
+                >
+                  <span className={lang === "en" ? s.langActive : undefined}>EN</span>
+                  <span className={s.langSep} aria-hidden="true">/</span>
+                  <span className={lang === "ar" ? s.langActive : undefined} lang="ar">العربية</span>
+                </button>
+
                 <a className={s.utility} href={LOGIN_HREF}>Log In</a>
               </div>
             </div>
