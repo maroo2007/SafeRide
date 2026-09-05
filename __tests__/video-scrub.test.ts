@@ -3,7 +3,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   clampToBuffer, easeEdge, bufferedEdge, pickMode, upgradeOnly,
-  VIDEO_DURATION, SAFETY_MARGIN, KNEE, SCRUB_RATE,
+  VIDEO_DURATION, SAFETY_MARGIN, KNEE, SCRUB_RATE, FULL_RATIO,
+  RUNWAY_VH, spanVh, filmSecondsPer100vh,
 } from "@/lib/video-scrub";
 import {
   CAPTIONS, CAPTION_SCRIM, HERO, HERO_SCRIM, captionOpacity, heroCopyOpacity,
@@ -175,6 +176,55 @@ describe("mode selection", () => {
     expect(upgradeOnly("full", "clamped")).toBe("full");
     expect(upgradeOnly("no-scrub", "clamped")).toBe("clamped");
     expect(upgradeOnly("clamped", "full")).toBe("full");
+  });
+});
+
+describe("1b · the scroll runway", () => {
+  it("is 1200vh, and the scrub rate is DERIVED from it", () => {
+    expect(RUNWAY_VH).toBe(1200);
+    // One viewport is the sticky frame, so 1100vh actually scrolls.
+    expect(spanVh(RUNWAY_VH)).toBe(1100);
+    // 7.5 was calibrated at 600vh (500vh of span). Doubling the runway must
+    // scale it, or pickMode demands throughput the scrub no longer needs.
+    expect(SCRUB_RATE).toBeCloseTo(7.5 * (500 / 1100), 4);
+    expect(SCRUB_RATE).toBeCloseTo(3.409, 3);
+    expect(FULL_RATIO).toBeCloseTo(3.909, 3);
+  });
+
+  it("delivers 4.75 seconds of film per 100vh", () => {
+    expect(filmSecondsPer100vh(1200)).toBeCloseTo(4.754, 3);
+    // Half the previous rate: the same film over twice the scrolling.
+    expect(filmSecondsPer100vh(600)).toBeCloseTo(10.458, 3);
+    expect(filmSecondsPer100vh(600) / filmSecondsPer100vh(1200)).toBeCloseTo(2.2, 5);
+  });
+
+  it("the encode is untouched by the runway change", () => {
+    // The runway maps scroll to PROGRESS; progress maps to film time. Neither
+    // touches the file, so frame timing cannot move.
+    expect(VIDEO_DURATION).toBeCloseTo(2510 / 48, 10);
+    expect(VIDEO_DURATION).toBeCloseTo(52.2917, 4);
+  });
+
+  it("every caption still lands on the same frame of film", () => {
+    // Captions are scheduled in progress, and t = progress x duration. A
+    // longer runway changes how far you scroll to reach a caption, never
+    // which frame it lands on.
+    const filmTimes = CAPTIONS.map((c) => [c.from * VIDEO_DURATION, c.to * VIDEO_DURATION]);
+    expect(filmTimes[0][0]).toBeCloseTo(11.1, 6);
+    expect(filmTimes[0][1]).toBeCloseTo(17.0, 6);
+    expect(filmTimes[1][0]).toBeCloseTo(22.0, 6);
+    expect(filmTimes[1][1]).toBeCloseTo(32.6, 6);
+    expect(filmTimes[2][0]).toBeCloseTo(34.0, 6);
+    expect(filmTimes[2][1]).toBeCloseTo(43.0, 6);
+  });
+
+  it("the hero copy fade now spans more than twice the scroll distance", () => {
+    // The fade window is unchanged in PROGRESS (spec 1.6, 0.00-0.12); what
+    // changes is how long a reader spends inside it. At a 900px viewport that
+    // is 1188px of scrolling against 540px before.
+    const px = (runway: number, h = 900) => (spanVh(runway) / 100) * h * HERO.fadeOutTo;
+    expect(px(600)).toBeCloseTo(540, 6);
+    expect(px(1200)).toBeCloseTo(1188, 6);
   });
 });
 
@@ -389,7 +439,7 @@ describe("3 · the hero component itself never gates on video state", () => {
   });
 
   it("collapses the runway when not scrubbing, so no-scrub is not dead scroll", () => {
-    expect(body).toContain('scrubs ? "600vh" : "100svh"');
+    expect(body).toContain('scrubs ? `${RUNWAY_VH}vh` : "100svh"');
   });
 
   it("reduced motion renders a still, never a paused video", () => {

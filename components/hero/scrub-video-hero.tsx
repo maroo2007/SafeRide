@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
-  VIDEO_DURATION, bufferedEdge, clampToBuffer, easeEdge, pickMode,
+  RUNWAY_VH, VIDEO_DURATION, bufferedEdge, clampToBuffer, easeEdge, pickMode,
   upgradeOnly, type HeroMode,
 } from "@/lib/video-scrub";
 import {
@@ -157,7 +157,10 @@ export function ScrubVideoHero() {
       aria-labelledby="hero-headline"
       /* The runway collapses to one viewport whenever we are not scrubbing,
          so a NO-SCRUB visitor gets a normal hero rather than dead scroll. */
-      style={{ height: scrubs ? "600vh" : "100svh" }}
+      /* From the constant that SCRUB_RATE is derived from, so the two cannot
+         drift: a runway change that left the scrub rate stale would silently
+         mis-select the mode. */
+      style={{ height: scrubs ? `${RUNWAY_VH}vh` : "100svh" }}
       className="relative"
     >
       <div className="sticky top-0 h-svh overflow-hidden bg-surface-dark">

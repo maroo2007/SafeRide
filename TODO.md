@@ -322,3 +322,53 @@ square, and that square is a visible hard edge.
 
 Both are covered by tests in `__tests__/video-scrub.test.ts` §2b, which check
 the alpha along every viewport edge rather than trusting the CSS by eye.
+
+---
+
+## Runway: 600vh -> 1200vh
+
+Changed in `lib/video-scrub.ts` (`RUNWAY_VH`), consumed by the hero. Verified
+in-browser: runway 10800px at a 900px viewport, scrollable span 9900px.
+
+| | 600vh | 1200vh |
+|---|---|---|
+| scrollable span | 500vh | 1100vh |
+| film seconds per 100vh | 10.458 | **4.754** |
+| scrub rate vs real time | 7.5x | **3.41x** |
+| FULL_RATIO threshold | 8.0 | **3.91x** |
+
+**`SCRUB_RATE` is now derived, not typed in.** It was calibrated at 600vh.
+Left at 7.5 after doubling the runway, `pickMode` would have demanded roughly
+twice the throughput the scrub actually needs and parked visitors in CLAMPED
+who could have had FULL. The threshold drop from 8.0x to 3.91x is the single
+biggest behavioural consequence of this change, and it is a good one.
+
+### Frame timing: unchanged
+
+The runway maps scroll to PROGRESS; progress maps to film time by
+`t = progress x duration`. Neither touches the encode. Duration is still
+2510/48 = 52.2917s.
+
+### Captions: same frames, more scrolling
+
+Scheduled in progress, so a longer runway changes how far you scroll to reach
+a caption, never which frame it lands on. Verified in-browser at 1440x900:
+
+| caption | film time | scroll at 600vh | scroll at 1200vh |
+|---|---|---|---|
+| boarding | 11.1-17.0s | 508px | 1117px |
+| alerts | 22.0-32.6s | 912px | 2007px |
+| coverage | 34.0-43.0s | 775px | 1704px |
+| hero copy fade | 0.00-0.12 progress | 540px | **1188px** |
+
+The hero-copy fade doubling materially improves the open question logged above:
+the copy still has no full-opacity plateau, but a reader now spends 1188px of
+scrolling inside the fade rather than 540px.
+
+### One thing the in-browser check surfaced
+
+At progress 1.0 the film read 42.47s rather than 52.29s, and at progress 0.6502
+it read 33.93s rather than 34.0s. That is `clampToBuffer` working: the playhead
+was held at the buffered edge. It is also the clearest demonstration of why
+captions run on progress and never on `currentTime` — the caption still lands
+at the right scroll position while the film itself is running behind.

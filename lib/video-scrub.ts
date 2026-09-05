@@ -92,8 +92,40 @@ export function easeEdge(previous: number, actual: number, dtMs: number): number
  * Mode selection
  * ------------------------------------------------------------------ */
 
-/** Scroll advances the playhead ~7.5x faster than real time. */
-export const SCRUB_RATE = 7.5;
+/* ------------------------------------------------------------------ *
+ * The runway
+ * ------------------------------------------------------------------ */
+
+/**
+ * Height of the scroll runway, in vh. One viewport of it is the sticky
+ * frame, so the SCROLLABLE span is (RUNWAY_VH - 100)vh.
+ */
+export const RUNWAY_VH = 1200;
+
+/** The runway the 7.5x scrub figure below was calibrated against. */
+const CALIBRATION_RUNWAY_VH = 600;
+
+/** Scrollable span for a runway, in vh. */
+export const spanVh = (runwayVh: number) => runwayVh - 100;
+
+/** Seconds of film per 100vh of scrolling. Reporting figure. */
+export const filmSecondsPer100vh = (runwayVh = RUNWAY_VH) =>
+  VIDEO_DURATION / (spanVh(runwayVh) / 100);
+
+/**
+ * Scroll advances the playhead this many times faster than real time.
+ *
+ * DERIVED, not typed in. A longer runway spreads the same 52.29s of film over
+ * more scrolling, so the same gesture advances the playhead more slowly and
+ * the buffer has proportionally less to keep up with. Leaving 7.5 hardcoded
+ * after doubling the runway would make pickMode demand roughly twice the
+ * throughput it actually needs and park visitors in CLAMPED who could have
+ * had FULL.
+ *
+ * At 1200vh this is 7.5 x (500/1100) = 3.41x.
+ */
+export const SCRUB_RATE =
+  7.5 * (spanVh(CALIBRATION_RUNWAY_VH) / spanVh(RUNWAY_VH));
 
 /** Throughput, as a multiple of the file's own real-time bitrate, at which a
  *  cold scrub can keep up and FULL is honest. */
