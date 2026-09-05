@@ -1,15 +1,35 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { CtaButton } from "@/components/ui/cta-button";
+import { CtaButton, type CtaBehaviour, type CtaFill } from "@/components/ui/cta-button";
 import { HERO_SCRIM } from "@/lib/hero-captions";
 
 /**
- * Evaluation surface for the hero CTA.
+ * Side-by-side comparison surface for the two CTA candidates.
  *
  * Uses the REAL video, the REAL hero scrim and the REAL tokens, so what is
  * measured here is what ships. Not a mock.
  */
+
+const CANDIDATES: { id: string; name: string; behaviour: CtaBehaviour }[] = [
+  { id: "B1", name: "Button 1 — lift and press", behaviour: "lift" },
+  { id: "R2a", name: "Button 2 R2a — expanding fill inverts to #B9551A", behaviour: "invert" },
+  { id: "R2b", name: "Button 2 R2b — expanding fill stays in the orange family", behaviour: "sheen" },
+];
+
+function Row({ c, secondary }: { c: (typeof CANDIDATES)[number]; secondary: CtaFill }) {
+  return (
+    <div data-row={c.id}>
+      <p className="label-mono mb-2" style={{ opacity: 0.85 }}>{c.name}</p>
+      <div className="flex flex-wrap items-center gap-4" data-pair={c.id}>
+        <CtaButton href="#features" label="Explore Platform" altLabel="See it in action"
+                   fill="solid" route behaviour={c.behaviour} />
+        <CtaButton href="#story" label="Our Story" altLabel="How we started"
+                   fill={secondary} behaviour={c.behaviour} />
+      </div>
+    </div>
+  );
+}
 
 export default function CtaLab() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -22,23 +42,8 @@ export default function CtaLab() {
 
   return (
     <main className="min-h-svh bg-[var(--paper)]">
-      {/* ---- lift ladder, on paper where the cast shadow reads most ---- */}
-      <section id="lift-ladder" className="px-10 py-8">
-        <p className="label-mono mb-4">lift ladder — 3 / 4 / 5 / 6px (hover forced)</p>
-        <div className="flex flex-wrap gap-8">
-          {[3, 4, 5, 6].map((px) => (
-            <div key={px} className="flex flex-col gap-2" data-lift={px}>
-              <CtaButton href="#features" label="Explore Platform"
-                         altLabel="See it in action" fill="solid" route
-                         style={{ "--lift": `${px}px` } as React.CSSProperties} />
-              <span className="label-mono">{px}px</span>
-            </div>
-          ))}
-        </div>
-      </section>
-
       {/* ---- over real footage ---------------------------------------- */}
-      <section id="route-footage" className="relative h-[260px] overflow-hidden bg-surface-dark">
+      <section id="route-footage" className="relative h-[400px] overflow-hidden bg-surface-dark">
         <video
           ref={videoRef} id="lab-video" muted playsInline preload="auto" aria-hidden="true"
           className="absolute inset-0 h-full w-full object-cover"
@@ -48,28 +53,14 @@ export default function CtaLab() {
         </video>
         <div aria-hidden="true" className="pointer-events-none absolute inset-0"
              style={{ background: HERO_SCRIM }} />
-        <div className="relative flex h-full flex-col justify-center px-10">
-          <p className="label-mono mb-3" style={{ color: "var(--accent-warm)" }}>
-            solid #FB8A00 + #B9551A edge · route line on hover
-          </p>
-          <div className="flex flex-wrap items-center gap-4" data-pair="E">
-            <CtaButton href="#features" label="Explore Platform"
-                       altLabel="See it in action" fill="solid" route />
-            <CtaButton href="#story" label="Our Story"
-                       altLabel="How we started" fill="outlineOnMedia" />
-          </div>
+        <div className="relative flex h-full flex-col justify-center gap-6 px-10">
+          {CANDIDATES.map((c) => <Row key={c.id} c={c} secondary="outlineOnMedia" />)}
         </div>
       </section>
 
       {/* ---- on paper -------------------------------------------------- */}
-      <section id="route-paper" className="px-10 py-10">
-        <p className="label-mono mb-3">on paper</p>
-        <div className="flex flex-wrap items-center gap-4" data-pair="E">
-          <CtaButton href="#features" label="Explore Platform"
-                     altLabel="See it in action" fill="solid" route />
-          <CtaButton href="#story" label="Our Story"
-                     altLabel="How we started" fill="outlineInk" />
-        </div>
+      <section id="route-paper" className="flex flex-col gap-7 px-10 py-10">
+        {CANDIDATES.map((c) => <Row key={c.id} c={c} secondary="outlineInk" />)}
       </section>
     </main>
   );

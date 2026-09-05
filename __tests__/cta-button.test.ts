@@ -123,6 +123,43 @@ describe("the lift and press", () => {
   });
 });
 
+describe("Button 2 — expanding fill and shine", () => {
+  it("gives the shine and the ripple separate elements", () => {
+    // The source hands ::after both jobs, so its second declaration wins and
+    // the ripple never runs as written. Three layers, one job each.
+    for (const cls of [".expandFill {", ".shine {", ".ripple {"]) {
+      expect(cssCode, `${cls} must be its own layer`).toContain(cls);
+    }
+    // And none of them may be a pseudo-element that another effect also claims.
+    expect(cssCode).not.toMatch(/\.shine::after/);
+    expect(cssCode).not.toMatch(/\.ripple::after/);
+  });
+
+  it("the ripple stays inside the 400ms ceiling", () => {
+    const anim = /animation:\s*rippleOut\s+(\d+)ms/.exec(cssCode);
+    expect(anim, "ripple animation must be declared").not.toBeNull();
+    expect(+anim![1], "the source's 600ms is outside our ceiling").toBeLessThanOrEqual(400);
+  });
+
+  it("the expanding fill is primary-only", () => {
+    // On an outline secondary it turns a subordinate control into a filled
+    // one and the hierarchy collapses — photographed before this guard.
+    expect(tsxCode).toMatch(/behaviour !== "lift" && fill === "solid"/);
+    // And the label flip is tied to the fill actually arriving; without that
+    // the secondary's label went paper-on-paper at 1.12:1.
+    expect(tsxCode).toMatch(/expands && behaviour === "invert"/);
+  });
+
+  it("every overlay sits on an opaque fill", () => {
+    // The shine and ripple are highlights, which is allowed. What is not
+    // allowed is the BUTTON's own background going translucent underneath.
+    for (const cls of [".expand {", ".solid {"]) {
+      const i = cssCode.indexOf(cls);
+      expect(cssCode.slice(i, cssCode.indexOf("}", i))).toMatch(/composes:\s*accent-fill from global/);
+    }
+  });
+});
+
 /* ------------------------------------------------------------------ *
  * The glass revert. Every translucent treatment measured 1.02:1 for the
  * label and 1.01:1 for the boundary on paper — invisible, and not
@@ -135,17 +172,24 @@ describe("no glass survives on the CTA", () => {
     expect(cssCode).not.toMatch(/backdrop-filter/i);
   });
 
-  it("declares no translucent fill on any button surface", () => {
-    // A translucent BACKGROUND is the defect. Borders and drop-shadows may
-    // legitimately be rgba, so only background declarations are scanned.
-    const backgrounds = [...cssCode.matchAll(/background(?:-color)?:\s*([^;]+);/g)].map((m) => m[1]);
-    for (const b of backgrounds) {
-      const alpha = /rgba\([^)]*?,\s*(0?\.\d+|0)\s*\)/.exec(b);
+  it("declares no translucent fill on any button SURFACE", () => {
+    // Scoped to the surface classes on purpose. The shine and ripple are
+    // rgba highlights sitting ON an opaque fill, which is allowed and is not
+    // the defect: the defect is the button's own background letting footage
+    // through. An earlier version scanned every background in the file and
+    // flagged the highlights, which would have been a false positive.
+    const SURFACES = [".btn {", ".solid {", ".expand {", ".outlineInk {", ".outlineOnMedia {"];
+    for (const cls of SURFACES) {
+      const i = cssCode.indexOf(cls);
+      if (i < 0) continue;
+      const rule = cssCode.slice(i, cssCode.indexOf("}", i));
+      const bg = /background(?:-color)?:\s*([^;]+);/.exec(rule);
+      if (!bg) continue;
+      const alpha = /rgba\([^)]*?,\s*(0?\.\d+|0)\s*\)/.exec(bg[1]);
       if (alpha) {
-        // Hover tints are fine; a semi-opaque FILL is not, because that is
-        // footage showing through the button.
-        expect(parseFloat(alpha[1]), `translucent fill: ${b.trim()}`).toBeLessThanOrEqual(0.15);
+        expect(parseFloat(alpha[1]), `${cls} translucent fill: ${bg[1].trim()}`).toBeLessThanOrEqual(0.15);
       }
+      expect(rule, `${cls} must not blur its backdrop`).not.toMatch(/backdrop-filter/);
     }
   });
 

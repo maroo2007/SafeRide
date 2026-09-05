@@ -94,17 +94,8 @@ const get = (u) => new Promise((res, rej) =>
         r(JSON.stringify({x:Math.max(0,b.x+scrollX),y:Math.max(0,b.y+scrollY),
                           width:Math.min(${VW},b.width),height:b.height}));},700));})()`));
 
-  /* 0. lift ladder, hover forced */
-  let r = await rectOf("#lift-ladder");
-  await shot("lift-00-ladder-resting.png", r);
-  await setHover("#lift-ladder a", true);
-  await sleep(700);
-  await shot("lift-01-ladder-hovered.png", r);
-  await shot("lift-02-ladder-hovered-zoom2x.png", r, 2);
-  await setHover("#lift-ladder a", false);
-
   /* 1. over footage: resting, hovered */
-  r = await rectOf("#route-footage");
+  let r = await rectOf("#route-footage");
   await sleep(600);
   await shot("route-03-footage-resting.png", r);
   const n = await setHover("#route-footage a", true);

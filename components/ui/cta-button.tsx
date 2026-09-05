@@ -16,6 +16,15 @@ import s from "./cta-button.module.css";
 
 export type CtaFill = "solid" | "outlineInk" | "outlineOnMedia";
 
+/**
+ * Which candidate's behaviour the button wears.
+ *   lift    Button 1 — lift and hard footprint shadow, press punches through
+ *   invert  Button 2 R2a — fill expands to --accent-edge, label flips to paper
+ *   sheen   Button 2 R2b — fill expands to a lighter tint of the same orange,
+ *           so the contrast argument never moves
+ */
+export type CtaBehaviour = "lift" | "invert" | "sheen";
+
 const FILL_CLASS: Record<CtaFill, string> = {
   solid: s.solid,
   outlineInk: s.outlineInk,
@@ -57,6 +66,7 @@ export type CtaButtonProps = {
   fill: CtaFill;
   /** The route line is the primary's flourish; the secondary stays plain. */
   route?: boolean;
+  behaviour?: CtaBehaviour;
   className?: string;
   /** Merged over the component's own custom properties. Used by the lab to
    *  vary --lift; not needed in normal use. */
@@ -64,23 +74,50 @@ export type CtaButtonProps = {
 };
 
 export function CtaButton({
-  href, label, altLabel, fill, route = false, className, style,
+  href, label, altLabel, fill, route = false, behaviour = "lift", className, style,
 }: CtaButtonProps) {
+  /* Primary only. On an outline secondary the expanding fill turns a
+     subordinate control into a filled one, which collapses the hierarchy the
+     whole palette is built around — photographed before this guard existed. */
+  const expands = behaviour !== "lift" && fill === "solid";
   return (
     <a
       href={href}
-      className={`${s.btn} ${FILL_CLASS[fill]} ${className ?? ""}`}
+      className={[
+        s.btn,
+        // Button 2 replaces the fill class so it gets the softer deep shadow
+        // instead of Button 1's hard footprint.
+        expands && fill === "solid" ? s.expand : FILL_CLASS[fill],
+        // Tied to `expands`, not to the behaviour: the secondary has no dark
+        // fill arriving, so flipping its label to paper left it at 1.12:1.
+        expands && behaviour === "invert" ? s.invertLabel : "",
+        className ?? "",
+      ].filter(Boolean).join(" ")}
       /* The accessible name stays the RESTING label. Without this the name
          becomes both spans concatenated ("Explore Platform See it in action"),
          which is what the reference button does and is a defect, not a style. */
       aria-label={label}
       style={{ "--icon-mark": markColour(fill), ...style } as React.CSSProperties}
     >
-      <span className={s.labels} aria-hidden="true">
+      {/* Three layers, one job each. The source gives ::after both the shine
+          and the ripple, so its ripple never runs. */}
+      {expands && (
+        <>
+          <span aria-hidden="true"
+                className={`${s.expandFill} ${behaviour === "invert" ? s.fillInvert : s.fillSheen}`} />
+          <span aria-hidden="true" className={`${s.ripple} ${s.rippleInk}`} />
+        </>
+      )}
+
+      <span className={s.labels} aria-hidden="true" data-label>
         {/* The knockout only matters where a line passes behind the words. */}
         <span className={`${s.rest} ${route ? s.knockout : ""}`}>{label}</span>
         <span className={`${s.alt} ${route ? s.knockout : ""}`}>{altLabel ?? label}</span>
       </span>
+
+      {/* Sweeps OVER the label, which is the point of it and also the thing
+          that has to hold up mid-transition. */}
+      {expands && <span aria-hidden="true" className={s.shine} />}
 
       {route && (
         /* preserveAspectRatio none stretches the path to the button's width;

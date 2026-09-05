@@ -91,7 +91,7 @@ function edgeContrast(img, r) {
                   color:cs.color, border:cs.borderTopColor});
       });
     });
-    document.querySelectorAll('#route-paper a > span').forEach(e=>e.style.visibility='hidden');
+    document.querySelectorAll('#route-paper a [data-label]').forEach(e=>e.style.visibility='hidden');
     document.querySelectorAll('#route-paper a > svg').forEach(e=>e.style.visibility='hidden');
     return JSON.stringify(out);
   })()`));
@@ -119,7 +119,7 @@ function edgeContrast(img, r) {
 
   /* ---------------- over footage ---------------- */
   const footInfo = JSON.parse(await evaluate(`(async () => {
-    document.querySelectorAll('#route-paper a > span, #route-paper a > svg').forEach(e=>e.style.visibility='');
+    document.querySelectorAll('#route-paper a [data-label], #route-paper a > svg').forEach(e=>e.style.visibility='');
     document.getElementById('route-footage').scrollIntoView({block:'start'});
     await new Promise(r=>setTimeout(r,700));
     const out=[];
@@ -129,7 +129,7 @@ function edgeContrast(img, r) {
         out.push({key:p.dataset.pair+(i?'/secondary':'/primary'), x:r.x,y:r.y,w:r.width,h:r.height, color:cs.color});
       });
     });
-    document.querySelectorAll('#route-footage a > span, #route-footage a > svg').forEach(e=>e.style.visibility='hidden');
+    document.querySelectorAll('#route-footage a [data-label], #route-footage a > svg').forEach(e=>e.style.visibility='hidden');
     return JSON.stringify(out);
   })()`));
 
