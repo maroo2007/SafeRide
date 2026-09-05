@@ -438,3 +438,25 @@ by breaking it.
    Flagged as a deviation rather than presented as the spec's approach.
 3. **Safari and Firefox remain UNVERIFIED** (entry 4 above). All scrub
    measurements in this project are Chrome/Blink only.
+
+### Idle-loop handoff — built, but the 405ms claim is still unverified
+
+The handoff works (spec 1.4.1-2): the idle file plays immediately, the scrub
+file's sources are withheld until the idle has painted, and the first scroll
+input hands over once the scrub has a decodable frame.
+
+Measured on Fast 3G (204 KB/s, 562ms RTT) against the **dev server**:
+
+| | value |
+|---|---|
+| time to first decoded idle frame | 8984 ms |
+| idle buffered at handoff | 2.0 s (readyState 4) |
+| scrub buffered at handoff | 1.1 s (readyState 3) |
+
+The ordering is right — the idle wins the race, which is the entire point of
+withholding the scrub's sources. But **8984 ms is not the production number
+and must not be quoted as one.** A Next dev server sends unminified bundles
+with no compression and no CDN, so on a throttled connection the time is
+dominated by JavaScript, not by the 336 KB video. The spec's 405 ms figure
+needs `next build && next start` to confirm or refute. Until then it is
+UNVERIFIED.

@@ -49,6 +49,7 @@ function useMediaQuery(query: string) {
 
 export function ScrubVideoHero() {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const idleRef = useRef<HTMLVideoElement>(null);
   const runwayRef = useRef<HTMLDivElement>(null);
   const reducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
   const narrow = useMediaQuery(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
@@ -66,6 +67,10 @@ export function ScrubVideoHero() {
   /** Scroll progress drives EVERYTHING the reader sees. Never currentTime. */
   const [progress, setProgress] = useState(0);
   const [mode, setMode] = useState<HeroMode>("clamped");
+  /** The idle loop has painted. Only then is the scrub file requested. */
+  const [idleReady, setIdleReady] = useState(false);
+  /** The scrub file has taken over the frame. One-way. */
+  const [handedOver, setHandedOver] = useState(false);
 
   const easedEdgeRef = useRef(0);
   const lastFrameRef = useRef(0);
@@ -93,6 +98,50 @@ export function ScrubVideoHero() {
       if (raf) cancelAnimationFrame(raf);
     };
   }, []);
+
+  /* ---- has the idle loop painted? ------------------------------------- */
+  useEffect(() => {
+    if (reducedMotion || narrow || idleReady) return;
+    const idle = idleRef.current;
+    if (!idle) return;
+    // The onLoadedData prop alone is not enough. The idle file is
+    // <link rel=preload>-ed, so it is frequently ready BEFORE React attaches
+    // the handler, the event is missed, and idleReady never flips — which
+    // left the scrub file unrequested entirely.
+    if (idle.readyState >= 2) { setIdleReady(true); return; }
+    const on = () => setIdleReady(true);
+    idle.addEventListener("loadeddata", on, { once: true });
+    return () => idle.removeEventListener("loadeddata", on);
+  }, [reducedMotion, narrow, idleReady]);
+
+  /* ---- start fetching the scrub file once the idle loop has painted ---- */
+  useEffect(() => {
+    if (!idleReady || reducedMotion || narrow) return;
+    const v = videoRef.current;
+    if (!v || v.currentSrc) return;
+    // Inserting <source> children after mount does NOT start a load: the
+    // browser picks its source once, at load time. Without this the scrub
+    // video sat at readyState 0 with no currentSrc and the handoff could
+    // never fire — it looked fine and fetched nothing.
+    v.load();
+  }, [idleReady, reducedMotion, narrow]);
+
+  /* ---- idle loop -> scrub handoff (spec 1.4.2) ------------------------ */
+  useEffect(() => {
+    if (reducedMotion || narrow || handedOver) return;
+    const v = videoRef.current;
+    if (!v) return;
+    // Hand over on the first scroll input, but only once the scrub file can
+    // actually show a frame. Swapping to a video with nothing decoded yet is
+    // how you get a black flash where the film used to be.
+    if (progress <= 0) return;
+    if (v.readyState < 2) return;
+    setHandedOver(true);
+    const idle = idleRef.current;
+    // Pause rather than remove: if the visitor scrolls back to the very top
+    // the idle frame is still there underneath, already decoded.
+    if (idle) idle.pause();
+  }, [progress, reducedMotion, narrow, handedOver]);
 
   /* ---- mode selection, from MEASURED throughput ------------------------ */
   useEffect(() => {
@@ -179,27 +228,57 @@ export function ScrubVideoHero() {
             aria-hidden="true"
             className="absolute inset-0 h-full w-full object-cover"
           />
-        ) : (
+        ) : narrow ? (
+          /* Spec 1.5: below 768px do not scrub. A normal looping background
+             from the 720p encode, and no runway. */
           <video
             ref={videoRef}
             aria-hidden="true"
-            muted
-            playsInline
-            loop={!scrubs}
-            autoPlay={!scrubs}
-            preload={narrow ? "metadata" : "auto"}
+            muted playsInline loop autoPlay preload="metadata"
             poster="/images/hero-poster.jpg"
             className="absolute inset-0 h-full w-full object-cover"
           >
-            {narrow ? (
-              <source src="/video/saferide-hero-mobile.mp4" type="video/mp4" />
-            ) : (
-              <>
-                <source src="/video/saferide-hero-scrub.webm" type="video/webm" />
-                <source src="/video/saferide-hero-scrub.mp4" type="video/mp4" />
-              </>
-            )}
+            <source src="/video/saferide-hero-mobile.mp4" type="video/mp4" />
           </video>
+        ) : (
+          <>
+            {/* THE IDLE LOOP (spec 1.4.1-2).
+                A 336 KB file holding the film's first two seconds, preloaded
+                in layout.tsx. It is what the visitor sees while the 53 MB
+                scrub file is still arriving. The spec implements the loop with
+                a timeupdate handler resetting currentTime at IDLE_LOOP_END;
+                a dedicated file loops natively and needs no listener at all. */}
+            <video
+              ref={idleRef}
+              aria-hidden="true"
+              muted playsInline loop autoPlay preload="auto"
+              poster="/images/hero-poster.jpg"
+              className="absolute inset-0 h-full w-full object-cover"
+              style={{ opacity: handedOver ? 0 : 1, transition: "opacity 200ms linear" }}
+              onLoadedData={() => setIdleReady(true)}
+            >
+              <source src="/video/saferide-hero-idle.mp4" type="video/mp4" />
+            </video>
+            {/* THE SCRUB FILE.
+                Its sources are withheld until the idle loop has painted a
+                frame. Requested together they race for bandwidth and the
+                336 KB file loses to the 53 MB one, which is the whole reason
+                the loop was split out. */}
+            <video
+              ref={videoRef}
+              aria-hidden="true"
+              muted playsInline preload="auto"
+              className="absolute inset-0 h-full w-full object-cover"
+              style={{ opacity: handedOver ? 1 : 0, transition: "opacity 200ms linear" }}
+            >
+              {idleReady ? (
+                <>
+                  <source src="/video/saferide-hero-scrub.webm" type="video/webm" />
+                  <source src="/video/saferide-hero-scrub.mp4" type="video/mp4" />
+                </>
+              ) : null}
+            </video>
+          </>
         )}
 
         {/* Hero scrim. Spec and measurement live together in

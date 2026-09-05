@@ -408,6 +408,30 @@ describe("3 · CTAs never gate on video progress", () => {
     expect(src).toMatch(/route="below"/);
   });
 
+  it("the idle loop is a separate element, and the scrub waits behind it", () => {
+    /*
+     * Spec 1.4.1-2. The 336 KB loop file exists so the visitor sees film
+     * while the 53 MB scrub file is still arriving. Preloading it and then
+     * never playing it — the state this shipped in — spends the bandwidth and
+     * realises none of the benefit.
+     *
+     * Two things have to hold, and both were broken on the first attempt:
+     *   - the scrub's <source> tags are withheld until the idle has painted,
+     *     or the two race for bandwidth and the small file loses;
+     *   - the scrub is explicitly load()ed once they appear, because
+     *     inserting <source> children after mount does not start a fetch.
+     */
+    const src = readFileSync(join(process.cwd(), "components", "hero", "scrub-video-hero.tsx"), "utf8");
+    expect(src).toMatch(/saferide-hero-idle\.mp4/);
+    expect(src).toMatch(/idleReady \? \(/);
+    expect(src).toMatch(/v\.load\(\)/);
+    // Readiness is detected by readyState as well as the event: the file is
+    // preloaded, so loadeddata often fires before React attaches a handler.
+    expect(src).toMatch(/idle\.readyState >= 2/);
+    // And the handoff waits for the scrub to have a frame, or it swaps to black.
+    expect(src).toMatch(/if \(v\.readyState < 2\) return;/);
+  });
+
   it("the hero CTA cannot render a dark ring over footage", () => {
     /*
      * --accent-edge exists because #FB8A00 is 2.27:1 against paper and fails
