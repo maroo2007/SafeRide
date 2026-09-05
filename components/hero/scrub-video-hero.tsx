@@ -164,7 +164,12 @@ export function ScrubVideoHero() {
       style={{ height: scrubs ? `${RUNWAY_VH}vh` : "100svh" }}
       className="relative"
     >
-      <div className="sticky top-0 h-svh overflow-hidden bg-surface-dark">
+      {/* `dark` is load-bearing, not cosmetic. It is what switches
+          --accent-edge to transparent so the CTA does not wear a dark ring
+          over footage, and --accent-lift to the smaller dark-ground shadow.
+          Without it those tokens were dead code: defined for this surface and
+          never once applied on it. Guarded in __tests__/video-scrub.test.ts. */}
+      <div className="dark sticky top-0 h-svh overflow-hidden bg-surface-dark">
         {reducedMotion ? (
           /* Reduced motion means NO motion — a still, never a paused video. */
           // eslint-disable-next-line @next/next/no-img-element

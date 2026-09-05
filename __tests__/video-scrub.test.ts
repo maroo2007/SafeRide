@@ -274,6 +274,22 @@ describe("2 · captions run on SCROLL progress, never on currentTime", () => {
     }
   });
 
+  it("the headline has a real plateau, and the fade still finishes by 0.12", () => {
+    // Spec 1.6 says the fade FINISHES by 0.12; it does not say it starts at 0.
+    // Read as starting at 0, the headline's best contrast existed at exactly
+    // one scroll position.
+    expect(HERO.fadeOutFrom).toBeGreaterThan(0);
+    expect(HERO.fadeOutTo).toBeCloseTo(0.12, 6);
+    expect(heroCopyOpacity(HERO.fadeOutTo)).toBe(0);
+    expect(heroCopyOpacity(0)).toBe(1);
+    // Full opacity across the WHOLE plateau, not just at its first pixel.
+    for (let p = 0; p <= HERO.fadeOutFrom; p += HERO.fadeOutFrom / 8) {
+      expect(heroCopyOpacity(p), `opacity at ${p}`).toBe(1);
+    }
+    // And it starts falling immediately after.
+    expect(heroCopyOpacity(HERO.fadeOutFrom + 1e-6)).toBeLessThan(1);
+  });
+
   it("the hero copy clears 4.5:1 at its worst measured pixel too", () => {
     expect(HERO.worstContrast.headline).toBeGreaterThanOrEqual(4.5);
     expect(HERO.worstContrast.eyebrow).toBeGreaterThanOrEqual(4.5);
@@ -284,9 +300,13 @@ describe("2 · captions run on SCROLL progress, never on currentTime", () => {
     // the ink weakened, which is how the headline reached 2.15:1 while still
     // 58% opaque. The scrim must still be at full strength at the point the
     // copy passes half opacity.
-    const halfOpaque = HERO.fadeOutTo / 2;
+    // SOLVE for the half-opacity point rather than assuming fadeOutTo/2 —
+    // that only held while the fade started at 0, and the plateau moved it
+    // from 0.060 to 0.075 without the old assertion noticing the difference
+    // in meaning.
+    const halfOpaque = HERO.fadeOutFrom + (HERO.fadeOutTo - HERO.fadeOutFrom) / 2;
     expect(heroCopyOpacity(halfOpaque)).toBeCloseTo(0.5, 6);
-    expect(heroScrimOpacity(halfOpaque)).toBe(1);
+    expect(heroScrimOpacity(halfOpaque), "scrim must still be full here").toBe(1);
     expect(HERO.scrimGoneBy).toBeGreaterThan(HERO.fadeOutTo);
     // ...and it must still finish, or it dims footage that has no copy on it.
     expect(heroScrimOpacity(HERO.scrimGoneBy)).toBe(0);
@@ -386,6 +406,39 @@ describe("3 · CTAs never gate on video progress", () => {
     // secondary over footage must carry light ink, not the light theme's.
     expect(src).toMatch(/fill="outlineOnMediaBorder"/);
     expect(src).toMatch(/route="below"/);
+  });
+
+  it("the hero CTA cannot render a dark ring over footage", () => {
+    /*
+     * --accent-edge exists because #FB8A00 is 2.27:1 against paper and fails
+     * WCAG 1.4.11. On a DARK ground the fill is already 8.58:1, the boundary
+     * is unnecessary, and a dark ring around a bright fill reads as grime —
+     * so .dark neutralises the token to transparent.
+     *
+     * That mechanism never ran. The hero styled its dark surface with
+     * `bg-surface-dark`, a background utility, and never carried the `dark`
+     * class, so the token stayed #b9551a on the one surface it was designed
+     * for. A rule that only fires in a context we never reach is not a rule.
+     *
+     * Three links, each of which alone would silently reintroduce the ring.
+     */
+    const hero = readFileSync(join(process.cwd(), "components", "hero", "scrub-video-hero.tsx"), "utf8");
+    const css = readFileSync(join(process.cwd(), "app", "globals.css"), "utf8");
+
+    // 1. The element that holds the video declares itself a dark surface.
+    const sticky = /<div className="([^"]*sticky[^"]*)"/.exec(hero);
+    expect(sticky, "the sticky hero surface must exist").not.toBeNull();
+    expect(sticky![1].split(/\s+/), "hero dark surface must carry `dark`").toContain("dark");
+
+    // 2. .dark actually neutralises the edge.
+    const darkBlock = css.slice(css.indexOf(".dark {"), css.indexOf("}", css.indexOf(".dark {")));
+    expect(darkBlock).toMatch(/--accent-edge:\s*transparent/);
+
+    // 3. .accent-fill reads the token rather than a literal, so the
+    //    neutralisation reaches the button.
+    const fill = css.slice(css.indexOf(".accent-fill {"), css.indexOf("}", css.indexOf(".accent-fill {")));
+    expect(fill).toMatch(/border:[^;]*var\(--accent-edge\)/);
+    expect(fill).not.toMatch(/#b9551a/i);
   });
 
   it("the faded copy block goes inert, so invisible controls cannot be hit", () => {

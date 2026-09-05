@@ -372,3 +372,69 @@ it read 33.93s rather than 34.0s. That is `clampToBuffer` working: the playhead
 was held at the buffered edge. It is also the clearest demonstration of why
 captions run on progress and never on `currentTime` — the caption still lands
 at the right scroll position while the film itself is running behind.
+
+---
+
+## Phase 2 close-out
+
+### Resolved this pass
+
+**Hero copy plateau.** `fadeOutFrom` 0 -> 0.03. Spec 1.6 says the fade
+finishes by 0.12, not that it starts at 0. Measured across the whole plateau,
+both viewports, copy at full opacity throughout:
+
+| progress | headline | eyebrow |
+|---|---|---|
+| 0.000 | 7.28:1 | 11.51:1 |
+| 0.010 | 7.19:1 | 11.66:1 |
+| 0.020 | 6.72:1 | 10.96:1 |
+| 0.030 | 6.74:1 | 10.24:1 |
+| **worst anywhere on the plateau** | **6.72:1** | **10.24:1** |
+
+297px of scrolling at a 900px viewport. `scrimHoldTo` moved 0.06 -> 0.075 with
+it: the copy now passes half opacity at 0.075, and the scrim must still be at
+full strength there or the ground brightens while the ink weakens.
+
+**The `.dark` class on the hero — a real bug, now fixed.** The hero styled its
+dark surface with `bg-surface-dark`, a background utility, and never carried
+`dark`. So `--accent-edge: transparent` and the dark `--accent-lift` — both
+written specifically for this surface — had **never once executed on it**. The
+CTA wore a `#b9551a` ring over footage for the entire project, which is the
+exact thing the token exists to prevent.
+
+Verified after the fix: `borderColor: rgba(0, 0, 0, 0)`, `--accent-edge:
+transparent`, `box-shadow: rgba(0,0,0,.3) 0 2px 6px`.
+
+Re-measured on the REAL hero over footage, worst of 12 frames in the visible
+window. The earlier table was taken on /cta-lab, which never carried `dark`,
+so it described a state that no longer exists:
+
+| | label | boundary |
+|---|---|---|
+| primary | **8.58:1** (was 8.28) | **6.38:1** |
+| secondary | 10.47:1 | 5.02:1 |
+
+The token comment claimed "on #030302 the fill is already 8.58:1 so the
+boundary is unnecessary". With the ring gone, the boundary is now the fill
+against the footage itself: 6.38:1, comfortably over 1.4.11's 3:1. The claim
+holds, and is now measured on the surface it was written for.
+
+Guarded by a three-link test (hero carries `dark`; `.dark` neutralises the
+edge; `.accent-fill` reads the token rather than a literal). Each link proved
+by breaking it.
+
+### NOT done in Phase 2 — carried forward
+
+1. **The idle-loop -> scrub handoff is not built.** `saferide-hero-idle.mp4`
+   is `<link rel=preload>`-ed in layout.tsx but no component ever plays it;
+   the hero sources only the scrub and mobile files. So today that preload
+   costs 336 KB of bandwidth for a file nothing uses — worse than not having
+   it. Either wire the handoff or drop the preload.
+2. **GSAP ScrollTrigger is not used by the hero.** Spec Phase 2 lists "the
+   ScrollTrigger binding". The hero binds the playhead with native scroll plus
+   rAF instead, which is deliberate — ScrollTrigger's scrub smoothing fights
+   `clampToBuffer` for control of the playhead. `registerGsap()` IS wired via
+   lib/lenis.ts, so the single-registration guarantee holds for Phases 3 and 4.
+   Flagged as a deviation rather than presented as the spec's approach.
+3. **Safari and Firefox remain UNVERIFIED** (entry 4 above). All scrub
+   measurements in this project are Chrome/Blink only.

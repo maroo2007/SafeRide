@@ -124,8 +124,17 @@ export const HERO = {
   headline: "Because every child deserves a safe ride home",
   primaryCta: { label: "Explore Platform", href: "#features" },
   ghostCta: { label: "Our Story", href: "#story" },
-  /** Hero copy fades out over this progress window (spec 1.6: 0.00-0.12). */
-  fadeOutFrom: 0.0,
+  /**
+   * Hero copy fade window (spec 1.6: finishes by 0.12).
+   *
+   * fadeOutFrom is 0.03, not 0. The spec says the fade FINISHES by 0.12; it
+   * does not say it starts at 0. Read as starting at 0, the headline's 7.28:1
+   * existed at exactly one scroll position and was already under 4.5:1 by
+   * ~90px of scrolling — a technicality rather than a legible headline. The
+   * plateau gives it 0..0.03 at full opacity, which at 1200vh is 297px of
+   * scrolling at a 900px viewport.
+   */
+  fadeOutFrom: 0.03,
   fadeOutTo: 0.12,
   /**
    * The scrim fades on its OWN schedule, deliberately trailing the copy.
@@ -141,8 +150,12 @@ export const HERO = {
    * dims footage that no longer has copy to protect. Spec 1.6 governs the
    * COPY timing and is untouched; the scrim is not in the spec.
    */
-  scrimHoldTo: 0.06,
-  scrimGoneBy: 0.14,
+  /* Moved with the plateau. The copy now passes half opacity at 0.075
+     (1 - (p - 0.03) / 0.09 = 0.5), not at 0.06, and the scrim must still be
+     at full strength there — otherwise the ground brightens while the ink
+     weakens, which is the compounding the trailing scrim exists to stop. */
+  scrimHoldTo: 0.075,
+  scrimGoneBy: 0.15,
   /**
    * Worst pixel, both target viewports, composited over real frames.
    * The first pair is at full opacity. `whileHalfOpaque` is the floor for as
@@ -156,9 +169,14 @@ export const HERO = {
    * before it goes. Not changed unilaterally — it is a spec reading.
    */
   worstContrast: {
-    headline: 7.28,
-    eyebrow: 11.51,
-    whileHalfOpaque: { headline: 2.91, eyebrow: 3.72 },
+    /* Worst pixel ANYWHERE on the plateau (progress 0..fadeOutFrom), sampled
+       across both target viewports. Not the value at progress 0: a figure
+       that holds at one scroll position is a technicality. */
+    headline: 6.72,
+    eyebrow: 10.24,
+    /* Once the copy is dissolving these necessarily fall — the glyph itself
+       is going. Recorded so the decline is documented rather than discovered. */
+    whileHalfOpaque: { headline: 2.92, eyebrow: 3.72 },
   },
 } as const;
 
