@@ -1,0 +1,131 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Gecko behaviour check</title>
+<!--
+  Firefox cannot be driven from here the way Chrome can, so it reports its own
+  findings back to the sink in build/serve.js — the same pattern used for the
+  seek-latency runs.
+
+  The earlier Gecko run measured SEEK TIMING on the encoded files. It says
+  nothing about the three things the navbar sits on: sticky pinning under
+  Lenis, the scrub binding under Lenis, and backdrop-filter. This checks only
+  those.
+
+  Same-origin with the app, so the iframe's document is readable — which is
+  why it must be COPIED INTO public/ to run, and must not live there. A test
+  harness in public/ ships to production.
+
+  To run:
+    cp build/gecko-check.html public/ && npx next build && npx next start -p 3100
+    node build/serve.js 8787            (the result sink)
+    firefox http://localhost:3100/gecko-check.html
+    tail -1 build/results.jsonl
+    rm public/gecko-check.html
+
+  NOTE: scroll the iframe with BOTH w.scrollTo and scrollingElement.scrollTop.
+  With scrollTo alone the frame did not move, and the run reported a sticky pin
+  that "held" and a scrub that "never advanced" — both artefacts of nothing
+  having scrolled, not Gecko behaviour.
+-->
+<style>
+  body { font: 14px/1.5 ui-monospace, monospace; margin: 0; background: #111; color: #eee; }
+  #log { padding: 16px; white-space: pre-wrap; }
+  iframe { position: fixed; right: 0; bottom: 0; width: 900px; height: 560px; border: 2px solid #444; }
+</style>
+<div id="log">running…</div>
+<iframe id="app" src="/"></iframe>
+<script>
+const SINK = "http://localhost:8787/results";
+const log = (o) => { document.getElementById("log").textContent = JSON.stringify(o, null, 1); };
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+(async () => {
+  const out = { engine: navigator.userAgent, checks: {} };
+  const frame = document.getElementById("app");
+  await new Promise(r => frame.addEventListener("load", r, { once: true }));
+  const w = frame.contentWindow, d = frame.contentDocument;
+  await sleep(9000);
+
+  const hero = d.querySelector('section[aria-labelledby="hero-headline"]');
+  const sticky = hero && hero.querySelector("div.sticky");
+  const vids = hero ? [...hero.querySelectorAll("video")] : [];
+
+  // 1. Does the runway render at its full height under Gecko?
+  out.checks.runway = hero ? {
+    heightPx: Math.round(hero.getBoundingClientRect().height),
+    viewport: w.innerHeight,
+    ratioVh: Math.round(hero.getBoundingClientRect().height / w.innerHeight * 100),
+  } : "hero not found";
+
+  // 2. position: sticky — does the pin actually hold as the frame scrolls?
+  // scrollY is recorded too. Without it "sticky top stayed 0" is
+  // indistinguishable from "the frame never scrolled", and the first run of
+  // this check could not tell those apart.
+  const stickyTops = [];
+  const scrolls = [];
+  const se = d.scrollingElement || d.documentElement;
+  for (const f of [0, 0.1, 0.3, 0.6]) {
+    const max = hero.getBoundingClientRect().height - w.innerHeight;
+    const target = Math.round(max * f);
+    w.scrollTo(0, target);
+    se.scrollTop = target;          // belt and braces: Lenis may intercept one
+    await sleep(900);
+    scrolls.push({ target, actual: Math.round(w.scrollY || se.scrollTop) });
+    stickyTops.push(+sticky.getBoundingClientRect().top.toFixed(1));
+  }
+  out.checks.stickyPin = {
+    scrollAttempts: scrolls,
+    didScroll: scrolls.some(s => s.actual > 10),
+    topsAtProgress: stickyTops,
+    holdsAtZero: stickyTops.every(t => Math.abs(t) < 2),
+  };
+
+  // 3. The scrub binding under Lenis: does the playhead track progress?
+  const samples = [];
+  for (const f of [0, 0.05, 0.15, 0.3]) {
+    const max = hero.getBoundingClientRect().height - w.innerHeight;
+    const target = Math.round(max * f);
+    w.scrollTo(0, target);
+    se.scrollTop = target;
+    await sleep(1300);
+    const scrub = vids.find(v => (v.currentSrc || "").includes("scrub"));
+    samples.push({ p: f, scrollY: Math.round(w.scrollY || se.scrollTop),
+                   t: scrub ? +scrub.currentTime.toFixed(2) : null,
+                   expected: +(f * 52.29).toFixed(2) });
+  }
+  out.checks.scrubBinding = samples;
+
+  // 4. The idle -> scrub handoff.
+  w.scrollTo(0, 0); await sleep(1500);
+  out.checks.videos = vids.map(v => ({
+    file: (v.currentSrc || "(none)").split("/").pop(),
+    readyState: v.readyState,
+    opacity: w.getComputedStyle(v).opacity,
+  }));
+
+  // 5. backdrop-filter — supported at all, and does it composite?
+  const probe = d.createElement("div");
+  probe.style.cssText = "position:fixed;top:0;left:0;width:40px;height:40px;backdrop-filter:blur(8px);";
+  d.body.appendChild(probe);
+  out.checks.backdropFilter = {
+    cssSupports: w.CSS.supports("backdrop-filter", "blur(8px)"),
+    webkitSupports: w.CSS.supports("-webkit-backdrop-filter", "blur(8px)"),
+    computed: w.getComputedStyle(probe).backdropFilter,
+  };
+  probe.remove();
+
+  // 6. Lenis present and driving?
+  out.checks.lenis = {
+    htmlClasses: d.documentElement.className,
+    scrollBehavior: w.getComputedStyle(d.documentElement).scrollBehavior,
+  };
+
+  log(out);
+  try {
+    await fetch(SINK, { method: "POST", body: JSON.stringify(out) });
+    document.getElementById("log").textContent += "\n\nreported to sink OK";
+  } catch (e) {
+    document.getElementById("log").textContent += "\n\nSINK FAILED: " + e;
+  }
+})();
+</script>

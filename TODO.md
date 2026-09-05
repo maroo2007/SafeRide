@@ -46,11 +46,16 @@ machine or BrowserStack account available; Safari does not exist on Windows. Saf
 historically the weakest browser at non-keyframe seeking, so this is the highest
 residual risk in the video pipeline.
 
-**Firefox:** also **untested** — Firefox is not installed on this machine. Only Chrome
-and Edge are present, and Edge is Chromium/Blink, the same media stack as Chrome, so it
-is not independent coverage. All scrub measurements reported are **Chrome/Blink only**.
-Firefox uses its own (Gecko) media stack and could differ. Installing Firefox would
-close this gap cheaply and is worth doing before launch.
+**Firefox: VERIFIED.** This paragraph previously said Firefox was not installed and all
+measurements were Blink-only. That was already false when written — Firefox 155 was
+installed during the encode phase and the Gecko seek numbers are in the table below,
+captured via the result sink in `build/serve.js` (`build/results.jsonl`,
+`build/results_run1.jsonl`). Leaving the contradiction in place later misled me into
+proposing a reinstall. Only **Safari** remains unverified.
+
+What the Gecko run does NOT cover: sticky pinning under Lenis, the scrub binding under
+Lenis, and `backdrop-filter`. Those are rendering behaviours, not seek timing, and they
+matter from the navbar onward.
 
 Mitigation already built, so the untested risk costs nothing:
 Safari is served the conservative **`-g 1` all-intra H.264** build via `<source>`
@@ -487,11 +492,21 @@ at the 204 KB/s / 562ms RTT profile this project measured.
 
 ### Verdict
 
-**405 ms was never achievable and the arithmetic says so.** At 204 KB/s,
-405 ms buys about 83 KB of transfer. The idle file is 336 KB. Even fetched
-alone with nothing else on the wire it needs 822 ms — and that is already
-faster than a full transfer because `readyState 2` arrives after 0.22 s of
-buffered video, not the whole file.
+**CORRECTION to an earlier claim in this file.** I first wrote that 405 ms was
+"arithmetically impossible" because 405 ms buys ~83 KB at 204 KB/s while the
+file is 336 KB. That reasoning is wrong, and I am retracting it: `readyState 2`
+needs only the first frames, measured here as 0.22 s of buffered video, so a
+first frame from ~80 KB is entirely plausible.
+
+The two numbers are not in conflict — they measure different things. 405 ms
+came from `build/serve-throttled.js` timing the video fetch on an already-open
+connection. 822 ms is the same file through the production build with the
+cache explicitly disabled, so it pays a cold connection. Under a 562 ms RTT a
+cold fetch cannot return a first frame in 405 ms; a warm one can.
+
+**What actually matters is neither.** A real visitor pays the full cold page
+load: **5534 ms** to first idle frame in production on Fast 3G. That is the
+number to quote.
 
 **The split is still worth keeping, but for a smaller reason than the spec
 gave.** Head to head, the idle file shows film **1263 ms** sooner than the
@@ -514,3 +529,29 @@ not be repeated.
 `next-route-announcer` is the visually-hidden accessibility live region, not
 the overlay. This closes the cyan/green line question with evidence: those
 lines were the dev overlay's, and it does not exist in a production build.
+
+### Gecko: the navbar-relevant behaviours, checked against the production build
+
+The earlier Gecko run covered **seek timing on the encoded files** and nothing
+else. It said nothing about the three things the navbar sits on. Those are now
+checked separately, on Firefox 155 against `next start` on :3100, via the same
+result sink (`build/gecko-check.html`, copied into `public/` to run).
+
+| check | Gecko result |
+|---|---|
+| runway height | 6720px at a 560px viewport = **1200vh** |
+| sticky pin under Lenis | scrolled 0 → 616 → 1848 → 3696; sticky `top` **0 at every point** |
+| scrub binding under Lenis | t = 2.61 / 7.84 / 15.69 against expected 2.61 / 7.84 / 15.69 — **exact** |
+| idle → scrub handoff | fired; idle opacity 0, scrub opacity 1 |
+| `backdrop-filter` | supported **unprefixed**; `-webkit-backdrop-filter` is NOT supported |
+| Lenis | `lenis` class present on `<html>` |
+
+Nothing Gecko-specific needs changing.
+
+**The first run of this check was a false negative and the fault was mine.**
+It reported the sticky pin holding and the scrub never advancing. Both were
+artefacts of the iframe never scrolling: `w.scrollTo` alone had no effect, so
+"sticky top stayed 0" and "playhead stayed 0" were the same non-event. Adding
+`scrollingElement.scrollTop` fixed it. A check that cannot distinguish "passed"
+from "never ran" is not a check — the harness now records scrollY alongside
+every reading.
