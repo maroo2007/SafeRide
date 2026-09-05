@@ -881,3 +881,80 @@ no link overshoots its slot    FAIL  (worst -14.3px, Features at t=565ms)
 would think to write about a stagger. The tween was correct; a guard on the
 tween proves nothing. The two that fail are the ones that look at what the
 element ended up doing rather than at what it was told to do.
+
+
+---
+
+## Phase 3 close-out
+
+Every claim below was checked in a browser against `next build && next start`
+on :3100 — `node build/verify-phase3.js <profile> <out>`, which exits non-zero
+and prints 32 PASS/FAIL lines. Three specialised rigs sit under it:
+`build/hamburger-ground.js` (contrast against the film),
+`build/shoot-hamburger.js` (contrast as painted, collision, morph),
+`build/diagnose-menu.js` (panel ground, containment, frame timing) and
+`build/diagnose-links.js` (per-link entrance).
+
+| item | evidence |
+|---|---|
+| §2.4 aria-expanded / aria-controls / state-reflecting label | "Close menu" while open, "Open menu" after Escape |
+| §2.4 role="dialog" + aria-modal | present while open, absent when shut |
+| §2.4 focus trap | 12 real Tab presses, 9 distinct stops, 0 escapes |
+| §2.4 focus return | `document.activeElement === toggle` after Escape |
+| §2.4 reduced motion instant | one frame after the click: panel and link both `matrix(1,0,0,1,0,0)`, icon transition 1e-05s |
+| §2.3 Lenis stop | trusted CDP wheel: 0px open, 1200px shut |
+| hamburger contrast | 5.96:1 worst frame as painted, 5.91:1 over `--paper`, 19.51:1 over the panel |
+| §2.2 F utilities in the panel | both inside the panel rect, 44px targets, toggle changes state and label |
+| §2.2 A/B six shapes, brand tones | six ids, 9 distinct fills, none indigo |
+| §2.2 C no `--color-primary` block | resolves to `#030917`, and the navbar does not redeclare it |
+| §2.2 D "click me" | absent from the rendered DOM |
+| §2.2 E logo | 0 `<header>` elements, 0 logo images |
+
+### Two things the close-out found, which the phase would otherwise have shipped
+
+**The ambient shapes painted nothing.** `.bgShape` is `opacity: 0;
+visibility: hidden` at rest and `.active` restored only the visibility, so the
+container stayed at opacity 0 while GSAP faithfully animated its children to
+opacity 1 inside it. Every guard passed — six shapes present, visibility
+visible, children at opacity 1, all fills brand tones — because every guard
+asked about the children or the source. Caught by diffing the panel hovered
+against not-hovered.
+
+**And the first version of that diff passed too.** The hovered link's own
+background band is 57/255 on this ground and sits inside the panel, so the
+diff reported "perceptible" on a build whose shapes were 0. Excluding the
+hovered row leaves the shape: 0/255 before the fix, 75/255 after.
+
+Third instance in this phase of the same shape of error: a check that looks
+adjacent to the thing rather than at it.
+
+### Frame timing: nothing left to tune
+
+Production build, headed Chrome on a real GPU (headless rasterises in software
+here and reports 18.4ms p50 for a still page, so it is not a fair clock).
+
+| | p50 | p95 | long frames (>32ms) |
+|---|---|---|---|
+| baseline, menu shut, video playing | 16.6-16.7ms | 16.9-18.1ms | 0 |
+| animated open, 3 runs | 16.6-16.7ms | 20.3-21.7ms | 1, 2, 2 — at t≈39-56ms and t≈148-184ms |
+| **reduced-motion open, no tween at all** | 16.7ms | 16.9-17.5ms | 0, 2, 1 — **at t≈37ms (twice) and t≈120ms** |
+
+The reduced-motion row is the attribution: with **no animation whatsoever**,
+the same spikes appear at the same moments. They are the panel's first paint —
+`display: none` to block, layer creation, React's commit — not the tween.
+Median is a clean 60fps either way.
+
+The original "glitchy and laggy" is accounted for by the two defects, not by a
+frame budget: content painted over bare film for 465ms, and the first link
+half-revealed then snapping 13px back into place.
+
+### focus(), audited
+
+Three call sites in the entire application, all in the navbar, all now
+`{ preventScroll: true }`: focus into the panel, the trap's Tab handling, and
+the return to the toggle. No `scrollIntoView`, no `autoFocus`, no programmatic
+`scrollTo`/`scrollBy` in shipped source. `__tests__/focus-scroll.test.ts`
+makes it codebase-wide rather than navbar-local, because any focusable inside
+a masked or transformed container has the same problem and the next one should
+not have to rediscover it. An explicit `{ preventScroll: false }` still passes
+— that is a decision, and it reads as one.

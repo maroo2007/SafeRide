@@ -136,6 +136,15 @@ ${HELPERS}
 
   await send("Page.enable"); await send("Runtime.enable");
   await send("Emulation.setDeviceMetricsOverride", { width: VW, height: VH, deviceScaleFactor: 1, mobile: false });
+  /*
+   * --reduced attributes the long frames. Under prefers-reduced-motion the
+   * menu opens with no tween at all, so anything still costing a frame is
+   * paint and layout — display:none to block, layer creation, React's commit —
+   * and not the animation.
+   */
+  if (process.argv.includes("--reduced")) {
+    await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] });
+  }
   await send("Page.navigate", { url: URL });
   await sleep(9000);
   await ev("scrollTo(0,0);1"); await sleep(1200);

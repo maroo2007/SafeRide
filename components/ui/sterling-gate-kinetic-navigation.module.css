@@ -234,8 +234,20 @@
   opacity: 0;
   visibility: hidden;
 }
+/*
+ * opacity BELONGS HERE. Without it the container stayed at opacity 0 and the
+ * shapes never painted — GSAP was faithfully animating the .shape-element
+ * children to opacity 1 inside a parent that could not be seen.
+ *
+ * Every guard passed: six shapes present, visibility visible, children at
+ * opacity 1, fills all brand tones. Caught only by diffing the panel hovered
+ * against not-hovered — and the first version of THAT check passed too,
+ * because the hovered link's own background band (14/255 on this ground) was
+ * inside the diff. Excluding the row leaves the shape, and the shape was 0.
+ */
 .bgShape.active {
   visibility: visible;
+  opacity: 1;
 }
 
 /* ---------- menu list -------------------------------------------------- */

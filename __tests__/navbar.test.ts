@@ -163,26 +163,28 @@ describe("the link mask exists, because the timeline needs it", () => {
   });
 });
 
-describe("focus never scrolls anything", () => {
+describe("the ambient shapes actually paint", () => {
   /*
-   * An overflow:hidden box is still programmatically scrollable, and .focus()
-   * scrolls every ancestor to reveal its target. Each link starts its entrance
-   * translated 140% below its 65px row, so focusing one made the browser scroll
-   * THAT ROW down 50px — and the link then read as already settled while the
-   * other five were still hidden, and finished 14px past its resting line.
+   * .bgShape is opacity 0 / visibility hidden at rest, and .active restored
+   * only the visibility. The container stayed at opacity 0, so nothing ever
+   * painted — GSAP was faithfully animating the .shape-element children to
+   * opacity 1 inside a parent that could not be seen.
    *
-   * The tween was never involved: measured, all six travel 90.72px in ~485ms,
-   * staggered 46/96/152/199/265ms. A guard on the timeline would have passed.
-   * build/diagnose-links.js is the one that catches it, in a browser.
+   * Every guard passed at the time: six shapes present, visibility visible,
+   * children at opacity 1, all fills brand tones. It took diffing the panel
+   * hovered against not-hovered (build/verify-phase3.js) to see it, and the
+   * first version of THAT passed too, because the hovered link's own
+   * background band was inside the diff.
    */
-  it("every focus() call opts out of scrolling", () => {
-    const calls = code.match(/\.focus\([^)]*\)/g) ?? [];
-    // NO-OP HALF: §2.4 requires focus to move into the panel and back to the
-    // toggle, so "no bare focus() calls" must not be satisfiable by having none.
-    expect(calls.length, "focus management must exist to be guarded").toBeGreaterThanOrEqual(3);
-    for (const c of calls) {
-      expect(c, `bare ${c} will scroll the row it lands in`).toMatch(/preventScroll:\s*true/);
-    }
+  it(".active restores opacity, not just visibility", () => {
+    const active = rule(".bgShape.active");
+    expect(active).toMatch(/visibility:\s*visible/);
+    expect(active, "the container is opacity 0 at rest").toMatch(/opacity:\s*1/);
+    // NO-OP HALF: the rest state has to exist, or "active turns it on" is
+    // satisfied by a shape that was never off.
+    const rest = rule(".bgShape");
+    expect(rest).toMatch(/opacity:\s*0/);
+    expect(rest).toMatch(/visibility:\s*hidden/);
   });
 });
 
