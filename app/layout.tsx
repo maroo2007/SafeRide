@@ -83,7 +83,7 @@ export const viewport: Viewport = {
 /* Light is the DEFAULT, deliberately — system preference is not followed.
    The buyer is a school principal or transport administrator, and a dark site
    reads as developer tooling rather than as something a school procures. Dark
-   is an explicit opt-in only, and dark SECTIONS (footer, video, parallax
+   is an explicit opt-in only, and dark SECTIONS (footer, video, the navbar
    bridge) carry the film's own #030302 regardless of theme. */
 const themeScript = `
 (function(){try{

@@ -35,9 +35,9 @@ const SmoothScrollContext = createContext<SmoothScrollValue | null>(null);
 /**
  * Owns the app's only Lenis instance.
  *
- * Consumers must call `useSmoothScroll()` rather than constructing Lenis. Both
- * pasted components (spec 2 navbar, spec 3 parallax) ship code that news up
- * their own instance; that code must be stripped when they are wired in.
+ * Consumers must call `useSmoothScroll()` rather than constructing Lenis. The
+ * spec 2 navbar ships code that news up its own instance; that code was
+ * stripped when it was wired in, and anything pasted later must be too.
  *
  * State comes from useSyncExternalStore rather than setState-in-effect: Lenis
  * and matchMedia are external systems, and subscribing to them keeps the

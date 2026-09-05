@@ -3,10 +3,10 @@
  *
  * Spec 12: "One Lenis instance, one ScrollTrigger registration."
  *
- * Both components pasted into this project (the Sterling Gate navbar in spec 2
- * and the parallax in spec 3) call `gsap.registerPlugin` themselves. Neither
- * should. Import from here instead so registration happens exactly once, and
- * so a second registration is detectable rather than silent.
+ * The Sterling Gate navbar pasted in from spec 2 calls `gsap.registerPlugin`
+ * itself, at module scope. It must not: import from here instead, so
+ * registration happens exactly once and a second one is detectable rather
+ * than silent.
  */
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";

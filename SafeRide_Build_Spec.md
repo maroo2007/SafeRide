@@ -871,212 +871,28 @@ The overlay pattern works on mobile without a separate implementation, but:
 
 ---
 
-## 3. Post-Video Transition
+## 3. Post-Video Transition — REMOVED
 
-A layered parallax scroll sequence that bridges from the cinematic video into
-the conventional content sections. Four image layers move at different speeds
-as the user scrolls, with a title layer between them.
+**This section is struck, not deferred. There is no outstanding work here and
+none is expected. Do not pick it up as unfinished.**
 
-**Placement:** fires immediately after the scrub video hero completes — when
-scroll progress reaches 1.0 and the sticky pin releases — and before the
-Emotional Journey Strip (Section 4.1).
+Removed on instruction, 2026-09-05, after the ground and geometry had been
+built and measured against solid-colour placeholders. Everything it described
+is gone from the repository: the component, its CSS, the three placeholder
+images, the measurement rig, and the mount in `app/page.tsx`. `parallax`,
+`Osmo`, `cdn.21st.dev` and `data-parallax-layer` return zero hits in shipped
+source, with no commented-out remnants. Nothing was ever built that assumed
+this section existed — no preload, no reserved height, no scroll arithmetic;
+`app/layout.tsx` preloads only the hero's idle loop.
 
-**Purpose:** the video ends on a resolved SafeRide wordmark against dark ink.
-Cutting straight from that into a features grid would feel like the film just
-stopped. This parallax sequence is the deliberate handoff — it carries the
-momentum down and lands the user in the content.
+**The one job it was doing still needs an answer.** It existed to bridge the
+film's last frame — the wordmark on dark ink — into the light content
+sections. Without it the hero's pin releases straight into `--paper`. Whether
+that reads as a clean cut or as an abrupt jump is a question for the capture,
+not for a rebuild of this section.
 
-### 3.1 Component Source
+The original content is in git history at the commit that removed it.
 
-Copy this component to `/components/ui/parallax-scrolling.tsx`.
-
-```tsx
-// components/ui/parallax-scrolling.tsx
-'use client';
-
-import React, { useEffect, useRef } from 'react';
-import gsap from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import Lenis from '@studio-freight/lenis';
-
-export function ParallaxComponent() {
-  const parallaxRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    gsap.registerPlugin(ScrollTrigger);
-
-    const triggerElement = parallaxRef.current?.querySelector('[data-parallax-layers]');
-
-    if (triggerElement) {
-      const tl = gsap.timeline({
-        scrollTrigger: {
-          trigger: triggerElement,
-          start: "0% 0%",
-          end: "100% 0%",
-          scrub: 0
-        }
-      });
-
-      const layers = [
-        { layer: "1", yPercent: 70 },
-        { layer: "2", yPercent: 55 },
-        { layer: "3", yPercent: 40 },
-        { layer: "4", yPercent: 10 }
-      ];
-
-      layers.forEach((layerObj, idx) => {
-        tl.to(
-          triggerElement.querySelectorAll(`[data-parallax-layer="${layerObj.layer}"]`),
-          {
-            yPercent: layerObj.yPercent,
-            ease: "none"
-          },
-          idx === 0 ? undefined : "<"
-        );
-      });
-    }
-
-    const lenis = new Lenis();
-    lenis.on('scroll', ScrollTrigger.update);
-    gsap.ticker.add((time) => { lenis.raf(time * 1000); });
-    gsap.ticker.lagSmoothing(0);
-
-    return () => {
-      ScrollTrigger.getAll().forEach(st => st.kill());
-      gsap.killTweensOf(triggerElement);
-      lenis.destroy();
-    };
-  }, []);
-
-  return (
-    <div className="parallax" ref={parallaxRef}>
-      <section className="parallax__header">
-        <div className="parallax__visuals">
-          <div className="parallax__black-line-overflow"></div>
-          <div data-parallax-layers className="parallax__layers">
-            <img src="/images/parallax/layer-1.webp" loading="eager" width="800" data-parallax-layer="1" alt="" className="parallax__layer-img" />
-            <img src="/images/parallax/layer-2.webp" loading="eager" width="800" data-parallax-layer="2" alt="" className="parallax__layer-img" />
-            <div data-parallax-layer="3" className="parallax__layer-title">
-              <h2 className="parallax__title">Every step, accounted for</h2>
-            </div>
-            <img src="/images/parallax/layer-4.webp" loading="eager" width="800" data-parallax-layer="4" alt="" className="parallax__layer-img" />
-          </div>
-          <div className="parallax__fade"></div>
-        </div>
-      </section>
-    </div>
-  );
-}
-```
-
-**Install:**
-
-```bash
-pnpm add gsap @studio-freight/lenis
-```
-
-Both are already required by the scrub video hero (Section 1.4), so this adds
-no new dependencies.
-
-### 3.2 Critical Adaptations
-
-**A. The demo images must be replaced. This is not optional.**
-
-The component as published on 21st.dev points at three images hosted on
-`cdn.21st.dev` (an Osmo demo asset — a mountain scene). **Those are not
-SafeRide's assets and must not ship on a commercial site.** The code above
-already has the `src` paths swapped to local files. Generate or source three
-owned layer images and place them at:
-
-```
-public/images/parallax/layer-1.webp   (back layer, moves most — yPercent: 70)
-public/images/parallax/layer-2.webp   (mid layer — yPercent: 55)
-public/images/parallax/layer-4.webp   (front layer, moves least — yPercent: 10)
-```
-
-Layer 3 is the title text, not an image.
-
-**Art direction for the three layers:** they must continue the video's visual
-language, not introduce a new one. The video ends on the SafeRide wordmark
-against dark ink. These layers should carry that forward and resolve toward
-the light content sections below. Suggested composition:
-
-- **Layer 1 (back):** distant Cairo skyline or the glowing route network from
-  clip 5/6, heavily atmospheric, low contrast
-- **Layer 2 (mid):** mid-ground elements — buildings, route lines, or the
-  branch roads
-- **Layer 4 (front):** a foreground element that frames the composition — road
-  surface, a bus silhouette edge, or foliage
-
-Match the video's palette exactly. If assets need generating, flag it in
-`TODO.md` and use a solid-color placeholder in the meantime rather than
-shipping the Osmo mountains.
-
-**B. Remove the Osmo attribution block.** The demo file includes an
-`osmo-credits` div and an Osmo logo SVG in `parallax__content`. Both are demo
-artifacts. The code above already omits them. Do not add them back.
-
-**C. Replace the title.** The demo says "Parallax". The code above uses
-"Every step, accounted for", which is the heading of the section this
-transition leads into (Section 4.4). Use that, or another line from the
-existing site copy — do not invent new copy.
-
-### 3.3 Integration Requirements
-
-**Do not double-instantiate Lenis.** The component creates its own Lenis
-instance in its `useEffect`. The scrub video hero also needs Lenis. **Two
-instances will fight each other and produce broken scrolling.**
-
-Refactor: create a single Lenis instance in a provider at the app root
-(`lib/lenis.ts` + a client provider in `app/layout.tsx`), and have both the
-scrub hero and this parallax component consume it via context rather than
-instantiating their own. Strip the Lenis creation and teardown out of this
-component's `useEffect` — keep only the ScrollTrigger timeline.
-
-**Do not double-register ScrollTrigger.** Register the plugin once, centrally.
-
-**Hand off from the video's final frame.** The video ends on dark ink. Layer 1
-of the parallax should start visually close to that state so the join is
-invisible, then the sequence resolves lighter as it scrolls toward the content
-sections.
-
-**No layout shift.** Reserve exact dimensions on `.parallax__layers` and every
-`<img>`. The `loading="eager"` on all three layers is correct here — they are
-immediately below the fold and must be ready when the video releases.
-
-**Consider `next/image`.** The raw `<img>` tags work, but the rest of the
-project uses `next/image`. Convert them for consistency and automatic
-optimization, keeping `priority` on all three.
-
-### 3.4 Reduced Motion
-
-`prefers-reduced-motion: reduce` must disable the parallax entirely. Do not
-slow it down — remove it. Render the three layers as a single static composed
-image with the title on top, no scroll-linked movement, no ScrollTrigger
-timeline created at all.
-
-Guard the `useEffect` with a `matchMedia` check so the timeline is never built
-for these users.
-
-### 3.5 Mobile
-
-Multi-layer parallax is expensive on mobile GPUs and the effect largely
-collapses on a narrow viewport.
-
-Below 768px: render the composition **static**. Show layer 4 (or a purpose-cut
-mobile composite) as a single image with the title. No parallax timeline.
-
-### 3.6 Performance
-
-Three eagerly-loaded images arriving right after a large video is a real risk.
-
-- Serve the layers as WebP, and provide AVIF where supported
-- Keep each layer under 300 KB
-- Total for the three layers: under 800 KB
-- Preload them during the video scrub so they are ready before the pin
-  releases — the user should never see them pop in
-
----
 
 ## 4. Content Sections (After the Video)
 
@@ -1493,7 +1309,6 @@ components/
     footer.tsx
     mobile-nav.tsx
   transition/
-    post-video-transition.tsx   — [SECTION 3 component]
   sections/
     emotional-journey.tsx
     stats-band.tsx
@@ -1598,8 +1413,10 @@ frame rate.
 Implement the component from Section 2.
 → Pause.
 
-**Phase 4 — Post-video transition**
-Implement the component from Section 3.
+**Phase 4 — REMOVED with Section 3.**
+The post-video transition is struck. Phase numbering after this point is left
+as written so earlier notes still resolve; the next phase of work is the
+content sections (Section 4).
 → Pause.
 
 **Phase 5 — Content sections**
@@ -1644,10 +1461,10 @@ verification (throttle the network and confirm the poster shows).
 - **`ui-ux-pro-max` must be installed and read** before any UI styling. If
   it can't be installed, stop and report — do not fall back to defaults
   silently.
-- **No third-party demo assets ship.** The parallax component's original
-  `cdn.21st.dev` mountain images and the Osmo credits block must not appear
-  anywhere in the build. Same for the navbar's indigo/violet/pink ambient
-  shapes and its `--color-primary: #6366f1` token block.
+- **No third-party demo assets ship.** The navbar's indigo/violet/pink ambient
+  shapes and its `--color-primary: #6366f1` token block must not appear
+  anywhere in the build. (The `cdn.21st.dev` mountain images and the Osmo
+  credits block went with Section 3.)
 - **One Lenis instance, one ScrollTrigger registration.** Both pasted
   components create their own. Refactor to a single app-root provider before
   wiring either of them, or the scroll will break.

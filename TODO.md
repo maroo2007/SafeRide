@@ -70,37 +70,10 @@ Exposure is narrower than it first appears: iOS Safari falls back to the 720p
 mobile variant below 768px and does not scrub at all, so this is **desktop Safari
 on macOS only**.
 
-### 5. Parallax layer images not yet produced — SPEC NOW SETTLED
+### 5. ~~Parallax layer images~~ — REMOVED with Section 3
 
-Geometry measured with `node build/measure-parallax.js <profile> <out>`. Each
-layer is `height: <N>svh; width: 100%; object-fit: cover`, so the browser crops
-the asset to the box — **the aspect below is a guide, not a contract.**
-
-| layer | height | rendered at 1440x900 | aspect there | **deliver at** | aspect |
-|---|---|---|---|---|---|
-| 1 back | 40svh | 1440x360 | 4.00:1 | **2560x576** | 4.44:1 |
-| 2 mid | 46svh | 1440x414 | 3.48:1 | **2560x662** | 3.87:1 |
-| 4 front | 60svh | 1440x540 | 2.67:1 | **2560x864** | 2.96:1 |
-
-2560x1440 is the largest viewport the sizes are computed for, so nothing
-upscales. Keep the subject vertically centred; the sides crop on narrower
-viewports. WebP, under 300 KB each and 800 KB total (§3.6).
-
-Travel, which is what makes the parallax read, is `yPercent x the layer's own
-height` — so these heights ARE the motion: layer 1 travels 247px (0.27vh),
-layer 2 223px (0.25vh), layer 4 53px (0.06vh) over a one-viewport scrub.
-
-Solid-colour placeholders are in place (#0d0b08 / #1c1a16 / #3a2416, 3.7 KB
-each) and the whole thing is built and measured against them.
-
-`§3.2` requires three owned layer images:
-- `public/images/parallax/layer-1.webp` (back, yPercent 70)
-- `public/images/parallax/layer-2.webp` (mid, yPercent 55)
-- `public/images/parallax/layer-4.webp` (front, yPercent 10)
-
-The original component ships `cdn.21st.dev` Osmo mountain demo assets which
-**must not ship** (§12). Solid-colour placeholders in the interim, matched to the
-video's palette. Layer 3 is title text, not an image.
+Struck, not pending. No assets are needed and none should be produced. See
+"Section 3 removed" below.
 
 ### 6. Arabic translation deferred
 Site is bilingual (EN / العربية) per §2.2-F and §4.3 item 9. Phase 1 ships the
@@ -980,3 +953,30 @@ makes it codebase-wide rather than navbar-local, because any focusable inside
 a masked or transformed container has the same problem and the next one should
 not have to rediscover it. An explicit `{ preventScroll: false }` still passes
 — that is a decision, and it reads as one.
+
+
+---
+
+## Section 3 removed
+
+The post-video parallax transition is **struck, not deferred.** Removed on
+instruction after the ground and geometry had been built and measured against
+solid-colour placeholders.
+
+Gone: `components/ui/parallax-scrolling.tsx`, its CSS module, the three
+placeholder images, `build/measure-parallax.js`, and the mount in
+`app/page.tsx`. `parallax`, `Osmo`, `cdn.21st.dev` and `data-parallax-layer`
+return **zero hits** in `app`, `components`, `lib`, `__tests__` and `public`,
+with no commented-out remnants. Four prose references in unrelated files
+(globals.css, layout.tsx, the Lenis provider, lib/gsap.ts) were rewritten
+rather than left pointing at something that no longer exists.
+
+**Nothing depended on it.** No preload was ever built for the layers
+(`app/layout.tsx` preloads only the hero's idle loop), no height was reserved,
+and no scroll arithmetic accounted for it — the hero's runway is computed from
+`RUNWAY_VH` alone and the content sections follow in normal flow.
+
+**What it was doing that still needs an answer:** it bridged the film's last
+frame into the light content sections. Without it the pin releases from dark
+ink straight into `--paper`. Captured rather than assumed — see the capture
+sent with this pass.

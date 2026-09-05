@@ -1,13 +1,12 @@
 import { Button } from "@/components/ui/button";
 import { ScrubVideoHero } from "@/components/hero/scrub-video-hero";
 import { SterlingGateNavigation } from "@/components/ui/sterling-gate-kinetic-navigation";
-import { ParallaxTransition } from "@/components/ui/parallax-scrolling";
 
 /**
  * Phase 1 shell.
  *
- * The scrub hero (spec 1/2), post-video transition (spec 3), and content
- * sections (spec 4) land in later phases. This exists so the design system —
+ * The scrub hero (spec 1/2) and the content sections (spec 4) land in later
+ * phases. Spec 3's post-video transition was REMOVED, not deferred. This exists so the design system —
  * tokens, type stack, interaction states — can be seen and verified in both
  * themes before anything is built on top of it.
  *
@@ -34,10 +33,6 @@ export default function Home() {
     <main id="main">
       <SterlingGateNavigation />
       <ScrubVideoHero />
-
-      {/* Spec §3: the bridge out of the film. Fires as the hero's pin
-          releases and lands the reader in the content sections. */}
-      <ParallaxTransition />
 
       <section
         id="features"
