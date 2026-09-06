@@ -63,6 +63,38 @@ const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
  * when `edge` advances, the output advances smoothly rather than jumping.
  */
 export function clampToBuffer(target: number, edge: number, duration: number): number {
+  /*
+   * WHEN THE FILE IS COMPLETE THERE IS NOTHING TO BE SAFE FROM.
+   *
+   * SAFETY_MARGIN keeps the playhead behind the DOWNLOAD edge so a seek never
+   * lands in nothing. But `edge` cannot exceed `duration`, so once the file is
+   * fully buffered the old expression pinned the ceiling at
+   * `duration - SAFETY_MARGIN` permanently, and the knee took more on top:
+   * with edge = duration = 52.292 it returned 51.346, and the browser sat at
+   * 51.337 forever, readyState 4, whole file in memory.
+   *
+   * The last 0.946s of the film — the wordmark resolving, which the whole
+   * 52-second sequence is choreographed toward — was unreachable from the day
+   * this function shipped. Not slow to reach. Unreachable.
+   *
+   * `complete` is deliberately the ONLY thing this changes. Mid-scrub, where
+   * edge < duration, every value below is exactly what it was.
+   *
+   * Raising hardLimit to `duration` is NOT enough on its own, and that is the
+   * trap: the knee only asymptotes toward the limit. t = over / (KNEE *
+   * KNEE_SPAN) reaches 1 at over = 7.5s, which needs target >= duration + 5.
+   * With hardLimit = duration it returns 51.55 for target 52.292 — better, and
+   * still not the last frame. A guard asserting "hardLimit === duration" would
+   * have passed on that.
+   *
+   * So when the file is complete the knee does not apply either. It exists to
+   * decelerate into a MOVING download edge; the end of the film is not an edge
+   * to be eased into, it is the end. The film stopping on its final frame is
+   * the intended ending, not a stall to disguise.
+   */
+  const complete = edge >= duration - 0.01;
+  if (complete) return Math.max(0, Math.min(target, duration));
+
   const hardLimit = Math.max(0, Math.min(edge - SAFETY_MARGIN, duration));
   if (hardLimit <= 0) return 0;
 

@@ -39,6 +39,68 @@ describe("buffer edge", () => {
   });
 });
 
+describe("1a · the film's last frame is reachable at all", () => {
+  /*
+   * It was not, from the day clampToBuffer shipped. hardLimit was
+   * `edge - SAFETY_MARGIN`, and edge cannot exceed duration, so the ceiling
+   * was `duration - 0.35` permanently; the knee then took more on top. With
+   * the whole file buffered it returned 51.346 for a target of 52.292, and the
+   * browser sat at 51.337 forever at readyState 4. The wordmark resolving —
+   * what the entire 52-second sequence is choreographed toward — was
+   * structurally unreachable, in every capture and every test.
+   *
+   * These assert the OUTCOME, not the arithmetic. The first attempt at the fix
+   * raised hardLimit to `duration` and left the knee in place: that returns
+   * 51.55, still not the last frame, and a guard written as
+   * `hardLimit === duration` would have passed on it.
+   */
+  it("returns the target exactly once the whole file is buffered", () => {
+    const full = VIDEO_DURATION;
+    expect(clampToBuffer(VIDEO_DURATION, full, VIDEO_DURATION)).toBeCloseTo(VIDEO_DURATION, 5);
+    for (const target of [52.0, 51.0, 50.0, 45.0, 20.0, 0]) {
+      expect(clampToBuffer(target, full, VIDEO_DURATION)).toBeCloseTo(target, 5);
+    }
+  });
+
+  it("still refuses to seek past the end of the film, or before it", () => {
+    expect(clampToBuffer(999, VIDEO_DURATION, VIDEO_DURATION)).toBeCloseTo(VIDEO_DURATION, 5);
+    expect(clampToBuffer(-5, VIDEO_DURATION, VIDEO_DURATION)).toBe(0);
+  });
+
+  it("changes NOTHING while the file is still downloading", () => {
+    /*
+     * SAFETY_MARGIN exists for mid-scrub, where the scroll outruns the
+     * download — measured in the browser at want 39.3s against edge 37.7s.
+     * Lifting it at the end must not weaken it anywhere else, so this
+     * re-derives the pre-fix behaviour and compares it against the shipped
+     * function across the whole (edge, target) space where edge < duration.
+     */
+    const SPAN = 3;
+    const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+    const before = (target: number, edge: number, duration: number) => {
+      const hardLimit = Math.max(0, Math.min(edge - SAFETY_MARGIN, duration));
+      if (hardLimit <= 0) return 0;
+      const kneeStart = Math.max(0, hardLimit - KNEE);
+      if (target <= kneeStart) return Math.max(0, target);
+      const over = target - kneeStart;
+      const t = Math.min(1, over / (KNEE * SPAN));
+      return kneeStart + (hardLimit - kneeStart) * easeOutCubic(t);
+    };
+
+    let worst = 0;
+    let pairs = 0;
+    for (let e = 0.5; e < VIDEO_DURATION - 0.02; e += 0.25) {
+      for (let target = 0; target <= VIDEO_DURATION; target += 0.25) {
+        worst = Math.max(worst, Math.abs(before(target, e, VIDEO_DURATION) - clampToBuffer(target, e, VIDEO_DURATION)));
+        pairs++;
+      }
+    }
+    // NO-OP HALF: a sweep that covered nothing would also report no difference.
+    expect(pairs).toBeGreaterThan(30000);
+    expect(worst).toBeLessThan(1e-9);
+  });
+});
+
 describe("1 · the buffer-edge hold reads as intentional", () => {
   const edge = 20;
 

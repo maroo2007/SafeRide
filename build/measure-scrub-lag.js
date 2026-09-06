@@ -146,5 +146,34 @@ const RECORDER = `(() => {
   console.log(`  frame intervals while scrubbing: p50 ${fi[Math.floor(fi.length * 0.5)]}ms  p95 ${fi[Math.floor(fi.length * 0.95)]}ms  max ${fi[fi.length - 1]}ms`);
   console.log(`  frames over 32ms: ${fi.filter((d) => d > 32).length} of ${fi.length}\n`);
 
-  ws.close(); ch.kill(); process.exit(0);
+  /*
+   * THE OUTCOME GUARD. Not "hardLimit equals duration" — that arithmetic
+   * passed on a version that still stopped at 51.55. Scroll to progress 1.0
+   * and read what the element's playhead actually is.
+   */
+  const DUR = 2510 / 48;
+  const final = await ev(`(async()=>{
+    const sec=document.querySelector('section[aria-labelledby="hero-headline"]');
+    const max=sec.getBoundingClientRect().height-innerHeight;
+    scrollTo(0,Math.ceil(max)+200);
+    await new Promise(r=>setTimeout(r,2500));
+    const vids=[...document.querySelectorAll('video')];
+    const v=vids.find(x=>/scrub/.test(x.currentSrc||''))||vids[vids.length-1];
+    const b=v.buffered;
+    return JSON.stringify({t:Math.round(v.currentTime*1000)/1000,
+      edge:b&&b.length?Math.round(b.end(b.length-1)*1000)/1000:0, rs:v.readyState,
+      y:Math.round(scrollY), max:Math.round(max)});
+  })()`);
+  const f = JSON.parse(final);
+  const short = Math.round((DUR - f.t) * 1000) / 1000;
+  const ok = f.edge >= DUR - 0.05 && short <= 0.05;
+  console.log(`  FINAL FRAME at progress 1.0`);
+  console.log(`    scrolled to ${f.y} of ${f.max}, buffered ${f.edge}s, readyState ${f.rs}`);
+  console.log(`    playhead ${f.t}s of ${DUR.toFixed(3)}s — short by ${short}s`);
+  console.log(`    ${ok ? "PASS" : "FAIL"}  the film reaches its last frame` +
+    (f.edge < DUR - 0.05 ? "   (file not fully buffered, so this run proves nothing)" : ""));
+  console.log("");
+
+  ws.close(); ch.kill();
+  process.exit(ok ? 0 : 1);
 })();

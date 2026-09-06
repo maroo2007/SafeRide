@@ -980,3 +980,64 @@ and no scroll arithmetic accounted for it — the hero's runway is computed from
 frame into the light content sections. Without it the pin releases from dark
 ink straight into `--paper`. Captured rather than assumed — see the capture
 sent with this pass.
+
+
+---
+
+## The film's last frame was unreachable, from the day clampToBuffer shipped
+
+`clampToBuffer` computed `hardLimit = edge - SAFETY_MARGIN`, and `edge` cannot
+exceed `duration`, so the ceiling was `duration - 0.35` permanently. The 2.5s
+knee then took more on top: with the whole file buffered it returned **51.346**
+for a target of 52.292, and the browser sat at **51.337 forever**, readyState 4,
+53 MB in memory.
+
+The wordmark resolving — what the entire 52-second sequence is choreographed
+toward — had never been shown. Not in a capture, not in a test, not once.
+
+### The fix, and the trap inside it
+
+`SAFETY_MARGIN` keeps the playhead behind the *download* edge. When the file is
+complete there is nothing to be safe from, so the margin does not apply.
+
+**Raising `hardLimit` to `duration` is not enough on its own.** The knee only
+asymptotes toward the limit: `t = over / (KNEE * KNEE_SPAN)` reaches 1 at
+`over = 7.5s`, which needs `target >= duration + 5`. With `hardLimit = duration`
+it returns **51.55** — better, still not the last frame. **A guard asserting
+`hardLimit === duration` would have passed on that.** So when the file is
+complete the knee does not apply either: the end of the film is not an edge to
+decelerate into, it is the end.
+
+### Guarded by outcome, and proved three ways
+
+`__tests__/video-scrub.test.ts` §1a. Each break was applied, confirmed to have
+landed, and the failure observed:
+
+| break | caught by |
+|---|---|
+| fix reverted entirely | "returns the target exactly once the whole file is buffered" |
+| **half-fix: hardLimit raised, knee left in** | same guard — which is the point |
+| margin lifted everywhere, not only at the end | "changes NOTHING while the file is still downloading", plus both existing mid-scrub guards |
+
+**Mid-scrub is bit-identical.** The property test re-derives the pre-fix
+function and compares across the whole (edge, target) space where
+`edge < duration`: **43,000+ pairs, largest difference 0.000e+0**. A 1,083,656-
+pair sweep at finer resolution gave the same answer.
+
+### And in the browser, which is what was actually asked for
+
+`node build/measure-scrub-lag.js` now asserts the outcome and exits non-zero:
+
+| | before | after |
+|---|---|---|
+| playhead at progress 1.0 | 51.337s | **52.292s of 52.292s, short by 0s** |
+| settle after input stops | never within 0.02s | **826ms** |
+| binding lag, buffer not limiting | p50 0.524s / 99px | p50 0.532s / 101px — unchanged, and accepted |
+
+### One process note
+
+The first attempt at these guards was never written to disk — the tool call
+carrying it died on a transient outage, and I read the unchanged "45 passed" as
+"the guards do not catch it" rather than "the guards do not exist". The break
+harness now diffs the file and aborts with `ABORT — the break did not take` if
+the mutation did not land, because a green run after a no-op edit means nothing.
