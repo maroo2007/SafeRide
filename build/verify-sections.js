@@ -1,0 +1,159 @@
+/**
+ * The section ground, checked as rendered.
+ *
+ * The menu panel shipped with a correct rect and no paint. So this reads the
+ * COMPUTED background of every content section and the space between them,
+ * rather than checking that a class name is present:
+ *
+ *   1. every section's ground is fully opaque — nothing inherits the page's
+ *   2. adjacent sections are actually distinguishable: either the grounds
+ *      differ by >= 3:1, or there is enough vertical space between the two
+ *      blocks of content that the eye reads a break
+ *   3. every heading and eyebrow clears 4.5:1 on the ground it is actually on
+ *   4. the dark section resolves the DARK token scope, not just a dark
+ *      background — the hero wore a light --accent-edge over footage for weeks
+ *      because bg-surface-dark was applied without the `dark` class
+ *
+ * Exits non-zero on failure.
+ *
+ * Usage: node build/verify-sections.js <profile-dir> <out-dir> [url] [--w=] [--h=]
+ */
+const { spawn } = require("child_process");
+const fs = require("fs");
+const path = require("path");
+const http = require("http");
+
+const CHROME = "C:/Program Files/Google/Chrome/Application/chrome.exe";
+const P = process.argv[2], OUT = process.argv[3];
+const URL = (process.argv[4] && !process.argv[4].startsWith("--")) ? process.argv[4] : "http://localhost:3100/";
+const arg = (k, d) => { const a = process.argv.find((x) => x.startsWith(`--${k}=`)); return a ? +a.split("=")[1] : d; };
+const VW = arg("w", 1440), VH = arg("h", 900), PORT = arg("port", 9698);
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const get = (u) => new Promise((res, rej) =>
+  http.get(u, (r) => { let d = ""; r.on("data", (c) => (d += c)); r.on("end", () => res(JSON.parse(d))); }).on("error", rej));
+
+const fails = [];
+const check = (name, ok, detail = "") => {
+  console.log(`   ${ok ? "PASS" : "FAIL"}  ${name}${detail ? "   " + detail : ""}`);
+  if (!ok) fails.push(name);
+};
+
+(async () => {
+  fs.mkdirSync(OUT, { recursive: true });
+  const ch = spawn(CHROME, ["--headless=new", "--disable-gpu", "--no-sandbox", "--hide-scrollbars",
+    `--remote-debugging-port=${PORT}`, `--user-data-dir=${P}`, `--window-size=${VW},${VH}`, "about:blank"], { stdio: "ignore" });
+
+  let t = null;
+  for (let i = 0; i < 40 && !t; i++) { await sleep(500); try { t = (await get(`http://127.0.0.1:${PORT}/json/list`)).find((x) => x.type === "page"); } catch {} }
+  const WebSocket = require("ws");
+  const ws = new WebSocket(t.webSocketDebuggerUrl, { perMessageDeflate: false, maxPayload: 2 ** 28 });
+  await new Promise((r) => ws.on("open", r));
+  let id = 0; const pend = new Map();
+  ws.on("message", (m) => { const x = JSON.parse(m.toString()); if (x.id && pend.has(x.id)) { pend.get(x.id)(x); pend.delete(x.id); } });
+  const send = (m, p = {}) => new Promise((res) => { const i = ++id; pend.set(i, res); ws.send(JSON.stringify({ id: i, method: m, params: p })); });
+  const ev = async (e) => (await send("Runtime.evaluate", { expression: e, awaitPromise: true, returnByValue: true })).result?.result?.value;
+
+  await send("Page.enable"); await send("Runtime.enable");
+  await send("Emulation.setDeviceMetricsOverride", { width: VW, height: VH, deviceScaleFactor: 1, mobile: false });
+  await send("Page.navigate", { url: URL });
+  await sleep(9000);
+
+  const data = JSON.parse(await ev(`(() => {
+    const lin = (v) => { const s = v / 255; return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4); };
+    const L = (r, g, b) => 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+    const parse = (c) => { const m = /rgba?\\(([^)]+)\\)/.exec(c); if (!m) return null;
+      const n = m[1].split(',').map(parseFloat); return { r: n[0], g: n[1], b: n[2], a: n.length > 3 ? n[3] : 1 }; };
+    const ratio = (a, b) => { const x = L(a.r, a.g, a.b), y = L(b.r, b.g, b.b);
+      return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+
+    /* Content sections only: the hero and the token scaffolding are not §4. */
+    const secs = [...document.querySelectorAll('main > section')].filter(
+      (s) => s.getAttribute('aria-labelledby') && !/hero-headline|states/.test(s.getAttribute('aria-labelledby')));
+
+    return JSON.stringify(secs.map((s) => {
+      const cs = getComputedStyle(s);
+      const bg = parse(cs.backgroundColor);
+      const b = s.getBoundingClientRect();
+      const h2 = s.querySelector('h2');
+      const eyebrow = s.querySelector('.label-mono');
+      const inner = s.firstElementChild;
+      const ics = inner ? getComputedStyle(inner) : null;
+      const txt = (el) => {
+        if (!el) return null;
+        const c = parse(getComputedStyle(el).color);
+        const r = el.getBoundingClientRect();
+        return { color: getComputedStyle(el).color, contrast: bg ? +ratio(c, bg).toFixed(2) : null,
+          top: Math.round(r.top + scrollY), bottom: Math.round(r.bottom + scrollY) };
+      };
+      return {
+        id: s.id || '(none)',
+        label: s.getAttribute('aria-labelledby'),
+        bg: cs.backgroundColor,
+        alpha: bg ? bg.a : null,
+        lum: bg ? +L(bg.r, bg.g, bg.b).toFixed(4) : null,
+        top: Math.round(b.top + scrollY), bottom: Math.round(b.bottom + scrollY), h: Math.round(b.height),
+        padTop: ics ? ics.paddingTop : null, padBottom: ics ? ics.paddingBottom : null,
+        darkScope: cs.getPropertyValue('--ring').trim(),
+        heading: txt(h2), eyebrow: txt(eyebrow),
+      };
+    }));
+  })()`));
+
+  console.log(`\n  SECTION GROUND — ${URL} at ${VW}x${VH}\n`);
+  console.log("   id           ground                 lum      pad top/bottom     heading   eyebrow");
+  for (const s of data) {
+    console.log(`   ${s.id.padEnd(12)} ${s.bg.padEnd(22)} ${String(s.lum).padEnd(8)} ${String(s.padTop + " / " + s.padBottom).padEnd(18)} ` +
+      `${String(s.heading ? s.heading.contrast + ":1" : "-").padEnd(9)} ${s.eyebrow ? s.eyebrow.contrast + ":1" : "-"}`);
+  }
+
+  check("every section declares an opaque ground of its own",
+    data.length > 0 && data.every((s) => s.alpha === 1),
+    data.map((s) => `${s.id}=${s.alpha}`).join(" "));
+  // NO-OP HALF: a page with no content sections would satisfy "all opaque".
+  check("there are content sections to check at all", data.length >= 3, `${data.length} found`);
+
+  const contrastOk = data.every((s) => (!s.heading || s.heading.contrast >= 4.5) && (!s.eyebrow || s.eyebrow.contrast >= 4.5));
+  check("every heading and eyebrow clears 4.5:1 on its own ground", contrastOk,
+    data.map((s) => `${s.id} ${s.heading ? s.heading.contrast : "-"}/${s.eyebrow ? s.eyebrow.contrast : "-"}`).join("  "));
+
+  /*
+   * Neighbours must be separable. Either the grounds differ, or the gap does
+   * the work — because paper -> card is 1.06:1 and cannot.
+   */
+  console.log("\n   neighbours\n");
+  const lin = (v) => { const s = v / 255; return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4); };
+  let separable = true;
+  for (let i = 1; i < data.length; i++) {
+    const a = data[i - 1], b = data[i];
+    const r = (Math.max(a.lum, b.lum) + 0.05) / (Math.min(a.lum, b.lum) + 0.05);
+    /* Gap between the two blocks of INK, which is what the eye reads. */
+    const gap = (b.eyebrow ? b.eyebrow.top : b.top) - (a.heading ? a.heading.bottom : a.bottom);
+    const ok = r >= 3 || gap >= 144;
+    if (!ok) separable = false;
+    console.log(`   ${a.id} -> ${b.id}: grounds ${r.toFixed(2)}:1, ${gap}px between their content   ${ok ? "separable" : "NEITHER"}`);
+  }
+  check("adjacent sections are separable by ground or by space", separable);
+
+  const darkSec = data.find((s) => s.lum !== null && s.lum < 0.05);
+  check("the dark section resolves the dark token scope, not just a dark background",
+    !!darkSec && /fae6b7/i.test(darkSec.darkScope),
+    darkSec ? `--ring resolves to "${darkSec.darkScope}"` : "no dark section found");
+
+  /* Captures. */
+  for (const s of data) {
+    await ev(`(async()=>{scrollTo(0,${Math.max(0, s.top)});await new Promise(r=>setTimeout(r,900));return 1})()`);
+    const r = await send("Page.captureScreenshot", { format: "png" });
+    fs.writeFileSync(path.join(OUT, `sec-${s.id}.png`), Buffer.from(r.result.data, "base64"));
+  }
+  /* The paper -> dark join, which is the one real seam in 5a. */
+  if (darkSec) {
+    await ev(`(async()=>{scrollTo(0,${Math.max(0, darkSec.top - Math.round(VH / 2))});await new Promise(r=>setTimeout(r,900));return 1})()`);
+    const r = await send("Page.captureScreenshot", { format: "png" });
+    fs.writeFileSync(path.join(OUT, "sec-join-paper-to-dark.png"), Buffer.from(r.result.data, "base64"));
+  }
+
+  console.log(fails.length ? `\n  FAILED: ${fails.join("; ")}\n` : "\n  ground verified\n");
+  ws.close(); ch.kill();
+  process.exit(fails.length ? 1 : 0);
+})();

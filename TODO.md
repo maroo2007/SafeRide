@@ -6,29 +6,36 @@ Items requiring a decision, real data, or work deferred past the current phase.
 
 ## Blocking content gaps — must resolve before launch
 
-### 1. Placeholder stats (`0+`) — two sections
-The source site at https://safe-ridee.vercel.app/ renders `0+` for every stat.
-Per spec §4.2 and §12, these either get real numbers or the sections are removed.
-**Do not ship placeholder zeros.**
+### 1. ~~Placeholder stats (`0+`)~~ — RESOLVED 2026-09-06: both stat sets are CUT
 
-Stats Band (§4.2) — needs real figures:
-- Partner Schools
-- Protected Students
-- Smart Buses
-- Journey Safety (%)
+No real figures exist, so nothing ships rather than zeros. **This is a
+decision, not a block** — do not wait on it and do not invent numbers.
 
-Coverage section (§4.7) — needs real figures:
-- Smart Buses
-- Students Protected
-- System Uptime (%)
+- **§4.2 Stats Band — the whole section is cut.** It is nothing but the four
+  stats (Partner Schools, Protected Students, Smart Buses, Journey Safety), so
+  removing them removes the section.
+- **§4.7 Coverage — only the three-stat row is cut** (Smart Buses, Students
+  Protected, System Uptime). The section stays: its fourteen-city list is not
+  blocked on data, it is the `#coverage` target the navbar links to, and it is
+  scheduled into phase 5b.
 
-**Owner: client.** Blocked until real numbers supplied.
+Reading noted: the instruction was "cut both sections", and §4.7 is not only
+stats. Cutting it wholesale would delete the fourteen cities that the same
+message scheduled into 5b, so the stats came out and the section stayed. Say
+if that is the wrong call.
 
-### 2. Dead social links
-Footer social icons all point to `href="#"` on the source site (§4.13, §12: no dead links).
-Either supply real profile URLs or the icons are removed.
+If real data arrives, §4.2 comes back and §4.7 regains its row. Until then
+their absence is more credible than their presence — placeholder zeros are
+what undermined the original site.
 
-**Owner: client.** Default if unanswered: remove the icons.
+### 2. ~~Dead social links~~ — RESOLVED 2026-09-06: all six links removed
+
+Not repointed. Removed. The four social icons come out entirely, and so do
+**Privacy Policy** and **Terms of Service** — a link to an empty page is worse
+than no link.
+
+See entry 8 for the legal documents, which are launch-blocking in their own
+right and are not solved by having removed the links to them.
 
 ---
 
@@ -93,6 +100,26 @@ This project is isolated from it by its own `.git` at `C:\projects\saferide`
 
 Needs cleanup, **unrelated to this project.** Not investigated per instruction.
 
+
+### 9. Remove the "Interaction states" scaffolding before launch
+
+`app/page.tsx` still renders a Phase 1 design-system block — button variants
+and token swatches. It keeps the token system visible while sections are built
+on top of it and it must not ship. Delete it once §4's sections are in.
+
+### 8. Privacy Policy and Terms of Service — LAUNCH-BLOCKING
+
+Not a nice-to-have and not a Phase 5 task. **SafeRide handles children's
+biometric data** — face recognition attendance, §4.3 item 3 — so a privacy
+policy and terms of service are a legal requirement, not a footer convention.
+
+They need real pages with real legal content, written or reviewed by someone
+qualified. Removing the dead links (entry 2) stops us shipping links to empty
+pages; it does not make the documents unnecessary.
+
+**Blocks public launch. Does not block any build phase.**
+
+**Owner: client.**
 ---
 
 ## Video pipeline — resolved, recorded for provenance
@@ -238,8 +265,10 @@ with no adjustment needed — unlike the previous orange, which failed at 2.47:1
 ### Also found: Privacy Policy and Terms of Service are dead links
 Spec 4.13 flags only the social icons. In fact the live footer has **6** links
 with `href="#"` — the 4 social icons *plus* **Privacy Policy** and **Terms of
-Service**. Those two need real pages, not just a URL; they are legal documents.
-Spec 12 says no dead links ship.
+Service**.
+
+**Resolved as far as the footer goes** (entry 2: all six removed). **Not
+resolved as a launch requirement** — see entry 8.
 
 ---
 
@@ -1041,3 +1070,52 @@ carrying it died on a transient outage, and I read the unchanged "45 passed" as
 "the guards do not catch it" rather than "the guards do not exist". The break
 harness now diffs the file and aborts with `ABORT — the break did not take` if
 the mutation did not land, because a green run after a no-op edit means nothing.
+
+
+---
+
+## Phase 5a — the section ground, settled before any content
+
+Built first, per the navbar lesson: the menu panel shipped with a correct rect
+and no paint because the ground was never decided separately from the thing
+standing on it. Eleven sections is that trap eleven times.
+
+### There are two tones, not four, and the reason is measured
+
+The obvious rhythm is to alternate light grounds. It does not exist:
+
+| | contrast |
+|---|---|
+| `--background` (paper) -> `--card` (#ffffff) | **1.057:1** |
+| `--background` -> `--muted` (warm-100) | 1.104:1 |
+| `--background` -> a `--border` hairline (warm-200) | 1.29:1 |
+| `--background` -> `--surface-dark` | **19.51:1** |
+
+At 1.06:1 a card-toned band is not a band, it is the same page with a different
+token name — any separation it appears to have comes entirely from a border
+doing the work, which is a line pretending to be a ground. So `paper` and
+`dark`, and rhythm comes from vertical space and the occasional dark section,
+both of which are real.
+
+Verified as rendered on the production build (`node build/verify-sections.js`):
+
+| section | ground | heading | eyebrow |
+|---|---|---|---|
+| Platform | rgb(253,248,240) | 18.82:1 | 8.70:1 |
+| The Journey | rgb(253,248,240) | 18.82:1 | 8.70:1 |
+| Intelligence Layer | rgb(3,3,2) | 19.94:1 | 8.93:1 |
+
+Neighbours: Platform -> Journey is 1.00:1 of ground and **337px** between their
+content; Journey -> Intelligence is **19.51:1**. Both separable, by different
+mechanisms, which is the point.
+
+### Guards, each proved by breaking it
+
+| break | caught by |
+|---|---|
+| the paper tone inherits the page instead of declaring a ground | "every section declares an opaque ground of its own" — and the headings drop to **1.06:1** |
+| `bg-surface-dark` without the `dark` class | "resolves the dark token scope" — and the heading measures **1.04:1**, which is the hero's CTA bug exactly |
+| vertical rhythm collapsed to `py-2` | "adjacent sections are separable by ground or by space" |
+
+The `dark` class is load-bearing, not cosmetic: without it `--ring` stays
+`#030917` and every accent token stays on its light value.

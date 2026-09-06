@@ -1,32 +1,22 @@
 import { Button } from "@/components/ui/button";
 import { ScrubVideoHero } from "@/components/hero/scrub-video-hero";
 import { SterlingGateNavigation } from "@/components/ui/sterling-gate-kinetic-navigation";
+import { Section } from "@/components/sections/section";
 
 /**
- * Phase 1 shell.
+ * Phase 5a — the ground for the first three content sections.
  *
- * The scrub hero (spec 1/2) and the content sections (spec 4) land in later
- * phases. Spec 3's post-video transition was REMOVED, not deferred. This exists so the design system —
- * tokens, type stack, interaction states — can be seen and verified in both
- * themes before anything is built on top of it.
+ * Spec 3's post-video transition was REMOVED, not deferred: the hero's pin
+ * releases straight into paper, and now that the film reaches its last frame
+ * that cut reads as an end-card rather than as a jump.
+ *
+ * The three sections below carry their eyebrow, heading and subhead and
+ * nothing else yet. That is deliberate — the ground goes in before anything
+ * stands on it. See components/sections/section.tsx for why there are two
+ * tones and not four.
  *
  * All copy is verbatim from https://safe-ridee.vercel.app/ (spec 12).
  */
-
-const FEATURES = [
-  {
-    title: "AI Incident Detection",
-    body: "Computer vision watches every trip for unsafe behavior and flags it in seconds, before it becomes an incident report.",
-  },
-  {
-    title: "Live GPS Tracking",
-    body: "Every bus reports its position in real time, so parents and supervisors always know exactly where a child is.",
-  },
-  {
-    title: "Face Recognition Attendance",
-    body: "Boarding and drop-off are logged automatically as each student steps on or off, no manual roll call required.",
-  },
-];
 
 export default function Home() {
   return (
@@ -34,33 +24,43 @@ export default function Home() {
       <SterlingGateNavigation />
       <ScrubVideoHero />
 
-      <section
+      {/* §4.3 */}
+      <Section
         id="features"
-        aria-labelledby="platform"
-        className="border-t border-border bg-card/40"
-      >
-        <div className="mx-auto max-w-6xl px-6 py-20">
-          <p className="label-mono text-muted-foreground">Platform</p>
-          <h2 id="platform" className="mt-4 text-4xl sm:text-5xl">
-            Everything a safe journey needs
-          </h2>
+        headingId="platform"
+        eyebrow="Platform"
+        heading="Everything a safe journey needs"
+        subhead="Ten systems working together so nothing about a child's commute is left to chance."
+      />
 
-          <ul className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {FEATURES.map((f) => (
-              <li
-                key={f.title}
-                className="rounded-brand border border-border bg-card p-6 transition-[transform,box-shadow] duration-[--dur-state] ease-[--ease-out] hover:-translate-y-1 hover:shadow-lg motion-reduce:transform-none motion-reduce:transition-none"
-              >
-                <h3 className="text-xl">{f.title}</h3>
-                <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                  {f.body}
-                </p>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </section>
+      {/* §4.4 */}
+      <Section
+        id="journey"
+        headingId="journey-heading"
+        eyebrow="The Journey"
+        heading="Every step, accounted for"
+      />
 
+      {/*
+        §4.5. The one dark beat in 5a, and the only mechanism that actually
+        separates a section from its neighbours: paper -> dark is 19.51:1,
+        where paper -> card is 1.06:1. It earns it on content too — this is
+        the AI section, and dark echoes the film it follows.
+      */}
+      <Section
+        id="ai"
+        tone="dark"
+        headingId="intelligence"
+        eyebrow="Intelligence Layer"
+        heading="Artificial intelligence watching every journey"
+        subhead="AI assists, it never overwhelms. Every prediction ships with a confidence score and a plain-language reason, so the people using SafeRide always understand what it's telling them and why."
+      />
+
+      {/*
+        Phase 1 scaffolding, not a content section. It keeps the token system
+        visible while sections are built on top of it, and it comes out before
+        launch — logged in TODO.md.
+      */}
       <section aria-labelledby="states" className="mx-auto max-w-6xl px-6 py-20">
         <p className="label-mono text-muted-foreground">Design system</p>
         <h2 id="states" className="mt-4 text-3xl">

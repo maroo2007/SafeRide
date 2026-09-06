@@ -913,18 +913,16 @@ Existing copy:
 
 Then the SafeRide logo and: **"Peace of mind, every school journey."**
 
-### 4.2 Stats Band
+### 4.2 Stats Band — CUT
 
-Four stats. **The current site shows `0+` on every one of these — that must
-be fixed.** Either populate with real numbers or remove the section
-entirely. Do not ship placeholder zeros.
+**Decided 2026-09-06: this section is removed, not deferred.** No real figures
+exist for Partner Schools, Protected Students, Smart Buses or Journey Safety,
+and the spec's own instruction was "either populate with real numbers or remove
+the section entirely."
 
-- Partner Schools
-- Protected Students
-- Smart Buses
-- Journey Safety (%)
-
-Flag this in `TODO.md` for the user to supply real figures.
+The absence of the section is more credible than its presence — placeholder
+zeros are exactly what undermined the original site. If real data arrives the
+section can come back; until then there is nothing here to build.
 
 ### 4.3 Platform — "Everything a safe journey needs"
 
@@ -1037,10 +1035,13 @@ Two-column comparison.
 **Subhead:** From Alexandria to Aswan, every SafeRide school reports into the
 same live network. Tap a city to see it.
 
-Three stats — **again currently showing `0+`, must be fixed or removed:**
-- Smart Buses
-- Students Protected
-- System Uptime (%)
+~~Three stats — again currently showing `0+`:~~ **CUT, same decision as §4.2.**
+No figures exist for Smart Buses, Students Protected or System Uptime, so the
+stat row does not ship.
+
+**The section itself stays.** The fourteen-city coverage list is not blocked on
+any data, it is the `#coverage` target the navbar links to, and it is scheduled
+into phase 5b. Only the three-stat row is removed.
 
 Interactive city list (tap to view):
 Cairo · Giza · Alexandria · Mansoura · Tanta · Ismailia · Port Said · Suez ·
@@ -1162,13 +1163,20 @@ transportation for the schools that take safety seriously."**
 
 **Product:** Features · AI Platform · Coverage · Pricing
 **Company:** FAQ · Contact · Log In
-**Legal:** Privacy Policy · Terms of Service
+~~**Legal:** Privacy Policy · Terms of Service~~ **REMOVED from the footer.**
 
 Bottom: © 2026 SafeRide. All rights reserved. · Made for safer school
 journeys, everywhere.
 
-Social icons currently point to `#` — either wire them to real profiles or
-remove them. Do not ship dead links. Flag in `TODO.md`.
+~~Social icons currently point to `#`.~~ **All six dead links are removed, not
+repointed** (decided 2026-09-06): the four social icons, plus Privacy Policy
+and Terms of Service. A link to an empty page is worse than no link.
+
+**Privacy Policy and Terms of Service are LAUNCH-BLOCKING, not nice-to-have.**
+SafeRide handles children's biometric data — face recognition attendance — so
+these are a legal requirement, and shipping publicly without them is a real
+problem. They need real pages with real legal content, which is not a Phase 5
+task. Logged in `TODO.md` as required before any public launch.
 
 ---
 
