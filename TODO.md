@@ -1119,3 +1119,90 @@ mechanisms, which is the point.
 
 The `dark` class is load-bearing, not cosmetic: without it `--ring` stays
 `#030917` and every accent token stays on its light value.
+
+
+---
+
+## --card and --popover named a colour they were not
+
+Following the 1.06:1 finding: `--card` was `#ffffff` on light and `#0c0b09` on
+dark. Against their own grounds those measure **1.057:1** and **1.049:1**. The
+token looked like a separate surface in the palette and was the same surface on
+screen; every card that appeared to work was a border doing the job.
+
+`--popover` had exactly the same problem and was found by the guard written for
+`--card`, one line below it.
+
+**The two themes are not symmetric, and the tokens now say so.**
+
+| | value | vs its ground |
+|---|---|---|
+| light `--card` / `--popover` | `var(--paper)` — the ground itself | 1.00:1, on purpose |
+| dark `--card` / `--popover` | `#24211b` | **1.29:1**, a real panel |
+
+On light there is nothing lighter than white, so a raised fill is unavailable
+and **elevation is border + shadow**. On dark you can go lighter, so a real
+surface exists — which is one more reason the Intelligence Layer takes the dark
+beat: its live-example panel needs a focal treatment that paper cannot give it.
+
+`--muted` is deliberately out of scope. It is a tint for de-emphasis, not a
+thing drawn on top of the page, and 1.104:1 is a legitimate faint wash. The
+rule is about tokens claiming to be a separate GROUND.
+
+Guarded in `__tests__/tokens.contrast.test.ts`, proved three ways: light card
+back to `#ffffff`, dark card back to `#0c0b09`, and dark card lightened until
+it cannot hold its own text.
+
+---
+
+## Phase 5a content — three sections, three shapes
+
+The reader meets Platform and then, a screen later, Intelligence. Both are
+title-plus-sentence content. Built naively they are the same section twice.
+
+They are doing different jobs, so they have different shapes:
+
+- **Platform (§4.3)** is an inventory — ten things, none more important, the
+  reader's job is to scan. A grid of equals; the structure IS the argument.
+- **The Journey (§4.4)** is a sequence. First and last are both "Home" because
+  the loop closes, and a grid would throw that away. An ordered list on a rule,
+  numbers visible, the line stopping at the last marker rather than trailing
+  off the end of the journey.
+- **Intelligence Layer (§4.5)** is an argument with a centre of gravity. The
+  live-example panel is the evidence for "AI assists, it never overwhelms", so
+  it gets the weight; the six capabilities are a two-column definition list on
+  the section's own ground, no borders, subordinate by construction. Six more
+  cards here would have flattened the panel into another tile.
+
+### The live indicator nearly shipped invisible
+
+The first version used `text-accent-edge` and `bg-accent-edge`. Neither
+resolves: **`--color-accent-edge` is not in the `@theme` bridge**, so the dot
+had no background at all and the label fell back to inherited ink. It looked
+almost right in the capture.
+
+`--accent-edge` would have been the wrong token even bridged — it is
+`transparent` under `.dark`, so an indicator built on it disappears the moment
+the card sits on a dark ground. It ships on `--route-mark`, the project's
+legible accent ink: **7.94:1 on paper** against the 4.5:1 a 12px label needs.
+
+It does not pulse. Spec 12's reduced-motion rule is "no motion, not less
+motion", and an indefinitely animating dot is the sort of thing that collects
+an exemption it has not earned.
+
+### The guard that now catches that whole class
+
+`build/verify-sections.js` measured only the heading and eyebrow. It walked
+straight past the dot. It now measures **every text run and every indicator
+against the nearest PAINTED ancestor** — not against the section ground, which
+would be wrong for anything inside the Intelligence panel.
+
+71 pieces of ink on the production build, worst per section: Platform 7.94:1
+(the dot), Journey 8.70:1, Intelligence 6.95:1. Reverting the indicator to the
+unresolved tokens reports `live dot 0:1 < 3`.
+
+One rig bug worth recording: the new block's regex was written `\(` inside a
+JS template literal, which the template swallows, so the page received
+`/rgba?(([^)]+))/` and every contrast came back `null`. A report full of nulls
+that still says FAIL is luckier than it deserves to be — it could as easily
+have been a report full of nulls that compared as passing.

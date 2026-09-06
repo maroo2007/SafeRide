@@ -155,3 +155,54 @@ describe("locked type stack", () => {
     }
   });
 });
+
+describe("--card names one thing in each theme, and says which", () => {
+  /*
+   * The token used to be #ffffff on light and #0c0b09 on dark. Measured
+   * against their own grounds: 1.057:1 and 1.049:1. It looked like a separate
+   * surface in the token list and was the same surface on screen — every card
+   * that appeared to work was a border doing the job, a line pretending to be
+   * a ground.
+   *
+   * The two themes are not symmetric and the token now says so:
+   *   light — paper is #fdf8f0 and NOTHING LIGHTER THAN WHITE EXISTS, so a
+   *           raised fill is unavailable. --card is the ground, on purpose,
+   *           and elevation comes from border + shadow.
+   *   dark  — you can go lighter, so a real panel exists. #24211b.
+   */
+  it("on light it IS the ground, exactly, rather than a colour pretending", () => {
+    const card = resolveToken("--card", LIGHT) as Rgb;
+    const bg = resolveToken("--background", LIGHT) as Rgb;
+    expect(card, "--card must resolve to the page ground, not near it").toEqual(bg);
+  });
+
+  it("on dark it is a surface you can actually see", () => {
+    const card = resolveToken("--card", DARK) as Rgb;
+    const bg = resolveToken("--background", DARK) as Rgb;
+    const sep = contrast(card, bg);
+    // 1.049:1 was the old value. Anything at that level is not a surface.
+    expect(sep, `--card is ${sep.toFixed(3)}:1 from the dark ground`).toBeGreaterThanOrEqual(1.25);
+    // And it still has to hold text.
+    expect(contrast(resolveToken("--card-foreground", DARK) as Rgb, card)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("no SURFACE token claims to be a raised fill, because none can be", () => {
+    /*
+     * Surfaces only. --muted is a tint for de-emphasis, not a thing drawn on
+     * top of the page, and at 1.104:1 it is a legitimate faint wash — forcing
+     * it to be either invisible or a strong panel would break what it means.
+     * The rule is about tokens that claim to be a separate GROUND.
+     *
+     * NO-OP HALF: this would pass on a palette with no light tokens at all,
+     * so it first asserts the ground is the paper it should be.
+     */
+    const bg = resolveToken("--background", LIGHT) as Rgb;
+    expect(contrast(bg, { r: 253, g: 248, b: 240 })).toBeLessThan(1.02);
+    for (const name of ["--card", "--popover"]) {
+      const v = resolveToken(name, LIGHT) as Rgb;
+      const sep = contrast(v, bg);
+      expect(sep, `${name} is ${sep.toFixed(3)}:1 from the ground — either a real surface or the ground, not a pretend one`)
+        .toSatisfy((x: number) => x < 1.02 || x >= 1.25);
+    }
+  });
+});

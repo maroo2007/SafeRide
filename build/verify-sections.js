@@ -140,6 +140,88 @@ const check = (name, ok, detail = "") => {
     !!darkSec && /fae6b7/i.test(darkSec.darkScope),
     darkSec ? `--ring resolves to "${darkSec.darkScope}"` : "no dark section found");
 
+  /*
+   * EVERY piece of ink in every section, against the surface it is actually
+   * on — not against the section ground.
+   *
+   * The live indicator on the first Platform card used `text-accent-edge` and
+   * `bg-accent-edge`. Neither resolves, because --color-accent-edge is not in
+   * the @theme bridge: the dot had no background at all and the label fell
+   * back to inherited ink. It looked almost right in a screenshot. Checking
+   * only the heading and eyebrow, as the first version of this rig did, walks
+   * straight past it.
+   *
+   * "The surface it is actually on" matters: the Intelligence panel has its
+   * own --card background, so its text must be measured against #24211b and
+   * not against the section's #030302. Walking up to the nearest painted
+   * ancestor is the difference between measuring the thing and measuring its
+   * neighbour.
+   */
+  const ink = JSON.parse(await ev(`(() => {
+    const lin = (v) => { const s = v / 255; return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4); };
+    const L = (r, g, b) => 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+    /* \\( not \(: this string is a JS template literal, so a single backslash
+       is swallowed and the page would receive /rgba?(([^)]+))/ — which matches
+       "rgb(3, 9, 23)" with group 1 = "(3, 9, 23", parseFloat gives NaN, and
+       every contrast in the report comes back null. It did. */
+    const parse = (c) => { const m = /rgba?\\(([^)]+)\\)/.exec(c); if (!m) return null;
+      const n = m[1].split(',').map(parseFloat); return { r: n[0], g: n[1], b: n[2], a: n.length > 3 ? n[3] : 1 }; };
+    const ratio = (a, b) => { const x = L(a.r, a.g, a.b), y = L(b.r, b.g, b.b);
+      return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+    const painted = (el) => {
+      let n = el;
+      while (n && n !== document.documentElement) {
+        const c = parse(getComputedStyle(n).backgroundColor);
+        if (c && c.a >= 0.999) return c;
+        n = n.parentElement;
+      }
+      return { r: 255, g: 255, b: 255, a: 1 };
+    };
+    const out = [];
+    const secs = [...document.querySelectorAll('main > section')].filter(
+      (s) => s.getAttribute('aria-labelledby') && !/hero-headline|states/.test(s.getAttribute('aria-labelledby')));
+    for (const sec of secs) {
+      /* Text: elements whose own text is their only child content. */
+      for (const el of sec.querySelectorAll('h2, h3, p, dt, dd, figcaption, a, span')) {
+        const txt = (el.textContent || '').trim();
+        if (!txt || el.children.length > 0) continue;
+        const cs = getComputedStyle(el);
+        if (cs.visibility === 'hidden' || cs.display === 'none') continue;
+        const fg = parse(cs.color); if (!fg) continue;
+        const px = parseFloat(cs.fontSize);
+        const bold = parseInt(cs.fontWeight, 10) >= 700;
+        const large = px >= 24 || (px >= 18.66 && bold);
+        out.push({ sec: sec.id, kind: 'text', large, min: large ? 3 : 4.5,
+          sample: txt.slice(0, 28), size: Math.round(px),
+          contrast: +ratio(fg, painted(el.parentElement || el)).toFixed(2) });
+      }
+      /* Indicators: non-text graphics that carry meaning. 1.4.11 -> 3:1. */
+      for (const el of sec.querySelectorAll('[data-live-dot]')) {
+        const bg = parse(getComputedStyle(el).backgroundColor);
+        out.push({ sec: sec.id, kind: 'indicator', min: 3, sample: 'live dot', size: 0,
+          contrast: bg && bg.a >= 0.999 ? +ratio(bg, painted(el.parentElement)).toFixed(2) : 0 });
+      }
+    }
+    return JSON.stringify(out);
+  })()`));
+
+  const bad = ink.filter((i) => i.contrast < i.min);
+  const byKind = (k) => ink.filter((i) => i.kind === k).length;
+  console.log(`
+   ink checked: ${byKind('text')} text runs, ${byKind('indicator')} indicators
+`);
+  const worstPer = {};
+  for (const i of ink) if (!worstPer[i.sec] || i.contrast < worstPer[i.sec].contrast) worstPer[i.sec] = i;
+  for (const sec of Object.keys(worstPer)) {
+    const w = worstPer[sec];
+    console.log(`   ${sec.padEnd(10)} worst ${String(w.contrast).padStart(6)}:1  (${w.kind}, ${w.size}px) "${w.sample}"`);
+  }
+  // NO-OP HALF: an empty page has no failing ink either.
+  check("there is ink to check", ink.length > 40, `${ink.length} measured`);
+  check("every piece of ink clears its threshold on the surface it is on",
+    bad.length === 0,
+    bad.length ? bad.slice(0, 4).map((b) => `${b.sec}:"${b.sample}" ${b.contrast}:1 < ${b.min}`).join("  ") : "");
+
   /* Captures. */
   for (const s of data) {
     await ev(`(async()=>{scrollTo(0,${Math.max(0, s.top)});await new Promise(r=>setTimeout(r,900));return 1})()`);

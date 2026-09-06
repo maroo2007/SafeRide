@@ -80,9 +80,21 @@
   /* --- semantic, light --- */
   --background: var(--paper);
   --foreground: var(--ink);
-  --card: #ffffff;
+  /* --card IS the page ground here, deliberately and by arithmetic.
+     #fdf8f0 paper against #ffffff is 1.057:1 — nothing lighter than white
+     exists, so a light "raised" surface cannot be made visible by fill on
+     this palette. It never was: the old #ffffff value looked like a separate
+     ground and measured as the same one, and every card that appeared to work
+     was a border doing the job.
+     ELEVATION ON PAPER IS BORDER + SHADOW, NOT FILL. Guarded in
+     __tests__/tokens.contrast.test.ts so this cannot drift back into a value
+     that pretends. */
+  --card: var(--paper);
   --card-foreground: var(--ink);
-  --popover: #ffffff;
+  /* Same arithmetic as --card, one line below it: #ffffff is 1.057:1 from
+     paper. A popover floats, so it does get elevation — from its border and
+     its shadow, which is what was carrying it anyway. */
+  --popover: var(--paper);
   --popover-foreground: var(--ink);
 
   /* The primary solid control is ink, not orange. */
@@ -148,9 +160,13 @@
 .dark {
   --background: var(--surface-dark);
   --foreground: #fcfbf8;          /* film — wordmark letterforms */
-  --card: #0c0b09;
+  /* On dark a real card surface DOES exist, because you can go lighter.
+     #0c0b09 was 1.049:1 from the ground — the same non-separation as the
+     light theme. #24211b is 1.29:1 and reads as a panel, while paper ink on
+     it still measures 15.51:1. */
+  --card: #24211b;
   --card-foreground: #fcfbf8;
-  --popover: #0c0b09;
+  --popover: #24211b;
   --popover-foreground: #fcfbf8;
 
   --primary: #fcfbf8;

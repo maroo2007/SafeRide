@@ -2,6 +2,9 @@ import { Button } from "@/components/ui/button";
 import { ScrubVideoHero } from "@/components/hero/scrub-video-hero";
 import { SterlingGateNavigation } from "@/components/ui/sterling-gate-kinetic-navigation";
 import { Section } from "@/components/sections/section";
+import { PlatformGrid } from "@/components/sections/platform";
+import { JourneySteps } from "@/components/sections/journey";
+import { IntelligenceLayer } from "@/components/sections/intelligence";
 
 /**
  * Phase 5a — the ground for the first three content sections.
@@ -10,10 +13,13 @@ import { Section } from "@/components/sections/section";
  * releases straight into paper, and now that the film reaches its last frame
  * that cut reads as an end-card rather than as a jump.
  *
- * The three sections below carry their eyebrow, heading and subhead and
- * nothing else yet. That is deliberate — the ground goes in before anything
- * stands on it. See components/sections/section.tsx for why there are two
- * tones and not four.
+ * The ground went in first and on its own (see components/sections/section.tsx
+ * for why there are two tones and not four). Content follows it.
+ *
+ * The three sections deliberately do not share a shape: Platform is an
+ * inventory and reads as a grid, The Journey is a sequence and reads as an
+ * ordered path, Intelligence Layer is an argument and has a focal point with
+ * quieter supporting material.
  *
  * All copy is verbatim from https://safe-ridee.vercel.app/ (spec 12).
  */
@@ -31,7 +37,9 @@ export default function Home() {
         eyebrow="Platform"
         heading="Everything a safe journey needs"
         subhead="Ten systems working together so nothing about a child's commute is left to chance."
-      />
+      >
+        <PlatformGrid />
+      </Section>
 
       {/* §4.4 */}
       <Section
@@ -39,7 +47,9 @@ export default function Home() {
         headingId="journey-heading"
         eyebrow="The Journey"
         heading="Every step, accounted for"
-      />
+      >
+        <JourneySteps />
+      </Section>
 
       {/*
         §4.5. The one dark beat in 5a, and the only mechanism that actually
@@ -54,7 +64,9 @@ export default function Home() {
         eyebrow="Intelligence Layer"
         heading="Artificial intelligence watching every journey"
         subhead="AI assists, it never overwhelms. Every prediction ships with a confidence score and a plain-language reason, so the people using SafeRide always understand what it's telling them and why."
-      />
+      >
+        <IntelligenceLayer />
+      </Section>
 
       {/*
         Phase 1 scaffolding, not a content section. It keeps the token system
