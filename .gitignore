@@ -17,6 +17,10 @@ out/
 !public/images/*.jpg
 !public/images/*.png
 !public/images/*.webp
+# Phone tour screen textures ship with the site. The blanket *.png/*.jpg rule
+# above would have left chapter 1 and 2 missing from a fresh clone.
+!public/models/screens/*.png
+!public/models/screens/*.jpg
 
 # Test harness working files
 build/*.log
@@ -38,3 +42,18 @@ CLAUDE.md
 # watches it and panics on the locked shared_proto_db/LOCK file.
 build/cp*/
 build/chrome-profile/
+
+# ---------------------------------------------------------------------------
+# Phone tour, chapter 3 texture. NOT a build artifact — deliberately untracked.
+#
+# screen_03_cameras.png contains photographs of a real bus interior: a driver
+# and children in the rear-seats tile. Prototype placeholders, almost certainly
+# unlicensed stock, showing identifiable minors on the marketing page of a
+# child-safety brand.
+#
+# Git history is permanent. Committing it and swapping the texture later would
+# not remove it. Chapter 3 builds against screen_03_placeholder.png until the
+# real texture is rebuilt with abstracted tiles; it is tracked from that point.
+# See SafeRide_Phone_Tour_Spec.md §9 and §3.
+# ---------------------------------------------------------------------------
+public/models/screens/screen_03_cameras.png

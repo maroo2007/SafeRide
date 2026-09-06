@@ -11,6 +11,7 @@ import {
 } from "@/lib/hero-captions";
 import { useSmoothScroll } from "@/components/providers/smooth-scroll-provider";
 import { CtaButton } from "@/components/ui/cta-button";
+import { useMediaQuery } from "@/lib/use-media-query";
 import { VariableProximity } from "@/components/hero/variable-proximity";
 
 /**
@@ -28,24 +29,6 @@ const FILE_BYTES_PER_SECOND = SCRUB_FILE_BYTES / VIDEO_DURATION;
 
 /** Below this the hero does not scrub at all (spec 1.5). */
 const MOBILE_BREAKPOINT = 768;
-
-/** A media query is an external system; subscribing to it is the correct
- *  primitive, not setState inside an effect. */
-function useMediaQuery(query: string) {
-  return useSyncExternalStore(
-    (cb) => {
-      if (typeof window === "undefined" || !window.matchMedia) return () => {};
-      const mq = window.matchMedia(query);
-      mq.addEventListener?.("change", cb);
-      return () => mq.removeEventListener?.("change", cb);
-    },
-    () =>
-      typeof window !== "undefined" && window.matchMedia
-        ? window.matchMedia(query).matches
-        : false,
-    () => false,
-  );
-}
 
 export function ScrubVideoHero() {
   const videoRef = useRef<HTMLVideoElement>(null);

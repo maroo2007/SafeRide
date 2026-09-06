@@ -899,6 +899,13 @@ The original content is in git history at the commit that removed it.
 All copy below is taken verbatim from https://safe-ridee.vercel.app/.
 Do not rewrite it. Fetch that site if any detail is unclear.
 
+**ONE EXCEPTION, added 2026-09-07.** Copy is verbatim **except where a
+factual claim in it has become false** — a count that no longer matches what
+ships, a figure that was never real. In that case it is corrected, and the
+correction is flagged rather than made silently. A wrong number is worse than
+an edited sentence. First application: §4.3's subhead, when the phone tour
+took five of the ten Platform cards.
+
 ### 4.1 Emotional Journey Strip
 
 A short scroll-triggered sequence of statements that fade in and out.
@@ -928,8 +935,19 @@ section can come back; until then there is nothing here to build.
 
 **Section eyebrow:** Platform
 **Heading:** Everything a safe journey needs
-**Subhead:** Ten systems working together so nothing about a child's commute
-is left to chance.
+**Subhead:** ~~Ten systems working together so nothing about a child's
+commute is left to chance.~~ **CORRECTED 2026-09-07** — the phone tour took
+five of these ten cards, so the count was false. Under §4's copy rule
+exception:
+
+> Five systems working together in the background, so nothing about a child's
+> commute is left to chance.
+
+**This section now carries FIVE cards.** AI Incident Detection, Predictive
+Maintenance, AI Reports, Multi-language Support, Dark & Light Mode. The other
+five — Live GPS Tracking, Parent Notifications, Face Recognition Attendance,
+Emergency Response, Driver Performance Analytics — are carried by the phone
+tour section that follows. See SafeRide_Phone_Tour_Spec.md §1.1.
 
 Ten feature cards:
 

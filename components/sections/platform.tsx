@@ -1,9 +1,21 @@
 /**
  * §4.3 Platform — a capability inventory.
  *
- * Ten things the product does, none more important than another, and the
- * reader's job is to scan. So: a grid of equals, one shape repeated. The
- * structure is the argument — "there are ten of these" is the point.
+ * FIVE things now, not ten. The phone tour section that follows carries Live
+ * GPS Tracking, Parent Notifications, Face Recognition Attendance, Emergency
+ * Response and Driver Performance Analytics — each of those is visible in a
+ * screen, so a card repeating it would be the same claim twice. What is left
+ * has no screenshot behind it and the card is the only place it exists.
+ * See SafeRide_Phone_Tour_Spec.md §1.1.
+ *
+ * The subhead moved with the count. A stale number is the kind of thing that
+ * survives to launch, and the build spec now carries an explicit exception to
+ * its copy-verbatim rule for exactly this: a false factual claim is corrected
+ * and the correction is flagged.
+ *
+ * Still an inventory, so still a grid of equals — the structure is the
+ * argument. The Journey is a sequence and the Intelligence Layer is an
+ * argument with a focal point; none of the three share a shape.
  *
  * Copy verbatim from https://safe-ridee.vercel.app/ (spec 12).
  *
@@ -22,28 +34,8 @@ const CAPABILITIES: Capability[] = [
     live: "Watching live right now",
   },
   {
-    title: "Live GPS Tracking",
-    body: "Every bus reports its position in real time, so parents and supervisors always know exactly where a child is.",
-  },
-  {
-    title: "Face Recognition Attendance",
-    body: "Boarding and drop-off are logged automatically as each student steps on or off, no manual roll call required.",
-  },
-  {
-    title: "Emergency Response",
-    body: "One tap from a driver or supervisor puts the school, parents, and the emergency operator in the loop instantly.",
-  },
-  {
-    title: "Driver Performance Analytics",
-    body: "Braking, speed, and fatigue signals build a performance score schools can act on before a small habit becomes a risk.",
-  },
-  {
     title: "Predictive Maintenance",
     body: "SafeRide flags buses that are due for service based on usage patterns, not just a calendar reminder.",
-  },
-  {
-    title: "Parent Notifications",
-    body: "Boarding confirmations, arrival alerts, and delay updates reach parents the moment they happen.",
   },
   {
     title: "AI Reports",

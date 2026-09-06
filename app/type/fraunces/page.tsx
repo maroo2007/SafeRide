@@ -18,7 +18,7 @@ export const metadata = { title: "Fraunces — stage 2" };
 const EN = {
   hero: "Because every child deserves a safe ride home",
   section: "Everything a safe journey needs",
-  sub: "Ten systems working together so nothing about a child's commute is left to chance.",
+  sub: "Five systems working together in the background, so nothing about a child's commute is left to chance.",
   cardTitle: "AI Incident Detection",
   card:
     "Computer vision watches every trip for unsafe behavior and flags it in seconds, before it becomes an incident report.",

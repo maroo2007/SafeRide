@@ -3,6 +3,7 @@ import { ScrubVideoHero } from "@/components/hero/scrub-video-hero";
 import { SterlingGateNavigation } from "@/components/ui/sterling-gate-kinetic-navigation";
 import { Section } from "@/components/sections/section";
 import { PlatformGrid } from "@/components/sections/platform";
+import { PhoneTour } from "@/components/sections/phone-tour/phone-tour";
 import { JourneySteps } from "@/components/sections/journey";
 import { IntelligenceLayer } from "@/components/sections/intelligence";
 
@@ -36,10 +37,14 @@ export default function Home() {
         headingId="platform"
         eyebrow="Platform"
         heading="Everything a safe journey needs"
-        subhead="Ten systems working together so nothing about a child's commute is left to chance."
+        subhead="Five systems working together in the background, so nothing about a child's commute is left to chance."
       >
         <PlatformGrid />
       </Section>
+
+      {/* Phone tour §2 — sits between Platform and The Journey, and carries
+          the five capability cards Platform gave up. */}
+      <PhoneTour />
 
       {/* §4.4 */}
       <Section
