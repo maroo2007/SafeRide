@@ -68,12 +68,37 @@ const check = (name, ok, detail = "") => {
       return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
 
     /* Content sections only: the hero and the token scaffolding are not §4. */
-    const secs = [...document.querySelectorAll('main > section')].filter(
+    /*
+     * "main section", not "main > section" — NO BACKTICKS IN HERE, this
+     * comment lives inside a template literal and a backtick ends the string.
+     * The page ground (§4a) wraps
+     * everything after the hero in a positioned div, so the direct-child form
+     * matched nothing and this guard reported zero sections — caught only by
+     * its own no-op half, which is why that half exists.
+     */
+    const secs = [...document.querySelectorAll('main section')].filter(
       (s) => s.getAttribute('aria-labelledby') && !/hero-headline|states/.test(s.getAttribute('aria-labelledby')));
 
     return JSON.stringify(secs.map((s) => {
       const cs = getComputedStyle(s);
-      const bg = parse(cs.backgroundColor);
+      /*
+       * OWN alpha for the tenancy question, EFFECTIVE ground for every
+       * luminance question. Paper sections are transparent now (they sit on
+       * the page layer), and parsing "rgba(0,0,0,0)" as a colour made them
+       * read as pure black: the heading contrast collapsed to 1.06:1 and the
+       * "find the dark section" search picked the first paper section and
+       * then complained its token scope was light. Both were the transparent
+       * ground being taken literally.
+       */
+      const ownAlpha = parse(cs.backgroundColor);
+      const painted = (el) => {
+        for (let n = el; n; n = n.parentElement) {
+          const c = parse(getComputedStyle(n).backgroundColor);
+          if (c && c.a >= 0.999) return c;
+        }
+        return { r: 255, g: 255, b: 255, a: 1 };
+      };
+      const bg = painted(s);
       const b = s.getBoundingClientRect();
       const h2 = s.querySelector('h2');
       const eyebrow = s.querySelector('.label-mono');
@@ -90,7 +115,7 @@ const check = (name, ok, detail = "") => {
         id: s.id || '(none)',
         label: s.getAttribute('aria-labelledby'),
         bg: cs.backgroundColor,
-        alpha: bg ? bg.a : null,
+        alpha: ownAlpha ? ownAlpha.a : null,
         lum: bg ? +L(bg.r, bg.g, bg.b).toFixed(4) : null,
         top: Math.round(b.top + scrollY), bottom: Math.round(b.bottom + scrollY), h: Math.round(b.height),
         padTop: ics ? ics.paddingTop : null, padBottom: ics ? ics.paddingBottom : null,
@@ -107,9 +132,34 @@ const check = (name, ok, detail = "") => {
       `${String(s.heading ? s.heading.contrast + ":1" : "-").padEnd(9)} ${s.eyebrow ? s.eyebrow.contrast + ":1" : "-"}`);
   }
 
-  check("every section declares an opaque ground of its own",
-    data.length > 0 && data.every((s) => s.alpha === 1),
-    data.map((s) => `${s.id}=${s.alpha}`).join(" "));
+  /*
+   * NARROWED, not weakened (build spec §4a.4).
+   *
+   * What this rule protects against is a section with NO ground at all, which
+   * is what the menu panel shipped. A section sitting on ONE named, deliberate
+   * page-level layer is not that — and the layer has to be page-level, because
+   * a per-section lattice re-origins its 6rem x 4rem rhythm at every boundary
+   * and shows a seam between two paper sections.
+   *
+   * So the exemption is BY NAME. It cannot spread by accident: a new section
+   * that forgets its ground and is not on this list still fails, and dark
+   * sections keep the requirement in full.
+   */
+  const ON_PAGE_GROUND = ["features", "parent-app", "journey"];
+  const groundless = data.filter((s) => s.alpha !== 1 && !ON_PAGE_GROUND.includes(s.id));
+  check("every section either declares an opaque ground or is a named tenant of the page layer",
+    data.length > 0 && groundless.length === 0,
+    data.map((s) => `${s.id}=${s.alpha === 1 ? "own" : ON_PAGE_GROUND.includes(s.id) ? "page-layer" : "NONE"}`).join(" "));
+  check("the page layer itself exists and is opaque",
+    (await ev(`(() => { const e = document.querySelector('.page-ground');
+      return e ? getComputedStyle(e).backgroundColor : 'missing'; })()`)).startsWith("rgb("),
+    await ev("document.querySelector('.page-ground') ? getComputedStyle(document.querySelector('.page-ground')).backgroundColor : 'missing'"));
+  /* By measured luminance, not by a class list: any section whose ground is
+     dark must have painted it itself rather than relying on the page layer. */
+  const darkSecs = data.filter((s) => s.lum !== null && s.lum < 0.05);
+  check("dark sections still paint their OWN ground, they are not tenants",
+    darkSecs.length > 0 && darkSecs.every((s) => s.alpha === 1),
+    darkSecs.map((s) => `${s.id}=${s.alpha === 1 ? "own" : "TENANT"}`).join(" ") || "(no dark section found)");
   // NO-OP HALF: a page with no content sections would satisfy "all opaque".
   check("there are content sections to check at all", data.length >= 3, `${data.length} found`);
 
@@ -178,7 +228,15 @@ const check = (name, ok, detail = "") => {
       return { r: 255, g: 255, b: 255, a: 1 };
     };
     const out = [];
-    const secs = [...document.querySelectorAll('main > section')].filter(
+    /*
+     * "main section", not "main > section" — NO BACKTICKS IN HERE, this
+     * comment lives inside a template literal and a backtick ends the string.
+     * The page ground (§4a) wraps
+     * everything after the hero in a positioned div, so the direct-child form
+     * matched nothing and this guard reported zero sections — caught only by
+     * its own no-op half, which is why that half exists.
+     */
+    const secs = [...document.querySelectorAll('main section')].filter(
       (s) => s.getAttribute('aria-labelledby') && !/hero-headline|states/.test(s.getAttribute('aria-labelledby')));
     for (const sec of secs) {
       /* Text: elements whose own text is their only child content. */

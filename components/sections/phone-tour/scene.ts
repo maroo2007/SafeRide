@@ -60,6 +60,9 @@ export type SceneDebug = {
   boundChapter: number;
   swaps: SwapRecord[];
   phoneCentreXPx: number;
+  /** Spec §5.2a. The guard asserts this MOVES between rest points while the
+   *  text's rect does not. */
+  phoneCentreYPx: number;
   viewportW: number;
   toneMapping: string;
   outputColorSpace: string;
@@ -114,6 +117,15 @@ export const TURNS = CHAPTERS - 1; // two transitions, 360 degrees each
 
 /** Spec §7.1 as amended: at most 620 CSS px tall, whatever the viewport. */
 export const MAX_PHONE_PX = 620;
+/** Spec §5.2a. The cap above still wins on tall viewports; this is what
+ *  leaves room underneath it for the phone to descend through the frame. */
+export const REST_FRACTION = 0.46;
+/** Spec §5.1. The phone holds the right side; the text holds the left.
+ *  A fraction of the visible width, from centre. */
+export const PHONE_SIDE_X = 0.25;
+/** Spec §5.2a. How much of the free vertical room the descent uses. 1 would
+ *  put the phone flush against both edges at the extremes. */
+export const DESCENT_USE = 0.86;
 /** Spec §5.4: 8-12 degrees. */
 export const LEAN_DEG = 10;
 
@@ -124,8 +136,6 @@ export const LEAN_DEG = 10;
  */
 export const SCREEN_TINT = 0xffffff;
 
-const smoothstep = (t: number) => t * t * (3 - 2 * t);
-
 /** Which chapter the scroll is heading toward. Flips at the half-turn, which
  *  is exactly where the back faces the camera — so by the time the away-edge
  *  fires, this is already the chapter to bind. */
@@ -133,22 +143,16 @@ export function targetChapter(p: number): number {
   return Math.max(0, Math.min(CHAPTERS - 1, Math.round(p * TURNS)));
 }
 
-/** Right, left, right. Sides alternate (spec §5.1). */
-export function sideOf(chapter: number): 1 | -1 {
-  return chapter % 2 === 0 ? 1 : -1;
-}
-
-/** Horizontal position as a fraction of half the visible width, eased inside
- *  each transition so it settles at rest points. Still a pure function of
- *  scroll — no time, no inertia. */
-export function sideFraction(p: number): number {
-  const t = p * TURNS;
-  const i = Math.min(TURNS - 1, Math.floor(t));
-  const local = smoothstep(Math.min(1, Math.max(0, t - i)));
-  const from = sideOf(i);
-  const to = sideOf(i + 1);
-  return from + (to - from) * local;
-}
+/*
+ * `sideOf` and `sideFraction` are GONE, not left in place unused.
+ *
+ * They described the right/left/right alternation that §5.1 supersedes. An
+ * exported helper that still computes the old behaviour is the same hazard as
+ * a `side` field that no longer describes anything: the next person to touch
+ * this finds a working function with a plausible name and believes it.
+ * `smoothstep` went with them — it existed only to ease that traverse, and
+ * the descent is deliberately linear against a linear spin.
+ */
 
 export async function createScene(
   canvas: HTMLCanvasElement,
@@ -315,7 +319,14 @@ export async function createScene(
      * and never more than 62% of the canvas height on short viewports.
      * pxHeight = h * modelHeight / (2 * d * tan(fov/2))
      */
-    const targetPx = Math.min(MAX_PHONE_PX, h * 0.62);
+    /*
+     * 0.46, not 0.62. The cap is unchanged and still governs tall viewports;
+     * the fraction under it dropped to free vertical room for the descent.
+     * At 900px of canvas, 0.62 gave a 558px phone and 342px of travel to
+     * replace 720px of horizontal — a drift, not a descent. 0.46 gives 414px
+     * and about 486px of travel. See spec §5.2a.
+     */
+    const targetPx = Math.min(MAX_PHONE_PX, h * REST_FRACTION);
     const halfFov = THREE.MathUtils.degToRad(camera.fov) / 2;
     const d = (modelHeight * h) / (2 * targetPx * Math.tan(halfFov));
     camera.position.set(0, 0, d);
@@ -486,7 +497,22 @@ export async function createScene(
     const prev = lastProgress;
     lastProgress = clamped;
     spinGroup.rotation.y = baseSpin + clamped * TURNS * Math.PI * 2;
-    leanGroup.position.x = sideFraction(clamped) * visibleW * 0.25;
+    /*
+     * ONE SIDE, and downward. Spec §5.1 / §5.2a supersede the traverse.
+     *
+     * Both come off `clamped`, the same value that drives the rotation —
+     * there is no second timeline to fall out of step with. The descent is
+     * linear because the rotation is: an eased descent against a linear spin
+     * reads as the phone slowing down while still turning at full rate.
+     *
+     * The travel is derived from what actually fits: the canvas height less
+     * the phone, so the phone never leaves the frame and the number cannot go
+     * stale when MAX_PHONE_PX or REST_FRACTION change.
+     */
+    leanGroup.position.x = PHONE_SIDE_X * visibleW;
+    const visibleH = visibleW / camera.aspect;
+    const freeH = Math.max(0, visibleH * (1 - phoneHeightPx / (canvas.clientHeight || 1)));
+    leanGroup.position.y = (0.5 - clamped) * freeH * DESCENT_USE;
     scene.updateMatrixWorld(true);
 
     const dot = sign * screenFacing();
@@ -539,6 +565,11 @@ export async function createScene(
         swaps,
         phoneCentreXPx:
           (canvas.clientWidth || 0) / 2 + (leanGroup.position.x / visibleW) * (canvas.clientWidth || 0),
+        phoneCentreYPx: (() => {
+          const h = canvas.clientHeight || 0;
+          const visibleH = visibleW / camera.aspect;
+          return h / 2 - (leanGroup.position.y / visibleH) * h;
+        })(),
         viewportW: canvas.clientWidth || 0,
         toneMapping: renderer.toneMapping === THREE.ACESFilmicToneMapping ? "ACESFilmic" : String(renderer.toneMapping),
         outputColorSpace: renderer.outputColorSpace,

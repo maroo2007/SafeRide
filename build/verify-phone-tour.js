@@ -105,7 +105,11 @@ const check = (name, ok, detail = "") => {
   /* ---- scroll to the section ------------------------------------------ */
   const geo = JSON.parse(await ev(`(() => {
     const s = document.querySelector('#parent-app');
-    const runway = s.querySelector('[style*="300vh"]') || s;
+    /* By data attribute, and it THROWS. The old form matched an inline
+       height and fell back to the section, so a runway change left this
+       measuring a different element and printing plausible numbers. */
+    const runway = s.querySelector('[data-tour-runway]');
+    if (!runway) throw new Error('no [data-tour-runway] — refusing to measure the section instead');
     const r = runway.getBoundingClientRect();
     return JSON.stringify({ top: Math.round(r.top + scrollY), h: Math.round(r.height), vh: innerHeight,
       mode: s.getAttribute('data-mode') });
@@ -187,17 +191,64 @@ const check = (name, ok, detail = "") => {
   /* ---- rest scale ------------------------------------------------------ */
   check("the phone is at most 620 CSS px tall", d.phoneHeightPx <= 620.5, `${Math.round(d.phoneHeightPx)}px`);
 
-  /* ---- side alternation ------------------------------------------------ */
-  const xs = [];
-  for (const p of [0, 0.5, 1]) { await at(p); xs.push((await dbg()).phoneCentreXPx); }
-  const half = VW / 2;
-  const sides = xs.map((x) => (x > half ? "right" : "left"));
-  check("the phone alternates sides: right, left, right",
-    sides[0] === "right" && sides[1] === "left" && sides[2] === "right",
-    `x = ${xs.map((x) => Math.round(x)).join(", ")}  -> ${sides.join(", ")}`);
-  check("it travels a real distance, not a nudge",
-    Math.abs(xs[0] - xs[1]) > VW * 0.2 && Math.abs(xs[1] - xs[2]) > VW * 0.2,
-    `${Math.round(Math.abs(xs[0] - xs[1]))}px and ${Math.round(Math.abs(xs[1] - xs[2]))}px of a ${VW}px viewport`);
+  /* ---- one side, and a descent (spec §5.1, §5.2a) ---------------------- */
+  const xs = [], ys = [], textRects = [];
+  for (const p of [0, 0.5, 1]) {
+    await at(p);
+    const dp = await dbg();
+    xs.push(dp.phoneCentreXPx); ys.push(dp.phoneCentreYPx);
+    /* VIEWPORT coordinates, deliberately. The three blocks are absolutely
+       positioned inside the pin, so their rects match each other at any
+       scroll position whether or not the pin works. What distinguishes a
+       working pin is that the ACTIVE block occupies the same place ON SCREEN
+       at two different scroll positions. */
+    textRects.push(JSON.parse(await ev(`(() => {
+      const el = document.querySelector('#parent-app [data-chapter][data-active="true"]');
+      const r = el.getBoundingClientRect();
+      return JSON.stringify({ x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) });
+    })()`)));
+  }
+  check("the phone holds ONE side, it does not alternate",
+    xs.every((x) => x > VW / 2) && Math.max(...xs) - Math.min(...xs) < 2,
+    `x = ${xs.map((x) => Math.round(x)).join(", ")}`);
+  check("the phone DESCENDS between rest points",
+    ys[0] < ys[1] && ys[1] < ys[2],
+    `y = ${ys.map((y) => Math.round(y)).join(" -> ")}`);
+  check("the descent is a real distance, not a nudge",
+    ys[2] - ys[0] > VH * 0.3,
+    `${Math.round(ys[2] - ys[0])}px of a ${VH}px viewport`);
+
+  /*
+   * The text is pinned — by outcome, in viewport coordinates, and with the
+   * phone as the control. Asserting "position is sticky" passes on a build
+   * where nothing moves at all; asserting the rect alone passes on a build
+   * where the whole section is frozen.
+   */
+  const sameRect = (a, b) => a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
+  check("the text block holds the SAME viewport position at every rest point",
+    sameRect(textRects[0], textRects[1]) && sameRect(textRects[1], textRects[2]),
+    textRects.map((r) => `${r.x},${r.y} ${r.w}x${r.h}`).join("  |  "));
+  check("...while the phone moved, so the page was not simply frozen",
+    Math.abs(ys[2] - ys[0]) > 40, `phone y moved ${Math.round(ys[2] - ys[0])}px`);
+  check("the text is on the LEFT, the phone on the right",
+    textRects[0].x + textRects[0].w < VW / 2 && xs[0] > VW / 2,
+    `text ends at ${textRects[0].x + textRects[0].w}, phone centre ${Math.round(xs[0])}`);
+
+  /* Released at both boundaries. Without this, position:fixed passes every
+     assertion above — it would hold the same viewport position forever. */
+  const release = JSON.parse(await ev(`(async () => {
+    const rw = document.querySelector('#parent-app [data-tour-runway]');
+    const el = () => document.querySelector('#parent-app [data-chapter][data-active="true"]');
+    const at = async (y) => { scrollTo(0, y); await new Promise(r => setTimeout(r, 700)); return Math.round(el().getBoundingClientRect().y); };
+    const top = Math.round(rw.getBoundingClientRect().top + scrollY);
+    const above = await at(Math.max(0, top - innerHeight * 0.9));
+    const below = await at(top + rw.offsetHeight + innerHeight * 0.4);
+    const inside = await at(top + innerHeight);
+    return JSON.stringify({ above, inside, below });
+  })()`));
+  check("the text releases above and below the runway, it is not fixed",
+    release.above !== release.inside && release.below !== release.inside,
+    `y above ${release.above}, inside ${release.inside}, below ${release.below}`);
 
   /* ---- text sync at rest points ---------------------------------------- */
   const HEADINGS = ["The whole morning, on one screen", "The route, as it happens", "See inside, whenever it matters"];
@@ -260,6 +311,50 @@ const check = (name, ok, detail = "") => {
     `bound=${jumped.boundChapter}, via ${jumped.swaps.filter((x) => x.kind === "recovery").length} recovery bind(s)`);
 
   /* ---- text a11y: inert, not opacity ----------------------------------- */
+  /*
+   * The fade dead zone, guarded directly (spec §5.5a).
+   *
+   * FIRST VERSION OF THIS WAS A NO-OP and is recorded here rather than
+   * quietly replaced. It asserted that no two blocks are both visible — but
+   * the ticker hard-sets every inactive block to opacity "0", so the
+   * second-highest opacity is 0 by construction at every scroll position on
+   * every build. It reported "worst 0 over 61 positions" and could not have
+   * failed.
+   *
+   * The thing that can actually go wrong is a visible HARD CUT: the chapter
+   * index flips at the half-turn, the outgoing block vanishes instantly and
+   * the incoming one appears at whatever the fade curve says. That is
+   * invisible only while the curve is at zero AT THE FLIP. So the measurement
+   * is the opacity on either side of each index change.
+   */
+  const fade = JSON.parse(await ev(`(async () => {
+    const rw = document.querySelector('#parent-app [data-tour-runway]');
+    const top = Math.round(rw.getBoundingClientRect().top + scrollY);
+    const span = rw.offsetHeight - innerHeight;
+    const trace = [];
+    for (let i = 0; i <= 120; i++) {
+      scrollTo(0, top + Math.round(span * (i / 120)));
+      await new Promise(r => requestAnimationFrame(r));
+      await new Promise(r => requestAnimationFrame(r));
+      const el = document.querySelector('#parent-app [data-chapter][data-active="true"]');
+      trace.push({ p: i / 120, id: el.dataset.chapter, o: parseFloat(getComputedStyle(el).opacity) || 0 });
+    }
+    const cuts = [];
+    for (let i = 1; i < trace.length; i++) {
+      if (trace[i].id !== trace[i - 1].id) {
+        cuts.push({ p: +trace[i].p.toFixed(3), from: trace[i - 1].id, to: trace[i].id,
+          before: +trace[i - 1].o.toFixed(4), after: +trace[i].o.toFixed(4) });
+      }
+    }
+    return JSON.stringify({ cuts, peak: +Math.max(...trace.map(t => t.o)).toFixed(3) });
+  })()`));
+  const worstCut = fade.cuts.length ? Math.max(...fade.cuts.map((c) => Math.max(c.before, c.after))) : 1;
+  check("the text is invisible at the moment the chapter changes",
+    fade.cuts.length === 2 && worstCut <= 0.02,
+    fade.cuts.map((c) => `${c.from}->${c.to} at p=${c.p}: ${c.before} then ${c.after}`).join("  |  "));
+  check("...and it does return to full opacity in between",
+    fade.peak > 0.98, `peak ${fade.peak}`);
+
   /* ---- the screen renders the texture, at every rest point ------------- */
   /*
    * Spec §4 as amended. Sample the rendered screen and compare it with the
@@ -483,7 +578,8 @@ const check = (name, ok, detail = "") => {
   await at(0);
   const timing = JSON.parse(await ev(`(async () => {
     const d = []; let last = performance.now(); const t0 = last;
-    const runway = document.querySelector('#parent-app [style*="300vh"]');
+    const runway = document.querySelector('#parent-app [data-tour-runway]');
+    if (!runway) throw new Error('no [data-tour-runway]');
     const span = runway.getBoundingClientRect().height - innerHeight;
     const start = runway.getBoundingClientRect().top + scrollY;
     await new Promise((res) => {

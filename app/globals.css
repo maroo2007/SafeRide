@@ -316,6 +316,77 @@
   }
 }
 
+/* ---------------------------------------------------------------------------
+ * The page ground (build spec §4a).
+ *
+ * ONE layer, from the end of the hero to the end of main, painting a hairline
+ * lattice once. Per-section painting was rejected because `background-size`
+ * re-origins at every section's top edge, so each boundary between two paper
+ * sections shows the rhythm restarting.
+ *
+ * NO NEW HEX. The lattice colour is `--border` in both scopes, which is the
+ * whole reason none is needed: paper resolves it to --warm-200, and the dark
+ * scope already resolves it to #ffffff24 — white at 14%. One expression, two
+ * grounds. The alpha on top of it is a color-mix percentage, not a colour.
+ *
+ * --grid-ink and --glow-strength are knobs, exposed so the capture harness can
+ * sweep them on one build rather than three. They are not animated: nothing
+ * here moves, so reduced motion has nothing to disable.
+ * ------------------------------------------------------------------------ */
+
+.page-ground {
+  --grid-ink: 35%;
+  --grid-w: 6rem;
+  --grid-h: 4rem;
+
+  position: absolute;
+  inset: 0;
+  z-index: -10;
+  pointer-events: none;
+  background-color: var(--background);
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--border) var(--grid-ink), transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--border) var(--grid-ink), transparent) 1px, transparent 1px);
+  background-size: var(--grid-w) var(--grid-h);
+  /* The lattice is anchored to the layer's own top-left, which is the end of
+     the hero. One origin for the whole run, so the rhythm never restarts. */
+  background-position: 0 0;
+}
+
+/*
+ * Dark sections keep their own opaque ground and paint OVER the page layer —
+ * they are not exempted from declaring one. On near-black the glow is the only
+ * colour present, which is why it earns its place here and would be noise on
+ * paper, where the accent already does four jobs.
+ *
+ * Off-centre on purpose: anchored at the top-right it reads as light falling
+ * across the page. Centred, it reads as a spotlight aimed at the copy.
+ */
+.dark-ground {
+  --grid-ink: 100%; /* dark --border is already #ffffff24 */
+  --glow-strength: 14%;
+  --glow-size: 900px;
+  /* Off-centre on purpose, and a knob so the guard can be proved by moving
+     the glow ONTO the copy rather than only turning it up — at the anchored
+     position, intensity alone never reaches the worst-contrast text. */
+  --glow-at: 88% 12%;
+
+  position: absolute;
+  inset: 0;
+  z-index: -10;
+  pointer-events: none;
+  background-color: var(--surface-dark);
+  background-image:
+    radial-gradient(
+      circle var(--glow-size) at var(--glow-at),
+      color-mix(in srgb, var(--accent-warm) var(--glow-strength), transparent),
+      transparent
+    ),
+    linear-gradient(to right, color-mix(in srgb, var(--border) var(--grid-ink), transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--border) var(--grid-ink), transparent) 1px, transparent 1px);
+  background-size: 100% 100%, var(--grid-w, 6rem) var(--grid-h, 4rem), var(--grid-w, 6rem) var(--grid-h, 4rem);
+}
+
 @layer utilities {
   /* Section badges and data labels: JetBrains Mono, 12px, uppercase, wide. */
   .label-mono {

@@ -221,8 +221,24 @@ Reference: **flowty.co** — four frames attached separately.
 
 ### 5.1 Per chapter
 
-The phone sits on one side, the text block on the other. **Sides alternate:
-right, left, right.**
+**SUPERSEDED — alternation removed 2026-09-07.**
+
+The phone holds the **right** side for all three chapters. The text holds the
+**left** side for all three chapters. Neither crosses.
+
+The alternation was not dropped for taste. Once the text is pinned to one
+side (§5.5a), a phone that alternates lands **on top of** the text at
+chapter 2. The only alternation that avoids the collision is an oscillation
+inside the free half, which reads as a stumble part-way down rather than a
+traverse — and it reverses the diagonal mid-descent, which is the one thing
+that actively fights the vertical motion §5.2a introduces.
+
+Left for the text because chapter 1 was already phone-right/text-left, and
+because a left-anchored column is where the eye returns in LTR reading.
+
+`Chapter.side` is **removed**. It described the alternation, it drives
+nothing in the stacked fallback, and a field that no longer describes
+anything is a field that will be believed later.
 
 ### 5.2 The transition
 
@@ -241,11 +257,13 @@ On scroll from one chapter to the next, three things happen together:
    then stays constant relative to the viewer, it reads as a spin, and the
    screen-normal calculation in §5.3 stays stable instead of moving with the
    turn.
-2. **The phone travels across** to the opposite side.
-3. **The text block crosses the other way** and its content swaps.
+2. ~~**The phone travels across** to the opposite side.~~
+   **SUPERSEDED by §5.2a.** The phone travels **downward**, not across.
+3. ~~**The text block crosses the other way**~~ **SUPERSEDED by §5.5a.**
+   The text does not move. Its content swaps in place.
 
 Rotation and travel are driven **directly by scroll position** — continuous,
-never snapping. Stop mid-scroll and the phone sits mid-turn, mid-cross.
+never snapping. Stop mid-scroll and the phone sits mid-turn, mid-descent.
 
 Two chapter transitions means **2 × 360 degrees** of total rotation across
 the section.
@@ -254,18 +272,56 @@ the section.
 
 | | |
 |---|---|
-| section runway | **300vh** |
+| section runway | **400vh** — was 300vh, see §5.2a |
 | phone | **pinned sticky** for the section's duration |
 | mapping | 2 × 360 degrees **linear** across the scrolled span |
 
-The scrolled span is `runway − viewport` = 200vh, so each 360-degree
-transition takes 100vh — about one screen-height of scrolling per chapter
-change. Rest points fall at progress 0, 0.5 and 1.
+The scrolled span is `runway − viewport` = 300vh, so each 360-degree
+transition takes 150vh — one and a half screen-heights per chapter change.
+Rest points fall at progress 0, 0.5 and 1.
+
+**The runway is selected by `data-tour-runway`, never by matching its
+inline height.** Both harnesses previously did
+`querySelector('[style*="300vh"]') || section`, so changing this number made
+them silently measure the section instead and go on printing plausible
+figures. The selector now throws when it finds nothing.
 
 The hero's runway is the precedent: its scrub rate is DERIVED from
 `RUNWAY_VH` rather than typed in, so a runway change cannot leave the rate
 stale. Do the same here — degrees-per-pixel comes from the runway constant,
 never from a literal.
+
+### 5.2a The descent — replaces the horizontal traverse
+
+The phone moves **down** through the pinned viewport as scroll advances, on
+the same progress value that drives the rotation. One source of truth: there
+is no second timeline and no second easing.
+
+**Why the rest scale had to change.** At 1440×900 the canvas is 900 px and
+the phone was sized `min(620, h × 0.62)` = 558 px. Fully contained, that
+leaves 900 − 558 = **342 px** of vertical travel, edge to edge with no inset
+— against the **720 px per transition** of horizontal travel it replaces.
+Less than half the motion, so it reads as a drift rather than a descent.
+
+**AMENDS §7.1.** The 620 px cap stays; the viewport fraction drops from 0.62
+to **0.46**. At 1440×900 that is a 414 px phone and about 486 px of usable
+travel. 620 was set when the phone needed no vertical room, and it still
+governs tall viewports.
+
+**Runway rates**, which is what actually chose 400vh rather than taste:
+
+| runway | scrolled span | rotation | descent |
+|---|---|---|---|
+| 300vh | 1800 px | 0.40°/px | 0.27 px/px |
+| **400vh** | **2700 px** | **0.27°/px** | **0.18 px/px** |
+| 500vh | 3600 px | 0.20°/px | 0.13 px/px |
+
+At 300vh an ordinary scroll turns the phone a full 360° in under a second.
+500vh is legible but spends five screens on three states. 400vh gives each
+transition one and a half viewport heights.
+
+Degrees-per-pixel and pixels-per-pixel both derive from the runway constant.
+Neither is typed in.
 
 ### 5.3 The screen swap
 
@@ -317,6 +373,33 @@ block carries **`inert` and `aria-hidden="true"`**, not opacity alone.
 Guard it the way the hero was guarded: **call `.focus()` on something inside
 the outgoing block and read `document.activeElement`.** Reading `tabIndex`
 passes on the broken build.
+
+### 5.5a Fade in place — supersedes the crossing
+
+The text panel **holds one position and does not travel.** Sticky within the
+section, releasing cleanly at both boundaries. Outgoing fades out, incoming
+fades in at the same coordinates. No horizontal component at all.
+
+**The horizontal offset was doing separation work that is now gone.** With
+both blocks occupying the same pixels, the only thing keeping two chapters
+off each other is the fade's dead zone: `vis = max(0, 1 − |sin(πt)| × 2.2)`
+reaches zero at t ≈ 0.15 and stays there until t ≈ 0.85, while the chapter
+index flips at t = 0.5. That dead zone is now **guarded directly** — at no
+scroll position may two chapter blocks both exceed 2% opacity — because a
+guard on the fade's *inputs* would pass on a build where the curve is right
+and the blocks overlap anyway.
+
+**Sticky must be guarded by outcome, in viewport coordinates.** The three
+blocks are absolutely positioned inside the pin, so their rects are
+identical to each other by construction, at any scroll position, whether or
+not the pin works. The guard therefore:
+
+1. reads the active block's rect **in viewport coordinates** at two
+   different scroll positions inside the runway, and requires them equal;
+2. requires the phone's rect to have **moved vertically** between the same
+   two positions — otherwise a build where nothing moves at all passes;
+3. requires the block to be **unpinned above and below** the runway —
+   otherwise `position: fixed` passes every other assertion.
 
 ---
 
@@ -409,6 +492,12 @@ chapter 2 without anyone zooming.
 **The phone renders at most 620 CSS px tall at any viewport.** Against
 2314 px of texture that is a 3.7× downsample, safely above chapter 2's 487 px
 source. Assert it.
+
+**AMENDED for the descent (§5.2a).** The 620 px cap is unchanged. The
+viewport fraction that sits under it drops from `h × 0.62` to `h × 0.46`, to
+free the vertical room the descent needs. At 1440×900 the phone is 414 px,
+a 5.6× downsample — further from chapter 2's source, not closer, so the
+mushing this section exists to prevent gets further away.
 
 ### 7.2 Mobile
 

@@ -6,6 +6,7 @@ import { PlatformGrid } from "@/components/sections/platform";
 import { PhoneTour } from "@/components/sections/phone-tour/phone-tour";
 import { JourneySteps } from "@/components/sections/journey";
 import { IntelligenceLayer } from "@/components/sections/intelligence";
+import { PageGround } from "@/components/sections/page-ground";
 
 /**
  * Phase 5a — the ground for the first three content sections.
@@ -30,6 +31,15 @@ export default function Home() {
     <main id="main">
       <SterlingGateNavigation />
       <ScrubVideoHero />
+
+      {/*
+        Build spec §4a. One ground for everything after the hero: the lattice
+        origins here and runs unbroken to the end of main, so no boundary shows
+        the rhythm restarting. The hero is outside it deliberately — it
+        composites its own video ground.
+      */}
+      <div className="relative">
+        <PageGround />
 
       {/* §4.3 */}
       <Section
@@ -108,6 +118,7 @@ export default function Home() {
           ))}
         </div>
       </section>
+      </div>
     </main>
   );
 }

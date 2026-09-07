@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { DarkGround } from "./page-ground";
 
 /**
  * The ground every content section stands on (spec §4).
@@ -31,17 +32,39 @@ import type { ReactNode } from "react";
  *     film paper on dark        19.94:1      dark muted on dark    8.93:1
  *     accent-warm on dark       16.77:1
  *
- * ── The ground is opaque, always ──────────────────────────────────────────
+ * ── The ground is opaque, always — AMENDED ────────────────────────────────
  *
- * Every tone sets an explicit background. None inherits the page's. That is
- * the navbar lesson stated as a rule rather than remembered as an anecdote.
+ * Originally: every tone sets an explicit background, none inherits the
+ * page's, the navbar lesson stated as a rule rather than remembered as an
+ * anecdote.
+ *
+ * Build spec §4a introduces ONE page-level ground for the whole post-hero run,
+ * because a per-section lattice restarts its rhythm at every boundary. Paper
+ * sections therefore declare no background and sit on that layer. Dark
+ * sections still declare their own and paint over it.
+ *
+ * The rule is narrowed, not dropped: what it was protecting against was a
+ * section with NO ground at all, which is what the menu panel shipped. A
+ * section sitting on a named, deliberate page layer is not that. The guard
+ * names the exempted sections one by one so the exemption cannot spread by
+ * accident.
  */
 
 export type SectionTone = "paper" | "dark";
 
 const TONE: Record<SectionTone, string> = {
-  /* Explicit, not inherited. */
-  paper: "bg-background text-foreground",
+  /*
+   * AMENDED for the page ground (build spec §4a.4). Paper sections no longer
+   * paint their own ground — they sit on the one continuous layer, which is
+   * the only way the lattice can run unbroken across a boundary.
+   *
+   * This is a NARROWING of "the ground is opaque, always", not an abandonment
+   * of it, and the rule below still stands everywhere else. The guard was
+   * narrowed the same way: paper sections are exempted BY NAME, dark sections
+   * keep the requirement in full, and a dark section that stops painting its
+   * own ground still fails.
+   */
+  paper: "text-foreground",
   /* `dark` flips the token scope; bg-surface-dark alone would leave --ring,
      --muted-foreground and the accent tokens on their light values, which is
      exactly how the hero's CTA wore a dark ring over footage for weeks. */
@@ -78,6 +101,7 @@ export function Section({
        */
       className={`relative isolate ${TONE[tone]} ${className}`}
     >
+      {tone === "dark" ? <DarkGround /> : null}
       {/*
        * Vertical rhythm carries the separation between two paper sections,
        * because at 1.06:1 nothing else can. Generous by necessity, not taste:

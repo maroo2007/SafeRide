@@ -113,7 +113,8 @@ function orangeLandmark(img, bounds, radius) {
 
   const geo = JSON.parse(await ev(`(() => {
     const s = document.querySelector('#parent-app');
-    const runway = s.querySelector('[style*="300vh"]') || s;
+    const runway = s.querySelector('[data-tour-runway]');
+    if (!runway) throw new Error('no [data-tour-runway]');
     const r = runway.getBoundingClientRect();
     return JSON.stringify({ top: Math.round(r.top + scrollY), h: Math.round(r.height), vh: innerHeight });
   })()`));

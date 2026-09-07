@@ -10,11 +10,15 @@ import type { TourScene } from "./scene";
 /**
  * §2 The Parent App — the 3D phone tour.
  *
- * Three chapters. The phone sits on one side, the text on the other, and on
- * scroll it spins 360 degrees about its own long axis while crossing to the
- * other side. Two transitions, 2 x 360 degrees, mapped linearly across the
- * section's runway. Driven by scroll position alone — stop mid-scroll and the
- * phone sits mid-turn.
+ * Three chapters. The text holds the left side and does not move; the phone
+ * holds the right and DESCENDS through the frame, spinning 360 degrees about
+ * its own long axis as it goes. Two transitions, 2 x 360 degrees, mapped
+ * linearly across the section's runway. Driven by scroll position alone —
+ * stop mid-scroll and the phone sits mid-turn, mid-descent.
+ *
+ * The alternation this used to have was not dropped for taste: with the text
+ * pinned to one side, a phone that alternates lands on top of it at chapter 2
+ * (spec §5.1).
  *
  * ── What this deliberately does NOT do ────────────────────────────────────
  *
@@ -33,9 +37,17 @@ import type { TourScene } from "./scene";
  * separate gap, logged rather than fixed in this pass.
  */
 
-/** Spec §5.2 as amended. The scrolled span is RUNWAY - 100vh = 200vh, so each
- *  360-degree transition takes one screen-height. Rest points at 0, 0.5, 1. */
-export const TOUR_RUNWAY_VH = 300;
+/*
+ * Spec §5.2 as amended twice. The scrolled span is RUNWAY - 100vh = 300vh, so
+ * each 360-degree transition takes one and a half screen-heights. Rest points
+ * at 0, 0.5, 1.
+ *
+ * 400 rather than 300 because the phone now DESCENDS as well as turning
+ * (§5.2a), and at 300vh an ordinary scroll completed a full 360 in under a
+ * second: 0.40 deg/px against 0.27 here. 500vh reads better still and spends
+ * five screens on three states.
+ */
+export const TOUR_RUNWAY_VH = 400;
 
 const MOBILE_BREAKPOINT = 768;
 
@@ -94,24 +106,20 @@ function ChapterText({ c, active }: { c: Chapter; active: boolean }) {
       aria-hidden={!active}
       data-chapter={c.id}
       data-active={active}
-      data-side={c.side}
       /*
-       * Opacity and travel are set per frame from scroll, not by a CSS
-       * transition. Two reasons, and the second is the one a screenshot shows:
+       * Opacity is set per frame from scroll, not by a CSS transition, and
+       * there is no transform at all any more (§5.5a).
        *
-       *  - §5.2 asks for the text to CROSS the other way. A crossfade alone is
-       *    a dissolve, not a crossing.
-       *  - the phone travels through the middle of the viewport, and the text
-       *    block is 46ch wide on one side of it. On a timed fade the outgoing
-       *    text was still at full opacity when the phone arrived on top of it.
-       *    Tying the fade to scroll puts the text at zero exactly when the
-       *    phone is centre-stage, which is also exactly when the texture swaps.
+       * Tying the fade to scroll rather than to a timer is what puts the text
+       * at zero exactly when the phone is centre-stage, which is also exactly
+       * when the texture swaps. A timed fade left the outgoing text at full
+       * opacity while the phone arrived on top of it.
+       *
+       * LEFT for all three chapters. The block does not move; the phone
+       * descends past it on the right.
        */
-      className="absolute inset-y-0 flex max-w-[46ch] flex-col justify-center will-change-[opacity,transform]"
-      style={{
-        opacity: active ? 1 : 0,
-        [c.side === "right" ? "left" : "right"]: "max(24px, 6vw)",
-      } as React.CSSProperties}
+      className="absolute inset-y-0 left-[max(24px,6vw)] flex max-w-[46ch] flex-col justify-center will-change-[opacity]"
+      style={{ opacity: active ? 1 : 0 }}
     >
       <h3 className="text-3xl sm:text-4xl">{c.heading}</h3>
       <p className="mt-4 leading-relaxed text-muted-foreground">{c.body}</p>
@@ -197,14 +205,8 @@ export function PhoneTour() {
           const t = p * (CHAPTERS.length - 1);
           const swing = Math.abs(Math.sin(Math.PI * t));
           const vis = Math.max(0, 1 - swing * 2.2);
-          const cross = (1 - vis) * 5;
           for (const el of blocks()) {
-            const isActive = el.dataset.active === "true";
-            el.style.opacity = isActive ? String(vis) : "0";
-            /* Leaves toward the centre, arrives from it: the crossing §5.2
-               asks for, in the opposite direction to the phone. */
-            const dir = el.dataset.side === "right" ? 1 : -1;
-            el.style.transform = isActive ? `translateX(${dir * cross}vw)` : "none";
+            el.style.opacity = el.dataset.active === "true" ? String(vis) : "0";
           }
           /* Chapter flips at the half-turn, where the back faces the camera,
              so the text change and the texture swap land together. setState
@@ -270,7 +272,9 @@ export function PhoneTour() {
       id="parent-app"
       aria-labelledby="parent-app-heading"
       data-mode={stacked ? "stacked" : "scene"}
-      className="relative isolate bg-background text-foreground"
+      /* No ground of its own: it sits on the page layer (§4a). The canvas
+         is alpha: true, so the lattice shows through behind the phone. */
+      className="relative isolate text-foreground"
     >
       <div className="mx-auto max-w-6xl px-6 pt-[clamp(72px,9vw,136px)]">
         <p className="label-mono text-muted-foreground">The parent app</p>
@@ -286,7 +290,19 @@ export function PhoneTour() {
       {stacked ? (
         <div className="h-[clamp(72px,9vw,136px)]" />
       ) : (
-        <div ref={runwayRef} style={{ height: `${TOUR_RUNWAY_VH}vh` }} className="relative mt-16">
+        <div
+          ref={runwayRef}
+          /*
+           * data-tour-runway is how the harnesses find this, NOT its inline
+           * height. Both of them used `[style*="300vh"]` with a silent
+           * fallback to the section, so bumping the runway to 400 would have
+           * left them measuring a different element and printing plausible
+           * numbers about it. Spec §5.2.
+           */
+          data-tour-runway=""
+          style={{ height: `${TOUR_RUNWAY_VH}vh` }}
+          className="relative mt-16"
+        >
           <div className="sticky top-0 h-svh overflow-hidden">
             <canvas ref={canvasRef} className="absolute inset-0 block h-full w-full" aria-hidden="true" />
             <div className="relative mx-auto h-full max-w-6xl px-6">

@@ -1198,6 +1198,91 @@ task. Logged in `TODO.md` as required before any public launch.
 
 ---
 
+## 4a. The page background — one continuous layer
+
+Added 2026-09-07. Reference is flowty.co / the 21st.dev grid pattern, for the
+**mechanic only**: a hairline lattice behind content, optionally a large soft
+radial over it. Every colour in the reference is raw hex — `#f0f0f0`,
+`#d5c5ff`, `#63e`, `bg-white` — which is the same trap as the navbar's
+`--color-primary: #6366f1`. None of it is copied.
+
+### 4a.1 One layer, not per-section
+
+A single element spanning from the end of the hero to the end of `main`,
+behind everything, painting the lattice once. Per-section painting was
+rejected: `background-size: 6rem 4rem` re-origins at each section's top
+edge, so every boundary between two paper sections shows the rhythm
+restarting.
+
+### 4a.2 Paper run — grid only
+
+| | |
+|---|---|
+| base | `--background` |
+| grid | 1px, `color-mix(in srgb, var(--border) N%, transparent)` |
+| spacing | 6rem × 4rem, non-square preserved |
+| glow | **none** |
+
+No glow on paper, deliberately. The accent already does four jobs on this
+page — CTA fill, hairline edge, italic heading words, Platform card fills. A
+fifth instance spread across the background dilutes the thing whose whole
+purpose is to pull the eye to a button.
+
+The lattice colour is `--border` in **both** scopes, which is why no new hex
+is needed: paper resolves it to `--warm-200`, dark already resolves it to
+`#ffffff24` — white at 14%. One expression, two grounds.
+
+### 4a.3 Dark sections — glow earns its place
+
+Intelligence Layer and the footer keep their own opaque `--surface-dark`
+ground and paint over the page layer. On top of it: the same lattice in
+dark-scope `--border`, and a large soft radial in
+`color-mix(in srgb, var(--accent-warm) N%, transparent)` anchored off-centre
+so it reads as light falling across the page rather than a spotlight.
+
+`--accent-warm` exists precisely because `--accent` fails on dark grounds.
+On near-black the glow is the only colour present, which is why it works
+here and would be noise on paper.
+
+### 4a.4 The opaque-ground guard is NARROWED, not weakened
+
+`verify-sections.js` asserts every content section declares an opaque ground
+of its own — the navbar lesson stated as a rule. Sections that now sit on the
+page layer declare **transparent** and are exempted **by name**, with the
+reason recorded in the guard. Dark sections keep the requirement in full: if
+Intelligence Layer stops painting its own ground, that check still fails.
+
+### 4a.5 Contrast is measured from pixels, from here on
+
+The existing contrast guard derived each ground from computed
+`background-color`, walking up for the first opaque ancestor. A
+`background-image` lattice and a radial glow are **both invisible to it** —
+it would report identical figures before and after, which is a no-op guard on
+exactly the thing this section changes.
+
+It now samples **rendered pixels**, and it samples **worst case**: the ground
+under a grid line rather than beside it, and the brightest point of the glow
+rather than the section's nominal ground. An average hides both.
+
+Because the instrument changed, the before/after is run as **new guard on
+the old build**, then **new guard on the new build**. Comparing the old
+guard's numbers with the new guard's would be reporting two changes as one.
+
+### 4a.6 Never reaches the hero
+
+The hero composites its own video ground and is outside the layer entirely.
+
+The phone tour **is** inside it. Its canvas is `alpha: true`, so the lattice
+shows through behind the phone, and the lattice scrolls while the canvas is
+pinned. Both treatments were built and photographed before choosing.
+
+### 4a.7 Static
+
+Nothing animates, so reduced motion is not a factor. There is no transition
+to disable — confirmed by inspection rather than by adding one and gating it.
+
+---
+
 ## 5. Motion & UI System
 
 ### 5.1 ui-ux-pro-max Skill — Install It First

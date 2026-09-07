@@ -6,6 +6,11 @@
  * because the three full-size PNGs are 3.11 MiB and the fallback exists to
  * avoid exactly that weight on exactly that connection.
  *
+ * `side` is REMOVED (spec §5.1 as amended). It described the right/left/right
+ * alternation; the phone now holds one side and the text holds the other, and
+ * it drove nothing in the stacked fallback. A field that no longer describes
+ * anything gets believed.
+ *
  * Chapter 3 uses the real texture. The camera-feed imagery is AI-generated —
  * no licensing question and no real children — so the earlier exclusion was
  * reversed and the file is tracked. One content note stands: the feeds show
@@ -16,7 +21,6 @@
 
 export type Chapter = {
   id: string;
-  side: "right" | "left";
   screen: string;
   mobile: string;
   heading: string;
@@ -27,7 +31,6 @@ export type Chapter = {
 export const CHAPTERS: Chapter[] = [
   {
     id: "home",
-    side: "right",
     screen: "/models/screens/screen_01_home.png",
     mobile: "/models/screens/m_screen_01_home.jpg",
     heading: "The whole morning, on one screen",
@@ -41,7 +44,6 @@ export const CHAPTERS: Chapter[] = [
   },
   {
     id: "tracking",
-    side: "left",
     screen: "/models/screens/screen_02_tracking.png",
     mobile: "/models/screens/m_screen_02_tracking.jpg",
     heading: "The route, as it happens",
@@ -55,7 +57,6 @@ export const CHAPTERS: Chapter[] = [
   },
   {
     id: "cameras",
-    side: "right",
     screen: "/models/screens/screen_03_cameras.png",
     mobile: "/models/screens/m_screen_03_cameras.jpg",
     heading: "See inside, whenever it matters",
