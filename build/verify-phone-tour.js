@@ -161,6 +161,7 @@ const check = (name, ok, detail = "") => {
 
   await at(0);
   await sleep(2500);
+  console.log(`   runway top ${geo.top}, height ${geo.h}, scrollY now ${await ev("scrollY")}, hero visible ${await ev("(()=>{const h=document.querySelector('section[aria-labelledby=\'hero-headline\']');if(!h)return 'no hero';const r=h.getBoundingClientRect();return r.bottom>0&&r.top<innerHeight;})()")}`);
   check("the GLB IS fetched once the hero has left", glbRequests().length === 1, `${glbRequests().length} requests`);
 
   const dbg = async () => JSON.parse(await ev(`JSON.stringify(window.__phoneTour ? window.__phoneTour.debug() : {ready:false})`));
@@ -259,6 +260,184 @@ const check = (name, ok, detail = "") => {
     `bound=${jumped.boundChapter}, via ${jumped.swaps.filter((x) => x.kind === "recovery").length} recovery bind(s)`);
 
   /* ---- text a11y: inert, not opacity ----------------------------------- */
+  /* ---- the screen renders the texture, at every rest point ------------- */
+  /*
+   * Spec §4 as amended. Sample the rendered screen and compare it with the
+   * SOURCE PNG, per chapter, at that chapter's rest point.
+   *
+   * The no-op test, twice over:
+   *
+   *   A guard reading material.toneMapped, or textures[0].colorSpace, passes
+   *   on a build where the swap never sets the colour space on textures 2 and
+   *   3 — and passes on a build where the screen is not drawn at all. This
+   *   project shipped exactly that second build: the display plane was
+   *   back-face culled, nothing was rasterised, and every settings-level
+   *   assertion still read correct.
+   *
+   *   So this reads pixels, and it refuses to compute a delta unless it has
+   *   actually found the landmark. "Most orange pixel in the crop" always
+   *   returns something; on the culled build it returned the titanium frame,
+   *   scored 31 against the source's 246, and a delta built on it would have
+   *   been a number about the frame.
+   */
+  const { decodePNG } = require("./scrim-lab");
+  const orangeness = (r, g, b) => r - b - Math.abs(r - g * 1.55) * 0.5;
+  const landmark = (img, bx0, by0, bx1, by1, R) => {
+    let best = -Infinity, mx = 0, my = 0;
+    for (let y = by0; y < by1; y += 2) for (let x = bx0; x < bx1; x += 2) {
+      const o = (y * img.w + x) * img.ch;
+      const v = orangeness(img.px[o], img.px[o + 1], img.px[o + 2]);
+      if (v > best) { best = v; mx = x; my = y; }
+    }
+    /* Average the CARD, not the box: a square around the best pixel straddles
+       its edge, and averaging the white UI beyond it lifts blue hardest, which
+       is indistinguishable from a wash. Same rule on both images. */
+    /*
+     * MEDIAN, not mean. The mean of a box straddling the card's edge is pulled
+     * by the white UI beyond it, and it is pulled by MORE in the render, where
+     * the GPU has already blended those edges — which reads as a wash on the
+     * chapters whose landmark is small. The median of the qualifying pixels is
+     * the card's own colour and does not move when a few edge pixels are in
+     * the box.
+     */
+    const floor = best * 0.6;
+    const ch = [[], [], []];
+    for (let y = my - R; y <= my + R; y++) for (let x = mx - R; x <= mx + R; x++) {
+      if (x < 0 || y < 0 || x >= img.w || y >= img.h) continue;
+      const o = (y * img.w + x) * img.ch;
+      if (orangeness(img.px[o], img.px[o + 1], img.px[o + 2]) < floor) continue;
+      ch[0].push(img.px[o]); ch[1].push(img.px[o + 1]); ch[2].push(img.px[o + 2]);
+    }
+    const med = (a) => { a.sort((p, q) => p - q); return a.length ? a[a.length >> 1] : 0; };
+    return { score: Math.round(best), n: ch[0].length, x: mx, y: my, rgb: ch.map((a) => Math.round(med(a))) };
+  };
+
+  /*
+   * Downsample the SOURCE to the rendered screen's size before comparing.
+   *
+   * Without this the guard fails chapters 2 and 3 and passes chapter 1, which
+   * looks like a wash on two textures and is not. The source is 1080 px wide;
+   * the screen renders about 350. Chapter 1's landmark is a large orange card
+   * and survives a 3x minification; chapters 2 and 3 land on small UI elements
+   * that the GPU averages with their surroundings, so the render reads paler
+   * than a full-resolution sample of the same element — a resolution
+   * difference showing up as colour. Chapter 2 measured 53 units apart that
+   * way, and nothing in the material differs between the three.
+   *
+   * Minifying the source with a box filter puts both images through the same
+   * loss, so what is left to measure is colour.
+   */
+  const downsample = (img, w, h) => {
+    const out = { w, h, ch: 3, px: new Uint8Array(w * h * 3) };
+    const sx = img.w / w, sy = img.h / h;
+    for (let y = 0; y < h; y++) {
+      const y0 = Math.floor(y * sy), y1 = Math.max(y0 + 1, Math.floor((y + 1) * sy));
+      for (let x = 0; x < w; x++) {
+        const x0 = Math.floor(x * sx), x1 = Math.max(x0 + 1, Math.floor((x + 1) * sx));
+        let r = 0, g = 0, b = 0, n = 0;
+        for (let yy = y0; yy < y1 && yy < img.h; yy++) {
+          for (let xx = x0; xx < x1 && xx < img.w; xx++) {
+            const o = (yy * img.w + xx) * img.ch;
+            r += img.px[o]; g += img.px[o + 1]; b += img.px[o + 2]; n++;
+          }
+        }
+        const o2 = (y * w + x) * 3;
+        out.px[o2] = r / n; out.px[o2 + 1] = g / n; out.px[o2 + 2] = b / n;
+      }
+    }
+    return out;
+  };
+
+  const SCREENS = [
+    "public/models/screens/screen_01_home.png",
+    "public/models/screens/screen_02_tracking.png",
+    "public/models/screens/screen_03_cameras.png",
+  ];
+
+  /*
+   * WHY A MEAN OVER THE WHOLE DISPLAY, AND NOT A LANDMARK.
+   *
+   * Matching one feature works only while that feature survives being drawn at
+   * a third of its authored size. Chapter 1's orange card does: 35 px in the
+   * render, and it matches the source exactly, rgb(254, 151, 0) both sides.
+   * Chapter 2's most saturated element is a small badge that lands on FOUR
+   * pixels, fully blended with what is behind it — 69 units apart, and none of
+   * that is colour. Three different samplers reported three different figures
+   * for it, which is the signature of an instrument measuring itself.
+   *
+   * Minification is an average, so the average survives it: the mean of a
+   * large region of the render estimates the same quantity as the mean of the
+   * matching region of the texture, whatever the scale. A wash lifts every
+   * channel toward white and moves that mean; a blurred badge does not.
+   *
+   * The no-op test. Would this pass on a build where nothing changed?
+   *   - screen not drawn at all (the back-face culling this section shipped):
+   *     the samples land on the titanium body and the paper ground. Fails.
+   *   - textures 2 and 3 never given a colour space: sRGB read as linear
+   *     shifts every channel. Fails on the chapters that lost it, which is
+   *     exactly what an assertion on textures[0].colorSpace cannot do.
+   *   - the swap binding the wrong texture: fails, because chapter 2's mean is
+   *     not chapter 1's.
+   * It reads pixels off the screen at each rest point and nothing else.
+   */
+  console.log("");
+  for (let i = 0; i < 3; i++) {
+    await at(i / 2);
+    await sleep(700);
+    const dd = JSON.parse(await ev("JSON.stringify(window.__phoneTour.debug())"));
+    const vb = JSON.parse(await ev(`(() => { const b = document.querySelector('#parent-app canvas').getBoundingClientRect(); return JSON.stringify({ x: Math.round(b.x), y: Math.round(b.y) }); })()`));
+    const full = decodePNG(Buffer.from((await send("Page.captureScreenshot", { format: "png" })).result.data, "base64"));
+    const src = decodePNG(fs.readFileSync(SCREENS[i]));
+
+    const q = dd.screenQuad;
+    const c00 = q.find((c) => c.u < 0.5 && c.v < 0.5), c10 = q.find((c) => c.u >= 0.5 && c.v < 0.5);
+    const c01 = q.find((c) => c.u < 0.5 && c.v >= 0.5), c11 = q.find((c) => c.u >= 0.5 && c.v >= 0.5);
+    const map = (u, v, k) => (1 - u) * (1 - v) * c00[k] + u * (1 - v) * c10[k]
+      + (1 - u) * v * c01[k] + u * v * c11[k];
+
+    /* Inset, so the sample never strays off the display onto the bezel. */
+    const LO = 0.08, HI = 0.92, NU = 60, NV = 120;
+    let rr = 0, rg = 0, rb = 0, rn = 0;
+    for (let a = 0; a < NU; a++) {
+      for (let b2 = 0; b2 < NV; b2++) {
+        const u = LO + ((HI - LO) * a) / (NU - 1);
+        const v = LO + ((HI - LO) * b2) / (NV - 1);
+        const x = Math.round(vb.x + map(u, v, "x")), y = Math.round(vb.y + map(u, v, "y"));
+        if (x < 0 || y < 0 || x >= full.w || y >= full.h) continue;
+        const o = (y * full.w + x) * full.ch;
+        rr += full.px[o]; rg += full.px[o + 1]; rb += full.px[o + 2]; rn++;
+      }
+    }
+    let sr = 0, sg = 0, sb = 0, sn = 0;
+    for (let y = Math.round(src.h * LO); y < Math.round(src.h * HI); y++) {
+      for (let x = Math.round(src.w * LO); x < Math.round(src.w * HI); x++) {
+        const o = (y * src.w + x) * src.ch;
+        sr += src.px[o]; sg += src.px[o + 1]; sb += src.px[o + 2]; sn++;
+      }
+    }
+    /*
+     * Compare against the source TIMES THE TINT. §4 as amended dims the
+     * screens with the material colour, and a flat "within 8 units of the
+     * source" bar would call that deliberate dim a failure — the guard would
+     * be measuring the design decision instead of the reproduction. The
+     * multiply happens in linear space, which is where the GPU does it.
+     */
+    const toLin = (v) => { const c = v / 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+    const toSrgb = (c) => 255 * (c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055);
+    const hex = dd.material.colorHex;
+    const tint = [0, 2, 4].map((k) => toLin(parseInt(hex.slice(k, k + 2), 16)));
+    const rmean = [rr / rn, rg / rn, rb / rn].map(Math.round);
+    const smean = [sr / sn, sg / sn, sb / sn]
+      .map((v, k) => Math.round(toSrgb(toLin(v) * tint[k])));
+    const delta = rmean.map((v, k) => v - smean[k]);
+    const worst = Math.max(...delta.map(Math.abs));
+    check(`chapter ${i + 1}: the rendered screen is within 8 units of the source texture`,
+      worst <= 8,
+      `rendered rgb(${rmean.join(", ")}) vs source x 0x${hex} rgb(${smean.join(", ")}), worst ${worst}, ${rn} samples`);
+    check(`chapter ${i + 1}: the bound texture is the chapter's own`,
+      dd.boundChapter === i, `bound ${dd.boundChapter}`);
+  }
+
   await at(0);
   const a11y = JSON.parse(await ev(`(() => {
     const blocks = [...document.querySelectorAll('#parent-app [data-chapter]')];

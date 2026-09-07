@@ -156,10 +156,59 @@ is. The real texture is tracked from the moment it is rebuilt.
 | bezel | 26 px, corner radius 163 px, baked into the textures |
 | Dynamic Island | x 386..679, depth 126 px in texture space |
 
-**Do not change the material setup.** `emissiveStrength: 2.0` with a black
-base is what makes the screen bright enough to survive ACES tone mapping.
-Setting `baseColorFactor` back to white will make it blow out; removing the
-emissive strength will make it dim. Both were tested.
+### 4a. The material setup is SUPERSEDED — measured 2026-09-07
+
+The pinning above solved the wrong problem. It kept an emissive surface
+bright enough to survive ACES; the fix is not to survive ACES but to leave
+it. A display is not a lit surface.
+
+**Ships instead:**
+
+```ts
+new THREE.MeshBasicMaterial({
+  map: screenTexture,        // sRGB, flipY false
+  color: SCREEN_TINT,        // 0xffffff reproduces the source exactly
+  toneMapped: false,
+  side: screenMat.side,      // CARRIED OVER — see below
+})
+```
+
+No lighting term, so `scene.environment` cannot reach it. No emissive path,
+so `KHR_materials_emissive_strength` stops mattering. `toneMapped: false`
+keeps it out of ACES entirely.
+
+Measured against the source PNGs, worst channel, production build, mean over
+7200 samples of the display at each chapter's rest point:
+
+| setup | ch 1 | ch 2 | ch 3 |
+|---|---|---|---|
+| emissive, strength 2.0, as pinned above | 93 | — | — |
+| unlit, `toneMapped: false` | **4** | **1** | **5** |
+
+Chapter 1's orange Current Trip card, sampled as a feature rather than as a
+mean, is `rgb(254, 151, 0)` rendered against `rgb(254, 151, 0)` in the
+source. Exact.
+
+**`side` must be carried over from the parsed material, not defaulted.**
+Constructing a material from scratch discards every flag GLTFLoader set from
+the file. This display plane's winding faces INTO the phone and the glTF
+marks it `doubleSided`; `MeshBasicMaterial` defaults to `FrontSide`, so the
+plane is back-face culled and NOTHING IS DRAWN — at any rotation, front or
+back. That build renders a blank cream phone and passes every settings-level
+assertion: tone mapping ACES, output sRGB, all three textures uploaded, the
+right texture bound. It is the reason §8's guard now reads pixels.
+
+**Dimming** is done with `SCREEN_TINT`, never by editing a texture, and the
+same value applies to all three chapters. Measured against the source, worst
+channel, on the chapter 1 card: `0xffffff` 5, `0xf0f0f0` 14, `0xe6e6e6` 24.
+The guard multiplies the source by the declared tint before comparing, so a
+deliberate dim is not read as a failure to reproduce.
+
+**Facing.** The screen mesh is a single flat surface — 112 triangles, 99.9%
+of the area on one normal — but that normal points inward, so the face
+normal alone aims the BACK of the phone at the camera. The sense comes from
+the body: both geometry centres in world space, and the vector from the
+model's centre to the screen's centre points out through the display.
 
 **Do not touch the UVs.** They were rebuilt because the shipped model warped
 by 1393 texels, which bent every straight line in the UI.
@@ -441,15 +490,15 @@ restoring.
 
 ---
 
-## 9. Known issue, not blocking
+## 9. Content note, not blocking
 
-`screen_03_cameras.png` contains photographs of a real bus interior — a
-driver and children in the rear-seats tile. These are prototype
-placeholders, almost certainly unlicensed stock, and they show identifiable
-minors on the marketing page of a child-safety brand.
+The camera-feed imagery in `screen_03_cameras.png` is AI-generated. There is
+no licensing question and there are no real children in it. The texture is
+tracked and ships.
 
-**Build against it. Do not ship it.** Logged as launch-blocking. The texture
-will be rebuilt with abstracted tiles before launch.
+**One thing to log for later, not a build issue:** the feeds show bright
+yellow American school buses, which contradict the cream-and-orange fleet in
+the hero film and everywhere else on the site. Flagged for regeneration.
 
 ---
 

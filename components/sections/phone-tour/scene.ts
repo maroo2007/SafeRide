@@ -66,6 +66,39 @@ export type SceneDebug = {
   screenTextureColorSpace: string;
   transmissionFactor: number | null;
   texturesUploaded: number;
+  /** Instrumentation only — what the material ACTUALLY holds after
+   *  GLTFLoader has parsed it, which is not necessarily what the file says. */
+  material: {
+    type: string;
+    color: number[];
+    toneMapped: boolean;
+    mapColorSpace: string;
+    mapFlipY: boolean;
+    boundTextureIndex: number;
+    /** The tint as authored, sRGB hex. The guard multiplies the source by it,
+     *  so a deliberate dim is not read as a failure to reproduce. */
+    colorHex: string;
+  };
+  toneMappingExposure: number;
+  textureColorSpaces: string[];
+  /*
+   * The screen mesh's projected bounding box, in CSS px relative to the
+   * canvas. Handed out because the colour harness was searching a crop for
+   * "the most orange pixel" and, when the screen showed nothing orange, it
+   * quietly settled on the titanium frame and reported the frame's distance
+   * from the source card as the wash. A search that cannot fail has no way to
+   * say "the card is not here". Crop to this rect instead.
+   */
+  screenRect: { x: number; y: number; w: number; h: number };
+  /*
+   * The display quad's four corners, projected to canvas CSS px, each tagged
+   * with its UV. Lets a harness map a point in the SOURCE texture to the pixel
+   * that shows it, so both images are sampled at the same feature instead of
+   * each searching for its own — which on chapters 2 and 3 found a small
+   * saturated badge in the source and a larger, paler element in the render,
+   * and read the difference as a wash.
+   */
+  screenQuad: { u: number; v: number; x: number; y: number }[];
 };
 
 export type TourScene = {
@@ -83,6 +116,13 @@ export const TURNS = CHAPTERS - 1; // two transitions, 360 degrees each
 export const MAX_PHONE_PX = 620;
 /** Spec §5.4: 8-12 degrees. */
 export const LEAN_DEG = 10;
+
+/**
+ * The screen's tint. 0xffffff reproduces the source texture exactly; lower
+ * values dim it. The screens read hot against the warm paper ground, so this
+ * is the knob for that — the material colour, never the texture.
+ */
+export const SCREEN_TINT = 0xffffff;
 
 const smoothstep = (t: number) => t * t * (3 - 2 * t);
 
@@ -199,25 +239,58 @@ export async function createScene(
     }),
   );
 
-  let boundChapter = -1;
+  /*
+   * THE SCREEN IS UNLIT. This supersedes §4's material pinning, and the
+   * numbers are in the spec.
+   *
+   * §4 pinned baseColorFactor black + emissiveTexture + emissiveStrength 2.0
+   * "to survive ACES tone mapping". Measured against the source texture at the
+   * orange Current Trip card, that setup renders 93 units off: ACES desaturates
+   * bright saturated colour toward white, which is exactly the wash. No value
+   * of emissiveIntensity fixes it — 1 measures 59, 2 measures 93.
+   *
+   * A display is not a lit surface. MeshBasicMaterial has no lighting term, so
+   * scene.environment cannot reach it — which was the contribution that could
+   * not be isolated through envMapIntensity — no emissive path, so the KHR
+   * extension stops mattering, and toneMapped false keeps it out of ACES
+   * entirely. It draws the texture as authored.
+   *
+   * The pinning existed to survive a tone curve this material never enters.
+   */
+  const screenTex = (i: number) => textures[i];
+  /*
+   * side is CARRIED OVER, not defaulted, and it is the whole reason the first
+   * unlit attempt drew nothing at all.
+   *
+   * Constructing a material from scratch throws away every flag GLTFLoader set
+   * from the file. This display plane's winding faces INTO the phone, and the
+   * glTF marks it doubleSided so it draws anyway. MeshBasicMaterial defaults
+   * to FrontSide, so the plane was back-face culled at every angle — invisible
+   * front-on, hidden behind the body from behind.
+   *
+   * That produced a whole run of misleading evidence: the tint sweep gave
+   * three identical numbers, hiding the glass changed nothing, and the colour
+   * harness kept finding its "most orange pixel" on the titanium frame and
+   * reporting the frame's distance from the source card as the wash. Nothing
+   * was measuring the screen because the screen was never rasterised.
+   */
+  const basicMat = new THREE.MeshBasicMaterial({
+    map: screenTex(0),
+    color: SCREEN_TINT,
+    toneMapped: false,
+    side: (screenMat as unknown as import("three").MeshStandardMaterial).side,
+  });
+  (screenMesh as unknown as import("three").Mesh).material = basicMat;
+
+  let boundChapter = 0;
   const swaps: SwapRecord[] = [];
   const bind = (chapter: number) => {
     if (chapter === boundChapter) return false;
-    const t = textures[chapter];
-    /*
-     * BOTH slots. baseColorTexture and emissiveTexture reference the same
-     * image (texture index 1) in this GLB, so GLTFLoader may hand the same
-     * Texture to `map` and `emissiveMap`. Setting only one leaves the other
-     * pointing at the previous image — and since baseColorFactor is black, the
-     * visible one is emissiveMap.
-     */
-    screenMat!.map = t;
-    screenMat!.emissiveMap = t;
-    screenMat!.needsUpdate = true;
+    basicMat.map = screenTex(chapter);
+    basicMat.needsUpdate = true;
     boundChapter = chapter;
     return true;
   };
-  bind(0);
 
   /* ---- layout: rest scale is a constraint, not an outcome -------------- */
   const box = new THREE.Box3().setFromObject(model);
@@ -282,47 +355,91 @@ export async function createScene(
    * rotation is computed to aim it at the camera. Spin proceeds from there.
    */
   const { normalLocal, baseSpin } = (() => {
+    /*
+     * WHICH WAY DOES THE SCREEN FACE?
+     *
+     * Five attempts, four of them wrong, and every wrong one had the same
+     * shape: take the geometry's THINNEST bounding-box axis as the normal —
+     * which gives a line, not a direction — and then infer the sign from
+     * something else. Screen origin minus model origin. Screen bbox centre
+     * minus body bbox centre. Render both and score the pixels against the
+     * texture's mean colour. Each inference was plausible, each produced
+     * confident numbers, and each aimed the BACK of the phone at the camera.
+     *
+     * The mesh was never ambiguous. It is a single flat surface: 112
+     * triangles, 99.9% of the area on ONE normal, (1, 0, 0), with no opposing
+     * face anywhere in the tally. The direction is not something to deduce
+     * from centroids — it is recorded in the normal attribute, and reading it
+     * is a measurement rather than an inference.
+     *
+     * Area-weighted, so a re-export that adds bezel geometry or rotates the
+     * mesh still lands on the display face rather than on a rounded corner.
+     */
     const g = (screenMesh as unknown as import("three").Mesh).geometry;
-    g.computeBoundingBox();
-    const e = new THREE.Vector3().subVectors(g.boundingBox!.max, g.boundingBox!.min);
-    const axis = e.x <= e.y && e.x <= e.z
-      ? new THREE.Vector3(1, 0, 0)
-      : e.y <= e.z
-        ? new THREE.Vector3(0, 1, 0)
-        : new THREE.Vector3(0, 0, 1);
+    const nAttr = g.getAttribute("normal");
+    const pAttr = g.getAttribute("position");
+    const idx = g.getIndex();
+    const tally = new Map<string, { n: import("three").Vector3; area: number }>();
+    const p0 = new THREE.Vector3(), p1 = new THREE.Vector3(), p2 = new THREE.Vector3();
+    const nv = new THREE.Vector3();
+    const triCount = idx ? idx.count / 3 : pAttr.count / 3;
+    for (let t = 0; t < triCount; t++) {
+      const i0 = idx ? idx.getX(t * 3) : t * 3;
+      const i1 = idx ? idx.getX(t * 3 + 1) : t * 3 + 1;
+      const i2 = idx ? idx.getX(t * 3 + 2) : t * 3 + 2;
+      p0.fromBufferAttribute(pAttr, i0);
+      p1.fromBufferAttribute(pAttr, i1);
+      p2.fromBufferAttribute(pAttr, i2);
+      const area = p1.clone().sub(p0).cross(p2.clone().sub(p0)).length() / 2;
+      nv.fromBufferAttribute(nAttr, i0);
+      const key = [nv.x, nv.y, nv.z].map((v) => v.toFixed(2)).join(",");
+      const e = tally.get(key) ?? { n: nv.clone(), area: 0 };
+      e.area += area;
+      tally.set(key, e);
+    }
+    const dominant = [...tally.values()].sort((x, y) => y.area - x.area)[0];
+    if (!dominant) throw new Error("phone tour: screen mesh has no normals");
+    const axis = dominant.n.clone().normalize();
 
-    /* Where does that axis point, in world, before we spin anything? */
+    /*
+     * The face normal gives the plane's orientation; it does not promise to
+     * point out of the phone, and on this model it does not — the display's
+     * winding faces inward. The sense comes from the body: the display sits at
+     * the surface and the body's mass is behind it, so the vector from the
+     * model's centre to the screen's centre points out through the display.
+     *
+     * Both centres are GEOMETRY centres in world space. An earlier version
+     * used the mesh's object origin, which on this export is not inside the
+     * mesh at all.
+     */
+    {
+      g.computeBoundingBox();
+      const screenCentre = g.boundingBox!.getCenter(new THREE.Vector3());
+      (screenMesh as unknown as import("three").Object3D).localToWorld(screenCentre);
+      const bodyCentre = new THREE.Box3().setFromObject(model).getCenter(new THREE.Vector3());
+      const outward = screenCentre.sub(bodyCentre);
+      const nmSign = new THREE.Matrix3().getNormalMatrix(
+        (screenMesh as unknown as import("three").Object3D).matrixWorld,
+      );
+      if (axis.clone().applyMatrix3(nmSign).dot(outward) < 0) axis.negate();
+    }
+
+    /*
+     * Aim it at the camera. The camera sits on +Z looking at the origin, so
+     * the base spin is whatever rotation about Y brings the normal's azimuth
+     * to zero. Spin proceeds from there, and the lean is applied by the parent
+     * group so it does not enter this calculation.
+     */
     spinGroup.rotation.y = 0;
     scene.updateMatrixWorld(true);
     const nm = new THREE.Matrix3().getNormalMatrix(
       (screenMesh as unknown as import("three").Object3D).matrixWorld,
     );
-
-    /*
-     * WHICH WAY IS OUT? The thin axis gives a line, not a direction, and
-     * getting the direction wrong aims the BACK of the phone at the camera —
-     * which is what the previous version did, with a textbook facing curve and
-     * swaps at dot -1.000 to say it was fine. The capture showed the camera
-     * bump and the Apple logo.
-     *
-     * The screen sits at the surface; the body's centroid is inside. So the
-     * vector from the model's centre to the screen's centre points out through
-     * the display, and that settles the sign without anyone squinting at a
-     * render.
-     */
-    const screenWorld = new THREE.Vector3();
-    (screenMesh as unknown as import("three").Object3D).getWorldPosition(screenWorld);
-    const bodyWorld = new THREE.Box3().setFromObject(model).getCenter(new THREE.Vector3());
-    const outward = screenWorld.sub(bodyWorld).normalize();
-    if (axis.clone().applyMatrix3(nm).normalize().dot(outward) < 0) axis.negate();
-
     const w = axis.clone().applyMatrix3(nm).normalize();
-
-    /* Aim it at the camera (+Z) by rotating about Y. atan2 gives the angle of
-       the normal's XZ projection; negating it brings the normal to +Z. */
     const base = -Math.atan2(w.x, w.z);
     spinGroup.rotation.y = base;
     scene.updateMatrixWorld(true);
+
     return { normalLocal: axis, baseSpin: base };
   })();
   const worldNormal = new THREE.Vector3();
@@ -390,6 +507,20 @@ export async function createScene(
 
   setProgress(0);
 
+  /* Colour lab: query-param gated so it is absent in normal operation. It
+     exists to measure candidate fixes against the source texture rather than
+     argue about them. */
+  if (new URLSearchParams(location.search).has("colourLab")) {
+    (window as unknown as { __screenLab?: unknown }).__screenLab = {
+      /** Sweep the screen tint. The material colour, never the texture. */
+      tint(hex: number) {
+        basicMat.color.setHex(hex);
+        basicMat.needsUpdate = true;
+        setProgress(lastProgress);
+      },
+    };
+  }
+
   return {
     setProgress,
     resize() { layout(); setProgress(lastProgress); },
@@ -414,6 +545,59 @@ export async function createScene(
         screenTextureColorSpace: textures[0]?.colorSpace ?? "",
         transmissionFactor,
         texturesUploaded: textures.length,
+        material: {
+          type: basicMat.type,
+          color: basicMat.color.toArray(),
+          toneMapped: basicMat.toneMapped,
+          mapColorSpace: basicMat.map?.colorSpace ?? "(none)",
+          mapFlipY: basicMat.map?.flipY ?? false,
+          boundTextureIndex: textures.findIndex((t) => t === basicMat.map),
+          colorHex: basicMat.color.getHexString(),
+        },
+        toneMappingExposure: renderer.toneMappingExposure,
+        textureColorSpaces: textures.map((t) => t.colorSpace),
+        screenRect: (() => {
+          const g = screenMesh!.geometry;
+          g.computeBoundingBox();
+          const bb = g.boundingBox!;
+          const W = canvas.clientWidth || 0;
+          const H = canvas.clientHeight || 0;
+          screenMesh!.updateWorldMatrix(true, false);
+          const v = new THREE.Vector3();
+          let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+          for (let i = 0; i < 8; i++) {
+            v.set(i & 1 ? bb.max.x : bb.min.x, i & 2 ? bb.max.y : bb.min.y, i & 4 ? bb.max.z : bb.min.z);
+            v.applyMatrix4(screenMesh!.matrixWorld).project(camera);
+            const px = (v.x * 0.5 + 0.5) * W;
+            const py = (-v.y * 0.5 + 0.5) * H;
+            x0 = Math.min(x0, px); x1 = Math.max(x1, px);
+            y0 = Math.min(y0, py); y1 = Math.max(y1, py);
+          }
+          return { x: Math.round(x0), y: Math.round(y0), w: Math.round(x1 - x0), h: Math.round(y1 - y0) };
+        })(),
+        screenQuad: (() => {
+          const g = screenMesh!.geometry;
+          const uv = g.getAttribute("uv");
+          const pos = g.getAttribute("position");
+          const W = canvas.clientWidth || 0;
+          const H = canvas.clientHeight || 0;
+          screenMesh!.updateWorldMatrix(true, false);
+          return [[0, 0], [1, 0], [0, 1], [1, 1]].map(([tu, tv]) => {
+            let bi = 0, bd = Infinity;
+            for (let i = 0; i < uv.count; i++) {
+              const du = uv.getX(i) - tu, dv = uv.getY(i) - tv;
+              const d = du * du + dv * dv;
+              if (d < bd) { bd = d; bi = i; }
+            }
+            const v = new THREE.Vector3().fromBufferAttribute(pos, bi);
+            (screenMesh as unknown as import("three").Object3D).localToWorld(v);
+            v.project(camera);
+            return {
+              u: +uv.getX(bi).toFixed(4), v: +uv.getY(bi).toFixed(4),
+              x: +((v.x * 0.5 + 0.5) * W).toFixed(1), y: +((-v.y * 0.5 + 0.5) * H).toFixed(1),
+            };
+          });
+        })(),
       };
     },
   };

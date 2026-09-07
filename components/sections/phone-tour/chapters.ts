@@ -6,9 +6,12 @@
  * because the three full-size PNGs are 3.11 MiB and the fallback exists to
  * avoid exactly that weight on exactly that connection.
  *
- * Chapter 3 points at a placeholder. `screen_03_cameras.png` is gitignored by
- * name: it contains photographs of identifiable minors, almost certainly
- * unlicensed, and git history is permanent. See .gitignore and spec §9.
+ * Chapter 3 uses the real texture. The camera-feed imagery is AI-generated —
+ * no licensing question and no real children — so the earlier exclusion was
+ * reversed and the file is tracked. One content note stands: the feeds show
+ * bright yellow American school buses, which contradict the cream-and-orange
+ * fleet in the hero film and everywhere else. Logged for regeneration, not a
+ * build issue. See spec §9.
  */
 
 export type Chapter = {
@@ -53,8 +56,8 @@ export const CHAPTERS: Chapter[] = [
   {
     id: "cameras",
     side: "right",
-    screen: "/models/screens/screen_03_placeholder.png",
-    mobile: "/models/screens/m_screen_03_placeholder.jpg",
+    screen: "/models/screens/screen_03_cameras.png",
+    mobile: "/models/screens/m_screen_03_cameras.jpg",
     heading: "See inside, whenever it matters",
     body: "Three cameras — front, rear and door — encrypted and restricted to verified guardians. Most parents look once and never need to again.",
     bullets: [
