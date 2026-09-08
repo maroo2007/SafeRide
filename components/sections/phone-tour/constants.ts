@@ -100,6 +100,9 @@ export type Tuning = {
   knee: number;
   crossFraction: number;
   restFraction: number;
+  /** How much of the free vertical room the descent uses. Independent of
+   *  phone size, so it can recover descent a larger phone gives up. */
+  descentUse: number;
   /** Where the text reaches zero opacity, as a fraction of one transition. */
   dead0: number;
   crossStart: number;
@@ -110,6 +113,7 @@ export function readTuning(): Tuning {
   let knee = FADE_KNEE;
   let crossFraction = CROSS_FRACTION_DEFAULT;
   let restFraction = REST_FRACTION_DEFAULT;
+  let descentUse = DESCENT_USE;
   if (typeof location !== "undefined") {
     const q = new URLSearchParams(location.search);
     const num = (k: string, d: number) => {
@@ -119,10 +123,11 @@ export function readTuning(): Tuning {
     knee = num("knee", knee);
     crossFraction = num("crossFraction", crossFraction);
     restFraction = num("restFraction", restFraction);
+    descentUse = num("descentUse", descentUse);
   }
   const dead0 = Math.asin(Math.min(1, 1 / knee)) / Math.PI;
   return {
-    knee, crossFraction, restFraction, dead0,
+    knee, crossFraction, restFraction, descentUse, dead0,
     crossStart: dead0,
     crossEnd: dead0 + (1 - 2 * dead0) * crossFraction,
   };

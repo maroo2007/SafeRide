@@ -43,7 +43,7 @@
  */
 
 import {
-  MAX_PHONE_PX, PHONE_SIDE_X, DESCENT_USE, LEAN_DEG, readTuning,
+  MAX_PHONE_PX, PHONE_SIDE_X, LEAN_DEG, readTuning,
 } from "./constants";
 
 /* One read, at module load, shared by sideFraction and the layout. */
@@ -92,7 +92,7 @@ export type SceneDebug = {
   toneMappingExposure: number;
   textureColorSpaces: string[];
   /** The two coupled knobs, as actually applied. */
-  tuning: { knee: number; crossFraction: number; restFraction: number; crossStart: number; crossEnd: number };
+  tuning: { knee: number; crossFraction: number; restFraction: number; descentUse: number; crossStart: number; crossEnd: number };
   /** Which environment path actually ran. Without this, a render diff between
    *  two modes cannot tell "identical output" from "the switch did nothing". */
   envMode: string;
@@ -686,7 +686,7 @@ export async function createScene(
     leanGroup.position.x = sideFraction(clamped) * PHONE_SIDE_X * visibleW;
     const visibleH = visibleW / camera.aspect;
     const freeH = Math.max(0, visibleH * (1 - phoneHeightPx / (canvas.clientHeight || 1)));
-    leanGroup.position.y = (0.5 - clamped) * freeH * DESCENT_USE;
+    leanGroup.position.y = (0.5 - clamped) * freeH * TUNING.descentUse;
     scene.updateMatrixWorld(true);
 
     const dot = sign * screenFacing();
@@ -796,7 +796,7 @@ export async function createScene(
         envMode,
         tuning: {
           knee: TUNING.knee, crossFraction: TUNING.crossFraction,
-          restFraction: TUNING.restFraction,
+          restFraction: TUNING.restFraction, descentUse: TUNING.descentUse,
           crossStart: +TUNING.crossStart.toFixed(4), crossEnd: +TUNING.crossEnd.toFixed(4),
         },
         screenRect: (() => {
