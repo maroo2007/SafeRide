@@ -50,6 +50,16 @@ export const LEAN_DEG = 10;
  * outgoing text is still at 0.32 opacity while an eased-from-zero phone is
  * already 58% across — 236px of overlap, measured by breaking it.
  */
+/**
+ * Renderer exposure. 1.6, not 1.
+ *
+ * The phone BODY is lit entirely by the environment and rendered dark; this
+ * is the only brightness lever that reaches it without touching the screen,
+ * because the screen material is toneMapped:false and therefore immune.
+ * Measured: metal edge 109 -> 133, screen unchanged at rgb(250, 200, 140).
+ */
+export const EXPOSURE_DEFAULT = 1.6;
+
 export const FADE_KNEE = 3.0;
 
 /**
@@ -72,8 +82,11 @@ export const REST_FRACTION_DEFAULT = 0.60;
 /**
  * How much of the fade's dead zone the crossing occupies.
  *
- * 0.60 with a knee of 3.0 gives 533px of crossing against 297px before —
- * 1.8x slower. A wider option (knee 4.0, fraction 0.80, 729px) was measured
+ * 0.85 at knee 3.0 gives 743px of crossing. Raising it is FREE: with the
+ * knee held, 0.60 -> 0.75 -> 0.85 moved the crossing 533 -> 662 -> 743px
+ * while dwell and legible scroll stayed identical (0.35 after one wheel
+ * notch, 296px legible, in all three). knee owns the dwell; this does not
+ * touch it. 1.0 is the ceiling — beyond it the crossing leaves the dead zone. A wider option (knee 4.0, fraction 0.80, 729px) was measured
  * and REFUSED: at that fade one wheel notch takes the copy from 1.00 to 0.13
  * opacity, which is a flicker rather than a shorter dwell. At 3.0 a notch
  * leaves it at 0.35.
@@ -82,7 +95,7 @@ export const REST_FRACTION_DEFAULT = 0.60;
  * scrolls finer and would feel smoother; the mouse-wheel case is the one that
  * breaks and the common one on this viewport.
  */
-export const CROSS_FRACTION_DEFAULT = 0.60;
+export const CROSS_FRACTION_DEFAULT = 0.85;
 
 /**
  * The two knobs, read together.
@@ -123,7 +136,7 @@ export function readTuning(): Tuning {
   let crossFraction = CROSS_FRACTION_DEFAULT;
   let restFraction = REST_FRACTION_DEFAULT;
   let descentUse = DESCENT_USE;
-  let exposure = 1;
+  let exposure = EXPOSURE_DEFAULT;
   let envIntensity = 1;
   let fov = 35;
   if (typeof location !== "undefined") {

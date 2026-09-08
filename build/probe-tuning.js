@@ -27,6 +27,9 @@ const get = u => new Promise((res, rej) => http.get(u, r => { let d=""; r.on("da
   console.log("  crossFraction:  " + d.tuning.crossFraction);
   console.log("  restFraction:   " + d.tuning.restFraction);
   console.log("  crossStart/End: " + d.tuning.crossStart + " -> " + d.tuning.crossEnd);
+  console.log("  exposure:       " + d.tuning.exposure);
+  console.log("  fov:            " + d.tuning.fov);
+  console.log("  runway vh:      " + await ev("Math.round(document.querySelector('#parent-app [data-tour-runway]').offsetHeight / innerHeight * 100)"));
   console.log("  phoneHeightPx:  " + Math.round(d.phoneHeightPx) + "px   (downsample " + (2314/d.phoneHeightPx).toFixed(2) + "x)");
   ws.close(); ch.kill(); process.exit(0);
 })();

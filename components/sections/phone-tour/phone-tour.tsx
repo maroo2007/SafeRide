@@ -51,6 +51,13 @@ import type { TourScene } from "./scene";
  */
 export const TOUR_RUNWAY_VH = 400;
 
+/** Query override, so section pace can be compared without a rebuild. */
+export function runwayVh(): number {
+  if (typeof location === "undefined") return TOUR_RUNWAY_VH;
+  const v = Number(new URLSearchParams(location.search).get("runway"));
+  return Number.isFinite(v) && v >= 200 ? v : TOUR_RUNWAY_VH;
+}
+
 const MOBILE_BREAKPOINT = 768;
 
 /* ---------- the stacked fallback ------------------------------------- */
@@ -156,6 +163,7 @@ export function PhoneTour() {
   const [fallback, setFallback] = useState(false);
   const [ready, setReady] = useState(false);
 
+
   const reduced = useMediaQuery("(prefers-reduced-motion: reduce)");
   const narrow = useMediaQuery(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
   const stacked = reduced || narrow || fallback;
@@ -165,6 +173,15 @@ export function PhoneTour() {
     const canvas = canvasRef.current;
     const runway = runwayRef.current;
     if (!canvas || !runway) return;
+
+    /*
+     * The runway override is a DOM WRITE, not state. Reading location during
+     * render would break hydration (the server has no query string), and
+     * setState in an effect is the cascading-render pattern this project
+     * rules out. Only the lab path touches it; the default is the JSX value.
+     */
+    const vh = runwayVh();
+    if (runway && vh !== TOUR_RUNWAY_VH) runway.style.height = `${vh}vh`;
 
     let cancelled = false;
     let tickerFn: ((t: number) => void) | null = null;

@@ -92,7 +92,7 @@ export type SceneDebug = {
   toneMappingExposure: number;
   textureColorSpaces: string[];
   /** The two coupled knobs, as actually applied. */
-  tuning: { knee: number; crossFraction: number; restFraction: number; descentUse: number; crossStart: number; crossEnd: number };
+  tuning: { knee: number; crossFraction: number; restFraction: number; descentUse: number; exposure: number; fov: number; crossStart: number; crossEnd: number };
   /** Which environment path actually ran. Without this, a render diff between
    *  two modes cannot tell "identical output" from "the switch did nothing". */
   envMode: string;
@@ -819,6 +819,9 @@ export async function createScene(
         tuning: {
           knee: TUNING.knee, crossFraction: TUNING.crossFraction,
           restFraction: TUNING.restFraction, descentUse: TUNING.descentUse,
+          /* Read off the RENDERER and the CAMERA, not the config object: what
+             was requested and what is applied are different claims. */
+          exposure: renderer.toneMappingExposure, fov: camera.fov,
           crossStart: +TUNING.crossStart.toFixed(4), crossEnd: +TUNING.crossEnd.toFixed(4),
         },
         screenRect: (() => {
