@@ -2,12 +2,14 @@
  *  overrides — the built output, not the source. */
 const { spawn } = require("child_process"); const http = require("http");
 const CHROME = "C:/Program Files/Google/Chrome/Application/chrome.exe";
-const P = process.argv[2], URL = process.argv[3] || "http://localhost:3100/";
+const P = process.argv[2], URL = (process.argv[3] && !process.argv[3].startsWith("--")) ? process.argv[3] : "http://localhost:3100/";
+const arg = (k, d) => { const a = process.argv.find((x) => x.startsWith("--" + k + "=")); return a ? +a.split("=")[1] : d; };
+const VW = arg("w", 1440), VH = arg("h", 900), PORT = arg("port", 9807);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const get = u => new Promise((res, rej) => http.get(u, r => { let d=""; r.on("data",c=>d+=c); r.on("end",()=>res(JSON.parse(d))); }).on("error", rej));
 (async () => {
-  const ch = spawn(CHROME, ["--headless=new","--no-sandbox","--hide-scrollbars","--remote-debugging-port=9807","--user-data-dir="+P,"--window-size=1440,900","about:blank"], { stdio: "ignore" });
-  let t=null; for(let i=0;i<40&&!t;i++){await sleep(500);try{t=(await get("http://127.0.0.1:9807/json/list")).find(x=>x.type==="page");}catch{}}
+  const ch = spawn(CHROME, ["--headless=new","--no-sandbox","--hide-scrollbars","--remote-debugging-port="+PORT,"--user-data-dir="+P,"--window-size="+VW+","+VH,"about:blank"], { stdio: "ignore" });
+  let t=null; for(let i=0;i<40&&!t;i++){await sleep(500);try{t=(await get("http://127.0.0.1:"+PORT+"/json/list")).find(x=>x.type==="page");}catch{}}
   const WebSocket=require("ws"); const ws=new WebSocket(t.webSocketDebuggerUrl,{perMessageDeflate:false,maxPayload:2**28});
   await new Promise(r=>ws.on("open",r));
   let id=0; const pend=new Map();
@@ -15,14 +17,14 @@ const get = u => new Promise((res, rej) => http.get(u, r => { let d=""; r.on("da
   const send=(m,p={})=>new Promise(res=>{const i=++id;pend.set(i,res);ws.send(JSON.stringify({id:i,method:m,params:p}));});
   const ev=async e=>(await send("Runtime.evaluate",{expression:e,awaitPromise:true,returnByValue:true})).result?.result?.value;
   await send("Page.enable"); await send("Runtime.enable");
-  await send("Emulation.setDeviceMetricsOverride",{width:1440,height:900,deviceScaleFactor:1,mobile:false});
+  await send("Emulation.setDeviceMetricsOverride",{width:VW,height:VH,deviceScaleFactor:1,mobile:false});
   await send("Page.navigate",{url:URL}); await sleep(7000);
   const top = await ev(`(()=>{const rw=document.querySelector('#parent-app [data-tour-runway]');return Math.round(rw.getBoundingClientRect().top+scrollY);})()`);
   await ev(`(async()=>{scrollTo(0,${top});await new Promise(r=>setTimeout(r,800));return 1})()`);
   for(let i=0;i<60;i++){ if(await ev("!!window.__phoneTour")) break; await sleep(500); }
   await sleep(600);
   const d = JSON.parse(await ev("JSON.stringify(window.__phoneTour.debug())"));
-  console.log("  URL:            " + URL);
+  console.log("  URL:            " + URL + "   " + VW + "x" + VH);
   console.log("  knee:           " + d.tuning.knee);
   console.log("  crossFraction:  " + d.tuning.crossFraction);
   console.log("  restFraction:   " + d.tuning.restFraction);
@@ -31,5 +33,9 @@ const get = u => new Promise((res, rej) => http.get(u, r => { let d=""; r.on("da
   console.log("  fov:            " + d.tuning.fov);
   console.log("  runway vh:      " + await ev("Math.round(document.querySelector('#parent-app [data-tour-runway]').offsetHeight / innerHeight * 100)"));
   console.log("  phoneHeightPx:  " + Math.round(d.phoneHeightPx) + "px   (downsample " + (2314/d.phoneHeightPx).toFixed(2) + "x)");
+  const f = d.footprint;
+  console.log("  footprint:      box " + Math.round(f.h) + "x" + Math.round(f.w) + "px worst-case, margin " + f.margin + "px");
+  console.log("  descent:        " + Math.round(f.descentPx) + "px of " + Math.round(f.descentRoomPx) + "px the frame has room for");
+  console.log("  sideX:          " + f.sideX + " of " + f.sideXAsked + (f.sideX < f.sideXAsked ? "   (clamped: the frame is too narrow)" : ""));
   ws.close(); ch.kill(); process.exit(0);
 })();

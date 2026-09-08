@@ -43,7 +43,7 @@
  */
 
 import {
-  MAX_PHONE_PX, PHONE_SIDE_X, LEAN_DEG, readTuning,
+  PHONE_SIDE_X, LEAN_DEG, readTuning,
 } from "./constants";
 
 /* One read, at module load, shared by sideFraction and the layout. */
@@ -62,7 +62,19 @@ export type SwapRecord = {
 
 export type SceneDebug = {
   ready: boolean;
+  /** Frames drawn since the scene was created. Must not advance while the
+   *  section is off screen. */
+  renders: number;
+  /** The phone's size: its projected box at the centre of the frame. */
   phoneHeightPx: number;
+  /** What the layout actually solved. `h`/`w` are the worst the projected box
+   *  gets ANYWHERE in the section, which is more than `phoneHeightPx` by the
+   *  perspective shear at the ends of the descent. */
+  footprint: {
+    h: number; w: number; margin: number;
+    descentRoomPx: number; descentPx: number;
+    sideX: number; sideXAsked: number;
+  };
   screenDotCamera: number;
   boundChapter: number;
   swaps: SwapRecord[];
@@ -92,7 +104,7 @@ export type SceneDebug = {
   toneMappingExposure: number;
   textureColorSpaces: string[];
   /** The two coupled knobs, as actually applied. */
-  tuning: { knee: number; crossFraction: number; restFraction: number; descentUse: number; exposure: number; fov: number; crossStart: number; crossEnd: number };
+  tuning: { knee: number; crossFraction: number; restFraction: number; descentUse: number; exposure: number; fov: number; maxPhonePx: number; edgeMargin: number; crossStart: number; crossEnd: number };
   /** Which environment path actually ran. Without this, a render diff between
    *  two modes cannot tell "identical output" from "the switch did nothing". */
   envMode: string;
@@ -127,6 +139,17 @@ export type TourScene = {
   resize(): void;
   dispose(): void;
   debug(): SceneDebug;
+  /**
+   * Resolves when there is NOTHING LEFT TO BLOCK ON: model parsed, textures
+   * uploaded, shaders compiled, environment prefiltered, and a frame lit by
+   * that environment presented.
+   *
+   * `createScene` resolving is not the same thing and never was — it returns
+   * with the environment still to build, which is the single most expensive
+   * step and the one that lands as a freeze a second or two later. The load
+   * screen waits on this instead, so the cost is paid where it is invisible.
+   */
+  settled: Promise<void>;
 };
 
 /** Section geometry, kept here so nothing downstream types a literal. */
@@ -139,7 +162,7 @@ export const TURNS = CHAPTERS - 1; // two transitions, 360 degrees each
  * the spec's references keep working.
  */
 export {
-  MAX_PHONE_PX, PHONE_SIDE_X, DESCENT_USE, LEAN_DEG, FADE_KNEE, readTuning,
+  MAX_PHONE_PX, EDGE_MARGIN_PX, PHONE_SIDE_X, DESCENT_USE, LEAN_DEG, FADE_KNEE, readTuning,
 } from "./constants";
 
 /**
@@ -170,7 +193,7 @@ export const PMREM_SIGMA = 0;
 export const PMREM_CUBE_PX = 64;
 
 /** Which environment the scene ships with. See the block in createScene. */
-export const ENV_MODE: "pmrem" | "cube" | "none" | "defer" = "defer";
+export const ENV_MODE: "pmrem" | "cube" | "none" | "defer" = "pmrem";
 
 /** Which chapter the scroll is heading toward. Flips at the half-turn, which
  *  is exactly where the back faces the camera — so by the time the away-edge
@@ -329,16 +352,26 @@ export async function createScene(
   let envRT: import("three").WebGLRenderTarget | null = null;
   const cubeRT = new THREE.WebGLCubeRenderTarget(PMREM_CUBE_PX);
 
+  /*
+   * Sub-marked, because "the environment costs 2.0-2.6s" turned out to be a
+   * claim about one line inside this function and the function measured
+   * 4.6s. Three candidates live here — rendering the room into a cube, the
+   * prefilter itself, and the material recompile that assigning
+   * scene.environment forces on the NEXT render — and they are not
+   * separable from outside.
+   */
   const buildEnvironment = () => {
+    mark("envCubeStart");
     const cubeCam = new THREE.CubeCamera(0.1, 1000, cubeRT);
     cubeCam.update(renderer, roomScene);
+    mark("envCubeDone");
     pmrem = new THREE.PMREMGenerator(renderer);
     envRT = pmrem.fromCubemap(cubeRT.texture);
+    mark("envPmremDone");
     scene.environment = envRT.texture;
   };
 
-  if (envMode === "pmrem") buildEnvironment();
-  if (envMode === "cube") {
+  const buildRawCube = () => {
     /* Kept only as a measured negative result: assigning a raw cube texture
        to scene.environment does NOT skip PMREM. three prefilters it lazily on
        first use, so the output is pixel-identical to "pmrem" across 1.29M
@@ -347,7 +380,7 @@ export async function createScene(
     const cubeCam = new THREE.CubeCamera(0.1, 1000, cubeRT);
     cubeCam.update(renderer, roomScene);
     scene.environment = cubeRT.texture;
-  }
+  };
   mark("envDone");
 
   const camera = new THREE.PerspectiveCamera(TUNING.fov, 1, 0.01, 100);
@@ -476,46 +509,231 @@ export async function createScene(
     return true;
   };
 
-  /* ---- layout: rest scale is a constraint, not an outcome -------------- */
-  const box = new THREE.Box3().setFromObject(model);
-  const size = new THREE.Vector3();
-  box.getSize(size);
-  const centre = new THREE.Vector3();
-  box.getCenter(centre);
-  model.position.sub(centre); // centre the phone on the spin axis
-  const modelHeight = size.y;
+  /* ---- layout: solved against the phone's real projected footprint ----- */
+  /*
+   * THE FOOTPRINT IS NOT THE PHONE'S HEIGHT, and that gap was the clipping.
+   *
+   * The old solve took `modelHeight` from a world AABB measured at the raw
+   * glTF orientation — which on this export is EDGE-ON, thin axis across the
+   * view. Turned front-on the phone presents its WIDTH to the lean, and the
+   * lean folds that width into the height: 10 degrees of a 77mm width adds
+   * 13mm to a 163mm phone. Perspective adds more again, because at fov 35 the
+   * near half of a spinning phone is about 10% closer than the far half, and
+   * more again at the ends of the descent, where the whole box is off-axis
+   * and shears.
+   *
+   * Measured on the shipped build at 1440x900: the layout solved for 620px,
+   * the phone drew 652px at the centre and 664px at its worst, and the
+   * descent then handed out every "remaining" pixel on the strength of the
+   * 620. Result: 39px off the top at chapter 1, 39px off the bottom at
+   * chapter 3, the phone touching a boundary at 12 of 202 scroll positions.
+   * The bottom-right corner goes first because the phone leans.
+   *
+   * So nothing here is solved from a single upright measurement any more.
+   * Both the size and the placement are solved against the projected box of
+   * the model's own corners, swept across the full rotation AND the full
+   * descent.
+   */
+
+  /*
+   * The model's box in spinGroup-local space, and the phone centred on the
+   * spin axis IN THAT FRAME.
+   *
+   * Measured with both groups at identity on purpose. `Box3.setFromObject`
+   * returns a WORLD box, so taken with the lean applied it already has the
+   * lean folded in — and the old code then subtracted that world centre from
+   * a spinGroup-local position, which is only correct when the lean is zero.
+   */
+  const localHalf = (() => {
+    const lz = leanGroup.rotation.z;
+    const sy = spinGroup.rotation.y;
+    const lp = leanGroup.position.clone();
+    leanGroup.rotation.z = 0;
+    spinGroup.rotation.y = 0;
+    leanGroup.position.set(0, 0, 0);
+    scene.updateMatrixWorld(true);
+    const b = new THREE.Box3().setFromObject(model);
+    model.position.sub(b.getCenter(new THREE.Vector3()));
+    leanGroup.rotation.z = lz;
+    spinGroup.rotation.y = sy;
+    leanGroup.position.copy(lp);
+    scene.updateMatrixWorld(true);
+    return b.getSize(new THREE.Vector3()).multiplyScalar(0.5);
+  })();
+
+  /* The eight corners of that box, and the lean, as plain numbers. This runs
+     a few thousand times per layout and once per binary-search step; Vector3
+     allocation at that rate is the kind of thing that shows up as a hitch on
+     resize. */
+  const CORNERS: number[][] = [];
+  for (let i = 0; i < 8; i++) {
+    CORNERS.push([
+      (i & 1 ? 1 : -1) * localHalf.x,
+      (i & 2 ? 1 : -1) * localHalf.y,
+      (i & 4 ? 1 : -1) * localHalf.z,
+    ]);
+  }
+  const LEAN_COS = Math.cos(THREE.MathUtils.degToRad(LEAN_DEG));
+  const LEAN_SIN = Math.sin(THREE.MathUtils.degToRad(LEAN_DEG));
+
+  /**
+   * Where the phone's box lands on the canvas, in CSS px, for a given spin
+   * and offset. The same transform the render uses — spin about Y inside a
+   * lean about Z — followed by the same perspective divide.
+   *
+   * Written out rather than done with `Vector3.project` because it has to be
+   * evaluated for poses the scene is NOT currently in, which is the whole
+   * point: the descent has to be solved against the worst pose, not the
+   * current one.
+   */
+  function projectBox(
+    theta: number, offX: number, offY: number,
+    d: number, W: number, H: number, tanHalf: number,
+  ) {
+    const aspect = W / H;
+    const cs = Math.cos(theta), sn = Math.sin(theta);
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const c of CORNERS) {
+      const sx = c[0] * cs + c[2] * sn;
+      const sz = -c[0] * sn + c[2] * cs;
+      const lx = sx * LEAN_COS - c[1] * LEAN_SIN + offX;
+      const ly = sx * LEAN_SIN + c[1] * LEAN_COS + offY;
+      const dz = d - sz;
+      const px = (W / 2) * (1 + lx / (tanHalf * aspect * dz));
+      const py = (H / 2) * (1 - ly / (tanHalf * dz));
+      if (px < x0) x0 = px;
+      if (px > x1) x1 = px;
+      if (py < y0) y0 = py;
+      if (py > y1) y1 = py;
+    }
+    return { x0, y0, x1, y1 };
+  }
 
   let visibleW = 1;
+  let visibleH = 1;
+  /** The footprint at the centre of the frame: the phone's size. */
   let phoneHeightPx = 0;
+  /** The worst the box gets anywhere in the section — what has to fit. */
+  let footprintMaxH = 0;
+  let footprintMaxW = 0;
+  /** Total vertical travel, world units, before descentUse is applied. */
+  let descentRoom = 0;
+  let descentWorld = 0;
+  /** PHONE_SIDE_X, reduced if the frame is too narrow to hold it. */
+  let sideXEff = PHONE_SIDE_X;
 
   function layout() {
-    const w = canvas.clientWidth || 1;
-    const h = canvas.clientHeight || 1;
-    renderer.setSize(w, h, false);
-    camera.aspect = w / h;
+    const W = canvas.clientWidth || 1;
+    const H = canvas.clientHeight || 1;
+    renderer.setSize(W, H, false);
+    camera.aspect = W / H;
+    const tanHalf = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+    const margin = TUNING.edgeMargin;
 
-    /*
-     * Solve the camera distance so the phone projects to at most MAX_PHONE_PX,
-     * and never more than 62% of the canvas height on short viewports.
-     * pxHeight = h * modelHeight / (2 * d * tan(fov/2))
-     */
-    /*
-     * 0.46, not 0.62. The cap is unchanged and still governs tall viewports;
-     * the fraction under it dropped to free vertical room for the descent.
-     * At 900px of canvas, 0.62 gave a 558px phone and 342px of travel to
-     * replace 720px of horizontal — a drift, not a descent. 0.46 gives 414px
-     * and about 486px of travel. See spec §5.2a.
-     */
-    const targetPx = Math.min(TUNING.maxPhonePx, h * TUNING.restFraction);
-    const halfFov = THREE.MathUtils.degToRad(camera.fov) / 2;
-    const d = (modelHeight * h) / (2 * targetPx * Math.tan(halfFov));
+    /** The tallest the box gets over a full turn, at a given distance. */
+    const spanH = (dd: number) => {
+      let m = 0;
+      for (let i = 0; i < 72; i++) {
+        const b = projectBox((i / 72) * Math.PI * 2, 0, 0, dd, W, H, tanHalf);
+        if (b.y1 - b.y0 > m) m = b.y1 - b.y0;
+      }
+      return m;
+    };
+
+    /* Solve the distance so the tallest pose projects to the cap. Projected
+       height goes as 1/distance to first order, so the ratio converges in a
+       few steps and does not need a search. */
+    const solve = (target: number) => {
+      let d = (2 * localHalf.y * H) / (2 * target * tanHalf);
+      for (let i = 0; i < 8; i++) d *= spanH(d) / target;
+      return d;
+    };
+    let targetPx = Math.min(TUNING.maxPhonePx, H * TUNING.restFraction);
+    let d = solve(targetPx);
+    /* A frame too short to hold the phone at all: shrink to fit rather than
+       clip. Nothing in the tuning range reaches here at any real viewport;
+       it exists so the guard's answer is "small" rather than "cut off". */
+    if (spanH(d) > H - 2 * margin) {
+      targetPx = Math.max(1, H - 2 * margin);
+      d = solve(targetPx);
+    }
     camera.position.set(0, 0, d);
     camera.updateProjectionMatrix();
+    visibleH = 2 * d * tanHalf;
+    visibleW = visibleH * camera.aspect;
+    phoneHeightPx = spanH(d);
 
-    visibleW = 2 * d * Math.tan(halfFov) * camera.aspect;
-    phoneHeightPx = targetPx;
+    const theta = (p: number) => baseSpin + p * TURNS * Math.PI * 2;
+
+    /*
+     * HOW FAR CAN IT DESCEND? Binary search, not arithmetic.
+     *
+     * `H - phoneHeightPx` is the wrong answer even with the footprint right,
+     * because perspective shears the box as it moves off-axis: the same phone
+     * projects taller at the top of the frame than at the middle, by about
+     * 20px at this distance. Searching the actual placement is the only form
+     * of this that cannot be off by a term nobody thought of.
+     */
+    const verticalFits = (travel: number) => {
+      for (let s = 0; s <= 60; s++) {
+        const p = s / 60;
+        const b = projectBox(theta(p), 0, (0.5 - p) * travel, d, W, H, tanHalf);
+        if (b.y0 < margin || b.y1 > H - margin) return false;
+      }
+      return true;
+    };
+    if (!verticalFits(0)) {
+      descentRoom = 0;
+    } else {
+      let lo = 0, hi = visibleH;
+      for (let i = 0; i < 24; i++) {
+        const mid = (lo + hi) / 2;
+        if (verticalFits(mid)) lo = mid; else hi = mid;
+      }
+      descentRoom = lo;
+    }
+    descentWorld = descentRoom * TUNING.descentUse;
+
+    /*
+     * The horizontal is clamped by moving the phone IN, never by making it
+     * smaller: a narrow viewport is a placement problem, and shrinking the
+     * phone to solve it would trade the thing the visitor came for against a
+     * constraint that only bites at one width. x and y are independent here —
+     * the horizontal projection does not involve offY, and the vertical does
+     * not involve offX — so the two searches do not interact.
+     */
+    const horizontalFits = (sx: number) => {
+      for (let s = 0; s <= 60; s++) {
+        const p = s / 60;
+        const b = projectBox(theta(p), sideFraction(p) * sx * visibleW,
+          (0.5 - p) * descentWorld, d, W, H, tanHalf);
+        if (b.x0 < margin || b.x1 > W - margin) return false;
+      }
+      return true;
+    };
+    if (horizontalFits(PHONE_SIDE_X)) {
+      sideXEff = PHONE_SIDE_X;
+    } else if (!horizontalFits(0)) {
+      sideXEff = 0;
+    } else {
+      let lo = 0, hi = PHONE_SIDE_X;
+      for (let i = 0; i < 24; i++) {
+        const mid = (lo + hi) / 2;
+        if (horizontalFits(mid)) lo = mid; else hi = mid;
+      }
+      sideXEff = lo;
+    }
+
+    footprintMaxH = 0;
+    footprintMaxW = 0;
+    for (let s = 0; s <= 200; s++) {
+      const p = s / 200;
+      const b = projectBox(theta(p), sideFraction(p) * sideXEff * visibleW,
+        (0.5 - p) * descentWorld, d, W, H, tanHalf);
+      if (b.y1 - b.y0 > footprintMaxH) footprintMaxH = b.y1 - b.y0;
+      if (b.x1 - b.x0 > footprintMaxW) footprintMaxW = b.x1 - b.x0;
+    }
   }
-  layout();
 
   /* ---- which way is "front"? calibrated, not assumed ------------------- */
   /*
@@ -633,6 +851,17 @@ export async function createScene(
 
     return { normalLocal: axis, baseSpin: base };
   })();
+  /*
+   * AFTER the facing calibration, not before it.
+   *
+   * The layout solves the descent against the pose the phone is actually in
+   * at each point of the section, and `baseSpin` is what makes progress 0
+   * mean front-on. Solved before it, the sweep would be phase-shifted by 90
+   * degrees — and since front-on is both the tallest pose AND where the
+   * descent reaches the top and bottom of the frame, that is exactly the
+   * coincidence the fit has to account for.
+   */
+  layout();
   const worldNormal = new THREE.Vector3();
   const camDir = new THREE.Vector3();
   const normalMatrix = new THREE.Matrix3();
@@ -662,6 +891,15 @@ export async function createScene(
   const sign = 1; // baseSpin already aims the normal at the camera
 
   /* ---- the one input -------------------------------------------------- */
+  /*
+   * How many frames this scene has drawn. Instrumentation, and the only way
+   * to assert the thing that matters: the tour used to render a full
+   * viewport of reflective phone on every rAF from the moment it was ready,
+   * including the whole time the visitor is eight screens above watching the
+   * hero. A guard on "the page feels smooth" cannot catch that; a guard on
+   * "this counter does not move while the section is off screen" can.
+   */
+  let renders = 0;
   let lastDot = sign * screenFacing();
   let lastProgress = 0;
 
@@ -692,14 +930,13 @@ export async function createScene(
      * linear because the rotation is: an eased descent against a linear spin
      * reads as the phone slowing down while still turning at full rate.
      *
-     * The travel is derived from what actually fits: the canvas height less
-     * the phone, so the phone never leaves the frame and the number cannot go
-     * stale when MAX_PHONE_PX or REST_FRACTION change.
+     * Both amplitudes were SOLVED in layout() against the phone's projected
+     * box at every pose it passes through, so there is no arithmetic left to
+     * do here and no number here that can go stale when the cap, the
+     * fraction, the lean or the fov change.
      */
-    leanGroup.position.x = sideFraction(clamped) * PHONE_SIDE_X * visibleW;
-    const visibleH = visibleW / camera.aspect;
-    const freeH = Math.max(0, visibleH * (1 - phoneHeightPx / (canvas.clientHeight || 1)));
-    leanGroup.position.y = (0.5 - clamped) * freeH * TUNING.descentUse;
+    leanGroup.position.x = sideFraction(clamped) * sideXEff * visibleW;
+    leanGroup.position.y = (0.5 - clamped) * descentWorld;
     scene.updateMatrixWorld(true);
 
     const dot = sign * screenFacing();
@@ -716,13 +953,42 @@ export async function createScene(
     }
 
     renderer.render(scene, camera);
+    renders++;
   }
+
+  /*
+   * THE ENVIRONMENT GOES IN BEFORE THE COMPILE, and that ordering is worth
+   * about two seconds.
+   *
+   * Assigning scene.environment invalidates every material that can see it,
+   * so a compile that ran before the assignment compiles the no-envMap
+   * variant and then the next render compiles the whole set again. The
+   * deferred build did exactly that, and the second compile is what the
+   * environment's measured cost was mostly made of:
+   *
+   *     room -> cube render                342ms
+   *     PMREM prefilter                   2096ms
+   *     re-render with the environment    2120ms   <- the second compile
+   *
+   * Only the first two are the environment. The third was the price of
+   * having compiled without it. Measured end to end, building it here
+   * instead took the load screen's lift from 9.6s to 6.0s and the worst
+   * freeze from 4.6s to 2.6s.
+   *
+   * Deferring was the right call when the phone had to appear as early as
+   * possible, and it is the wrong one now: the load screen holds until the
+   * scene has settled, so there is no longer any value in an early frame
+   * that is missing its reflections and will pay for them a second later.
+   * "defer" stays reachable by query string, as the measured alternative.
+   */
+  if (envMode === "pmrem") buildEnvironment();
+  if (envMode === "cube") buildRawCube();
 
   /*
    * Compile every material's shader BEFORE the first render rather than
    * during it. The first render measured 1435ms and most of it was this;
-   * done here it happens while the hero is still playing, where the cost is
-   * invisible, instead of at the moment the phone is supposed to appear.
+   * done here it happens behind the load screen, where the cost is invisible,
+   * instead of at the moment the phone is supposed to appear.
    */
   mark("compileStart");
   renderer.compile(scene, camera);
@@ -751,14 +1017,25 @@ export async function createScene(
    * Two frames of delay, not one: the first render must have reached the
    * compositor before this blocks the thread again.
    */
-  if (envMode === "defer") {
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      mark("deferredEnvStart");
-      buildEnvironment();
-      setProgress(lastProgress);
-      mark("deferredEnvDone");
-    }));
-  }
+  const settled = envMode === "defer"
+    ? new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        mark("deferredEnvStart");
+        buildEnvironment();
+        setProgress(lastProgress);
+        mark("deferredEnvDone");
+        /* One more frame before resolving, so "settled" means the
+           environment-lit frame has been PRESENTED rather than submitted.
+           Resolving on the same tick would hand the load screen a promise
+           that keeps its own last freeze on the wrong side of the lift. */
+        requestAnimationFrame(() => { mark("settled"); resolve(); });
+      }));
+    })
+    /* One frame here too, so "settled" means the same thing in both modes:
+       a finished frame on screen, not a finished function. */
+    : new Promise<void>((resolve) => {
+      requestAnimationFrame(() => { mark("settled"); resolve(); });
+    });
   (window as unknown as { __tourMarks?: LoadMarks }).__tourMarks = marks;
 
   /* Colour lab: query-param gated so it is absent in normal operation. It
@@ -777,6 +1054,7 @@ export async function createScene(
 
   return {
     setProgress,
+    settled,
     resize() { layout(); setProgress(lastProgress); },
     dispose() {
       textures.forEach((t) => t.dispose());
@@ -788,17 +1066,30 @@ export async function createScene(
     debug(): SceneDebug {
       return {
         ready: true,
+        renders,
         phoneHeightPx,
         screenDotCamera: +lastDot.toFixed(4),
         boundChapter,
         swaps,
         phoneCentreXPx:
           (canvas.clientWidth || 0) / 2 + (leanGroup.position.x / visibleW) * (canvas.clientWidth || 0),
-        phoneCentreYPx: (() => {
-          const h = canvas.clientHeight || 0;
-          const visibleH = visibleW / camera.aspect;
-          return h / 2 - (leanGroup.position.y / visibleH) * h;
-        })(),
+        phoneCentreYPx: (canvas.clientHeight || 0) / 2
+          - (leanGroup.position.y / visibleH) * (canvas.clientHeight || 0),
+        footprint: {
+          /* The size, and the worst it gets anywhere in the section. The two
+             differ by the perspective shear at the ends of the descent, which
+             is the term the old layout had no place for. */
+          h: +footprintMaxH.toFixed(1),
+          w: +footprintMaxW.toFixed(1),
+          margin: TUNING.edgeMargin,
+          /* How much travel the frame HAS, and how much of it is used. A
+             descent guard that only reads the distance cannot tell "the
+             design gave up travel" from "the frame has no more to give". */
+          descentRoomPx: +(descentRoom / visibleH * (canvas.clientHeight || 1)).toFixed(1),
+          descentPx: +(descentWorld / visibleH * (canvas.clientHeight || 1)).toFixed(1),
+          sideX: +sideXEff.toFixed(4),
+          sideXAsked: PHONE_SIDE_X,
+        },
         viewportW: canvas.clientWidth || 0,
         toneMapping: renderer.toneMapping === THREE.ACESFilmicToneMapping ? "ACESFilmic" : String(renderer.toneMapping),
         outputColorSpace: renderer.outputColorSpace,
@@ -832,6 +1123,7 @@ export async function createScene(
           /* Read off the RENDERER and the CAMERA, not the config object: what
              was requested and what is applied are different claims. */
           exposure: renderer.toneMappingExposure, fov: camera.fov,
+          maxPhonePx: TUNING.maxPhonePx, edgeMargin: TUNING.edgeMargin,
           crossStart: +TUNING.crossStart.toFixed(4), crossEnd: +TUNING.crossEnd.toFixed(4),
         },
         screenRect: (() => {

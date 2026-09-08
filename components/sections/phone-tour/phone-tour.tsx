@@ -5,8 +5,8 @@ import Image from "next/image";
 import { gsap } from "@/lib/gsap";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { CHAPTERS, type Chapter } from "./chapters";
-import { LEAN_DEG, MAX_PHONE_PX, PHONE_SIDE_X, readTuning } from "./constants";
-import { HERO_PLAYING_ATTR } from "@/components/ui/load-screen";
+import { LEAN_DEG, MAX_PHONE_PX, MOBILE_BREAKPOINT, PHONE_SIDE_X, readTuning } from "./constants";
+import { HERO_PLAYING_ATTR, TOUR_READY_ATTR } from "@/components/ui/load-screen";
 import type { TourScene } from "./scene";
 
 /**
@@ -30,14 +30,14 @@ import type { TourScene } from "./scene";
  *   reduced motion       the same stacked list. The timeline is not built,
  *                        not built-and-skipped. "Not slower — none."
  *   no WebGL / lost ctx  the same stacked list again, at any width.
- *   hero on screen       the 8.1 MB GLB is not fetched. It competes with the
- *                        53.6 MB scrub file, which takes 109.8s to buffer on
- *                        Regular 4G; concurrent, it lengthens CLAMPED, which
- *                        is the majority experience for this audience.
+ *   off screen           nothing. No render, no layout read, no style write.
+ *                        See the ticker, and spec §7.1b.
  *
- * The hero had no IntersectionObserver to reuse and no out-of-view pause, so
- * the gate is created here. That the hero keeps decoding off screen is a
- * separate gap, logged rather than fixed in this pass.
+ * The old note here said the GLB is NOT fetched while the hero is on screen,
+ * because it would compete with a 53.6 MB all-intra scrub file. That file no
+ * longer exists — the film is 10.77 MB — and the gate has been inverted since:
+ * the model now loads DURING the hero, behind the load screen, which is the
+ * only window in which its cost was ever going to be invisible.
  */
 
 /*
@@ -76,8 +76,6 @@ export function runwayVh(): number {
   const v = Number(new URLSearchParams(location.search).get("runway"));
   return Number.isFinite(v) && v >= 200 ? v : TOUR_RUNWAY_VH;
 }
-
-const MOBILE_BREAKPOINT = 768;
 
 /* ---------- the stacked fallback ------------------------------------- */
 
@@ -211,6 +209,18 @@ export function PhoneTour() {
     };
     canvas.addEventListener("webglcontextlost", onLost);
 
+    /*
+     * "READY OR NOT COMING", and every path out of `start` goes through it.
+     *
+     * The load screen holds for this flag on desktop, so a path that returns
+     * without raising it is a page held for the full eight seconds. There are
+     * four such paths — settled, thrown, reduced motion, too narrow — and
+     * three of them are early returns that look like nothing at all.
+     */
+    const declareReady = () => {
+      document.documentElement.setAttribute(TOUR_READY_ATTR, "");
+    };
+
     async function start() {
       /* Marks only. When the gate opened, so the diagnosis can separate
          "the loader is slow" from "the loader was not allowed to begin". */
@@ -223,8 +233,8 @@ export function PhoneTour() {
        * otherwise fetch 8.1 MB before the correction arrived. "Brief isn't
        * none" is the standard this project settled on.
        */
-      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-      if (window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`).matches) return;
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { declareReady(); return; }
+      if (window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`).matches) { declareReady(); return; }
       try {
         const { createScene } = await import("./scene");
         if (cancelled) return;
@@ -233,9 +243,17 @@ export function PhoneTour() {
           CHAPTERS.map((c) => c.screen),
           { keepTransmission: new URLSearchParams(location.search).has("keepTransmission") },
         );
-        if (cancelled) { scene.dispose(); return; }
+        if (cancelled) { scene.dispose(); declareReady(); return; }
         sceneRef.current = scene;
         setReady(true);
+        /*
+         * NOT here, and that is the whole point of `settled`.
+         *
+         * `createScene` returns with the PMREM prefilter still to run — the
+         * single most expensive step — so raising the flag on this line would
+         * lift the load screen onto the freeze it exists to hide.
+         */
+        void scene.settled.then(declareReady);
 
         const tuning = readTuning();
 
@@ -243,11 +261,54 @@ export function PhoneTour() {
           runway!.querySelectorAll<HTMLElement>("[data-chapter]"),
         );
 
+        /* -1 rather than 0: progress 0 is a real position the section rests
+           at, so seeding with it would skip the first render of the chapter
+           the visitor arrives on. */
+        let lastP = -1;
         tickerFn = () => {
           const r = runway!.getBoundingClientRect();
+          /*
+           * OFF SCREEN: DO NOTHING. Not "do less" — nothing.
+           *
+           * This ticker ran in full from the moment the scene was ready,
+           * including the entire time the visitor is watching the hero
+           * eight screens above. Measured after the load screen lifted: at
+           * 1440 the page dropped a 100ms frame within a second of the
+           * lift, while the same page at 390 — where no WebGL context
+           * exists at all — ran 59.1 frames per second with nothing over
+           * 34ms. The hero was never the problem; it was paying for the
+           * tour.
+           *
+           * What this line saves, specifically, is the per-frame layout
+           * read and the three style writes below. It is NOT what stops the
+           * wasted rendering — the progress check further down already does
+           * that, since progress is pinned at 0 or 1 whenever the section is
+           * out of view. Removing this line alone left the render counter at
+           * zero and the guard passing, and it was only the frame-gap check
+           * that noticed. Two mechanisms, two different costs, and the
+           * comment says which is which because the first version of it
+           * claimed both.
+           */
+          if (r.bottom <= 0 || r.top >= window.innerHeight) return;
           const span = r.height - window.innerHeight;
           const p = span > 0 ? Math.min(1, Math.max(0, -r.top / span)) : 0;
-          scene.setProgress(p);
+          /*
+           * Nothing to draw if nothing moved: a section held still is a
+           * static picture, and re-rendering it 60 times a second is the
+           * same waste in a smaller window.
+           *
+           * THE RENDER ONLY. The text's opacity below is written every
+           * frame on purpose. Changing chapter re-renders those blocks, and
+           * React puts their inline `opacity: active ? 1 : 0` back — so the
+           * per-frame write is what lays the fade curve over the top of it.
+           * Skipping it alongside the render left the incoming chapter at
+           * full opacity at exactly the moment the phone crosses, which two
+           * guards caught and no amount of looking at the scene would have.
+           */
+          if (p !== lastP) {
+            lastP = p;
+            scene.setProgress(p);
+          }
 
           /*
            * The text's own curve. `t` counts half-turns, so it is a whole
@@ -285,6 +346,7 @@ export function PhoneTour() {
          */
         console.error("[phone tour] scene failed, falling back to the stacked list:", err);
         if (!cancelled) setFallback(true);
+        declareReady();
       }
     }
 
@@ -388,7 +450,7 @@ export function PhoneTour() {
               the stacked fallback, so on most visits it costs nothing new.
 
               Placed and sized from the same numbers the scene uses: chapter 1
-              sits on the right at PHONE_SIDE_X of the width, REST_FRACTION of
+              sits on the right at PHONE_SIDE_X of the width, restFraction of
               the height, leaning LEAN_DEG. Typing those again here is how the
               placeholder and the phone drift apart.
             */}

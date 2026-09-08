@@ -131,6 +131,30 @@ const check = (name, ok, detail = "") => {
   const mode0 = await ev(`document.querySelector('#parent-app').getAttribute('data-mode')`);
   console.log(`   section mode: ${mode0}`);
 
+  /*
+   * STOP HERE IN STACKED MODE, and say so.
+   *
+   * There is no runway, no canvas and no scene below 768px, so every check
+   * after this point is about an element that does not exist. This used to
+   * fall through and die on `JSON.parse(undefined)` — a stack trace where a
+   * verdict should be, which reads as "the run broke" rather than "the run
+   * finished". A harness that cannot say "passed" is a harness whose silence
+   * you cannot interpret.
+   */
+  if (mode0 === "stacked") {
+    check("the stacked list has all three chapters",
+      (await ev(`document.querySelectorAll('#parent-app li img').length`)) === 3,
+      `${await ev(`document.querySelectorAll('#parent-app li img').length`)} images`);
+    check("no WebGL context was created at all",
+      (await ev("window.__glContexts")) === 0, `${await ev("window.__glContexts")} context(s)`);
+    await shot(`stacked-${VW}.png`);
+    console.log(fails.length
+      ? `\n  FAILED: ${fails.join("; ")}\n`
+      : `\n  all checks pass (stacked: the scene checks do not apply at ${VW}px)\n`);
+    ws.close(); ch.kill();
+    process.exit(fails.length ? 1 : 0);
+  }
+
   /* ---- scroll to the section ------------------------------------------ */
   const geo = JSON.parse(await ev(`(() => {
     const s = document.querySelector('#parent-app');
@@ -218,7 +242,18 @@ const check = (name, ok, detail = "") => {
   console.log(`   transmissionFactor on glass.002: ${d.transmissionFactor}`);
 
   /* ---- rest scale ------------------------------------------------------ */
-  check("the phone is at most 620 CSS px tall", d.phoneHeightPx <= 620.5, `${Math.round(d.phoneHeightPx)}px`);
+  /*
+   * THE PROJECTED BOX, not a height read off an upright model.
+   *
+   * This used to assert `phoneHeightPx <= 620.5` while phoneHeightPx was the
+   * height the layout ASKED FOR. The phone on screen was 652px and clipped at
+   * both ends, and the check passed on every run — "measure the thing, not
+   * what is adjacent" in its purest form: the assertion was reading the
+   * request and reporting on the result.
+   */
+  check("the phone's projected box is within the cap",
+    d.footprint.h <= d.tuning.maxPhonePx + 0.5,
+    `box ${Math.round(d.footprint.h)}x${Math.round(d.footprint.w)}px worst-case, cap ${d.tuning.maxPhonePx}px`);
 
   /* ---- alternating sides, and a descent (spec §5.1, §5.2a) ------------- */
   const xs = [], ys = [], textRects = [];
@@ -242,9 +277,35 @@ const check = (name, ok, detail = "") => {
   check("the phone DESCENDS between rest points",
     ys[0] < ys[1] && ys[1] < ys[2],
     `y = ${ys.map((y) => Math.round(y)).join(" -> ")}`);
+  /*
+   * TWO checks where there was one, and the number came DOWN. Both parts
+   * matter.
+   *
+   * The old floor was 0.3 * viewport = 270px, and the shipped build reported
+   * 280px against it. That 280px was travel, not visible travel: the phone
+   * was 39px outside the frame at each end, so 78px of the "descent" happened
+   * off screen. The measurement passed because it read the control value and
+   * never asked where the phone actually was.
+   *
+   * With the footprint solved honestly there are 195px of room at 1440x900 —
+   * a 693px box and two 12px margins in a 900px frame leave that and no more.
+   * ANY floor above about 0.21 is now unsatisfiable at this phone size, so
+   * 0.3 could only be met by shrinking the phone, which is the opposite of
+   * what the section is for. 0.18 sits just under what the geometry can
+   * deliver: it still trips if the box grows past ~720px.
+   *
+   * The floor alone would be weak, so it is paired with the assertion that
+   * actually cannot be gamed: the descent uses EVERY pixel the frame has
+   * left. A build that quietly gives up travel fails that even if its
+   * absolute number is comfortable, and no reduction in phone size can make
+   * it pass by accident.
+   */
+  check("the descent uses every pixel of room the frame has left",
+    Math.abs(d.footprint.descentPx - d.footprint.descentRoomPx) <= 1,
+    `${Math.round(d.footprint.descentPx)}px used of ${Math.round(d.footprint.descentRoomPx)}px available`);
   check("the descent is a real distance, not a nudge",
-    ys[2] - ys[0] > VH * 0.3,
-    `${Math.round(ys[2] - ys[0])}px of a ${VH}px viewport`);
+    ys[2] - ys[0] > VH * 0.18,
+    `${Math.round(ys[2] - ys[0])}px of a ${VH}px viewport  (floor ${Math.round(VH * 0.18)}px)`);
 
   /*
    * Vertically pinned, horizontally alternating. Only Y is asserted equal
@@ -338,6 +399,118 @@ const check = (name, ok, detail = "") => {
     cross.lastVisibleWhileMoving < 0,
     cross.lastVisibleWhileMoving < 0 ? "the crossing happens entirely inside the fade's dead zone"
       : `text visible mid-crossing at p=${cross.lastVisibleWhileMoving}`);
+
+  /*
+   * NOTHING TOUCHES THE CANVAS EDGE — read off the pixels, at 121 scroll
+   * positions across the whole section.
+   *
+   * Not from phoneRect, and not at the rest points. A geometry check inherits
+   * whatever the layout believes about the phone's size, which is exactly the
+   * belief that was wrong; and a rest-point check passes on the build that
+   * shipped, which clipped at 12 of 202 positions, all of them at the ends of
+   * the descent where the pose is front-on and tallest.
+   *
+   * The renderer is alpha:true and draws nothing but the phone, so a non-zero
+   * alpha in the outermost row or column IS the phone hitting the boundary.
+   * The readback has to happen in the SAME task as a render — a non-preserved
+   * drawing buffer is undefined once the compositor has had it — so each
+   * sample scrolls for real, reads the progress the scroll produced exactly
+   * as the ticker does, and re-renders that pose before reading. The pose
+   * sampled is the pose the scroll puts it in; only the moment of the render
+   * moves.
+   *
+   * NO-OP DEFENCE: a scene that draws nothing has a perfectly clear edge. So
+   * every sample also reads the middle scanline, and a sample with an empty
+   * interior is a failure rather than a pass. That is not hypothetical here —
+   * this project has already shipped a build where the screen mesh was
+   * back-face culled and every settings-level check passed on it.
+   */
+  const clip = JSON.parse(await ev(`(async () => {
+    const cv = document.querySelector('#parent-app canvas');
+    const gl = cv.getContext('webgl2') || cv.getContext('webgl');
+    const W = gl.drawingBufferWidth, H = gl.drawingBufferHeight;
+    const rowT = new Uint8Array(W * 4), rowB = new Uint8Array(W * 4);
+    const colL = new Uint8Array(H * 4), colR = new Uint8Array(H * 4);
+    const mid = new Uint8Array(W * 4);
+    const maxA = (b) => { let m = 0; for (let i = 3; i < b.length; i += 4) if (b[i] > m) m = b[i]; return m; };
+    const rw = document.querySelector('#parent-app [data-tour-runway]');
+    const top = Math.round(rw.getBoundingClientRect().top + scrollY);
+    const span = rw.offsetHeight - innerHeight;
+    const N = 120;
+    let touching = 0, blank = 0, worst = 0, worstAt = -1, worstEdge = '';
+    let minInterior = 255;
+    for (let i = 0; i <= N; i++) {
+      scrollTo(0, top + Math.round(span * (i / N)));
+      await new Promise((r) => requestAnimationFrame(r));
+      await new Promise((r) => requestAnimationFrame(r));
+      const r = rw.getBoundingClientRect();
+      const p = span > 0 ? Math.min(1, Math.max(0, -r.top / span)) : 0;
+      window.__phoneTour.setProgress(p);
+      gl.readPixels(0, H - 1, W, 1, gl.RGBA, gl.UNSIGNED_BYTE, rowT);
+      gl.readPixels(0, 0, W, 1, gl.RGBA, gl.UNSIGNED_BYTE, rowB);
+      gl.readPixels(0, 0, 1, H, gl.RGBA, gl.UNSIGNED_BYTE, colL);
+      gl.readPixels(W - 1, 0, 1, H, gl.RGBA, gl.UNSIGNED_BYTE, colR);
+      gl.readPixels(0, (H >> 1), W, 1, gl.RGBA, gl.UNSIGNED_BYTE, mid);
+      const interior = maxA(mid);
+      if (interior === 0) blank++;
+      if (interior < minInterior) minInterior = interior;
+      const edges = { top: maxA(rowT), bottom: maxA(rowB), left: maxA(colL), right: maxA(colR) };
+      let any = false;
+      for (const k of ['top', 'bottom', 'left', 'right']) {
+        if (edges[k] > 8) any = true;
+        if (edges[k] > worst) { worst = edges[k]; worstAt = +p.toFixed(3); worstEdge = k; }
+      }
+      if (any) touching++;
+    }
+    return JSON.stringify({ samples: N + 1, touching, blank, worst, worstAt, worstEdge, minInterior });
+  })()`));
+  /*
+   * IT DOES NOT RENDER WHILE IT IS OFF SCREEN.
+   *
+   * The tour joined gsap's ticker and drew a full viewport of reflective
+   * phone on every frame from the moment the scene was ready — the whole
+   * time the visitor is eight screens above, watching the hero. It was
+   * invisible to every instrument the project had: no long task, no failed
+   * assertion, just a page that was mysteriously less smooth at 1440 than
+   * the same page at 390, where no WebGL context exists at all.
+   *
+   * Counted, not inferred. "The page feels smooth" cannot catch a wasted
+   * render; a counter that must not move can.
+   */
+  const idle = JSON.parse(await ev(`(async () => {
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const n = () => window.__phoneTour.debug().renders;
+    scrollTo(0, 0);
+    await wait(700);
+    const a = n();
+    await wait(1000);
+    const b = n();
+    const rw = document.querySelector('#parent-app [data-tour-runway]');
+    const top = Math.round(rw.getBoundingClientRect().top + scrollY);
+    scrollTo(0, top + Math.round((rw.offsetHeight - innerHeight) * 0.2));
+    await wait(400);
+    const c = n();
+    for (let i = 0; i < 12; i++) {
+      scrollTo(0, top + Math.round((rw.offsetHeight - innerHeight) * (0.2 + i * 0.01)));
+      await new Promise((r) => requestAnimationFrame(r));
+    }
+    await wait(300);
+    const d = n();
+    return JSON.stringify({ offScreen: b - a, onScreen: d - c });
+  })()`));
+  check("the scene renders nothing while the section is off screen",
+    idle.offScreen === 0, `${idle.offScreen} frames drawn in a second at the top of the page`);
+  check("...and it does render once the section is in view (so zero above is restraint, not death)",
+    idle.onScreen > 0, `${idle.onScreen} frames drawn across 12 scroll steps`);
+
+  check("the phone is actually being drawn at every sample (so a clear edge means something)",
+    clip.blank === 0,
+    clip.blank === 0 ? `${clip.samples} samples, weakest interior alpha ${clip.minInterior}`
+      : `${clip.blank} of ${clip.samples} samples drew nothing`);
+  check("the phone never touches the canvas edge, anywhere in the section",
+    clip.blank === 0 && clip.touching === 0,
+    clip.touching === 0 ? `${clip.samples} scroll positions, all four edges clear`
+      : `cut at ${clip.touching} of ${clip.samples} positions; worst on the ${clip.worstEdge} edge (alpha ${clip.worst}) at p=${clip.worstAt}`);
 
   /* ---- text sync at rest points ---------------------------------------- */
   const HEADINGS = ["The whole morning, on one screen", "The route, as it happens", "See inside, whenever it matters"];

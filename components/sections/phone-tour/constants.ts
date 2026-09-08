@@ -14,12 +14,39 @@
  * exist to prevent.
  */
 
-/** Spec §7.1 as amended: at most 620 CSS px tall, whatever the viewport. */
-export const MAX_PHONE_PX = 620;
+/**
+ * Spec §7.1 as amended. A cap on the phone's PROJECTED BOX, not on a height
+ * measured off an upright model.
+ *
+ * 620 was the old number and it was never what appeared: it solved the camera
+ * distance from the model's world AABB taken at the raw glTF orientation,
+ * which on this export is edge-on. Turned front-on the phone presents its
+ * width to the lean and the lean folds that width into the height, and
+ * perspective adds more on top because the near half of a spinning phone is
+ * ~10% closer than the far half. Measured on the shipped build: solved for
+ * 620, drew 652 at the centre and 664 at its worst, and clipped at both ends
+ * because the descent handed out the difference as free room.
+ *
+ * So this now caps the thing that has to fit. It is deliberately the box
+ * around the model rather than the drawn silhouette — a rounded phone does
+ * not fill its own corners, so the phone on screen is about 4% shorter than
+ * this number. Conservative in the safe direction, and cheap: a silhouette
+ * measurement means reading pixels back off the GPU on every resize.
+ *
+ * The VALUE is chosen to leave the phone exactly the size it already was.
+ * Spec §7.1's ceiling was approved from captures, and those captures showed a
+ * 652px phone whatever the constant claimed.
+ */
+export const MAX_PHONE_PX = 693;
 
-/** Spec §5.2a. The cap above still wins on tall viewports; this is what
- *  leaves room underneath it for the phone to descend through the frame. */
-export const REST_FRACTION = 0.46;
+/**
+ * How close the phone's projected box may come to the canvas edge, CSS px.
+ *
+ * Not decoration: the descent is solved to use every pixel the frame has
+ * left, so without a margin the phone ends flush against the boundary and
+ * "does not clip" and "is cut off by one pixel" become the same build.
+ */
+export const EDGE_MARGIN_PX = 12;
 
 /** Spec §5.1. How far off centre each side sits, as a fraction of the
  *  visible width. The phone alternates between +/- this; the text takes the
@@ -27,11 +54,28 @@ export const REST_FRACTION = 0.46;
 export const PHONE_SIDE_X = 0.25;
 
 /**
- * Spec §5.2a. How much of the free vertical room the descent uses.
+ * Below this the tour is a stacked list: no three.js, no WebGL context, and
+ * the GLB is never requested.
  *
- * 1.0, because a bigger phone spends that room and this is the only lever
- * that gives any of it back. At the 620px cap it buys 280px of descent where
- * 0.86 would give 241px — and 280px is what clears the guard's floor.
+ * It lives here rather than in phone-tour.tsx because the LOAD SCREEN needs
+ * the same number — it holds for the scene on desktop and for the hero alone
+ * on mobile, and it can only know which by asking the same question the tour
+ * asks. Two copies of 768 is how a load screen ends up waiting eight seconds
+ * for a scene that was never going to be built.
+ */
+export const MOBILE_BREAKPOINT = 768;
+
+/**
+ * Spec §5.2a. How much of the room the fit found the descent actually uses.
+ *
+ * 1.0, and it has to be: the room is now SOLVED — a binary search for the
+ * largest travel at which the phone's projected box still clears the frame's
+ * margins at every pose it passes through — so anything under 1.0 is travel
+ * deliberately left on the table. 195px at 1440x900.
+ *
+ * It used to multiply an arithmetic estimate of the free height, and that
+ * estimate was 44px optimistic because the "phone height" it subtracted was
+ * the height the layout asked for rather than the height it drew.
  */
 export const DESCENT_USE = 1.0;
 
@@ -68,23 +112,17 @@ export const EXPOSURE_DEFAULT = 1.6;
 export const FADE_KNEE = 3.0;
 
 /**
- * Spec §5.2a as amended. The 620px cap still wins on tall viewports.
+ * Spec §5.2a as amended. The MAX_PHONE_PX cap still wins on tall viewports.
  *
- * 0.80, and above ~0.689 at a 900px viewport this value does nothing at all:
- * `min(620, h * f)` clamps, so 0.689, 0.70 and 0.80 are the same 620px phone.
- * It is set to 0.80 so the CAP is visibly the thing in control, and so a
- * taller viewport gets the cap rather than a fraction of itself.
+ * 0.80, and above ~0.77 at a 900px viewport this value does nothing at all:
+ * `min(693, h * f)` clamps, so 0.77, 0.80 and 0.90 are the same phone. It is
+ * set to 0.80 so the CAP is visibly the thing in control, and so a taller
+ * viewport gets the cap rather than a fraction of itself.
  *
- * Chapter 2 is NOT the constraint people expect: at 620px it is still
- * downsampling 1.68x against its 487px source, which would only begin
- * upsampling above a 1043px phone. What binds is descent room.
- *
- * That costs descent: 310px total, 155px per transition against a 540px
- * phone — 29% of its own height, where 0.46 gave 50%. Below the 342px once
- * called "a drift", and the threshold is retired rather than ignored: it was
- * set when the descent was the ONLY motion and had to replace 720px of lost
- * horizontal traverse. The phone now does both, so a number that assumed
- * otherwise does not transfer.
+ * Chapter 2 is NOT the constraint people expect: at this size it is still
+ * downsampling 1.6x against its 487px source, which would only begin
+ * upsampling above a roughly 1040px phone. What binds is descent room — see
+ * MAX_PHONE_PX, and spec §7.1 for the arithmetic of the trade.
  */
 export const REST_FRACTION_DEFAULT = 0.80;
 
@@ -134,9 +172,11 @@ export type Tuning = {
    *  camera distance to hit a target pixel height, so a narrower fov at the
    *  same size flattens perspective rather than shrinking the phone. */
   fov: number;
-  /** The 620px cap itself. Above restFraction ~0.689 at a 900px viewport it
-   *  is the cap, not the fraction, that decides the phone's size. */
+  /** The projected-box cap itself. Above restFraction ~0.72 at a 900px
+   *  viewport it is the cap, not the fraction, that decides the size. */
   maxPhonePx: number;
+  /** Clearance kept between the phone's projected box and the canvas edge. */
+  edgeMargin: number;
   /** Where the text reaches zero opacity, as a fraction of one transition. */
   dead0: number;
   crossStart: number;
@@ -152,6 +192,7 @@ export function readTuning(): Tuning {
   let envIntensity = 1;
   let fov = 35;
   let maxPhonePx = MAX_PHONE_PX;
+  let edgeMargin = EDGE_MARGIN_PX;
   if (typeof location !== "undefined") {
     const q = new URLSearchParams(location.search);
     const num = (k: string, d: number) => {
@@ -166,10 +207,16 @@ export function readTuning(): Tuning {
     envIntensity = num("envIntensity", envIntensity);
     fov = num("fov", fov);
     maxPhonePx = num("maxPhonePx", maxPhonePx);
+    /* Zero is a legitimate margin to ask for — it is what a "does the guard
+       actually catch a clip?" run needs — so this one accepts 0, which the
+       shared `num` helper rejects along with the negatives. */
+    const m = Number(q.get("margin"));
+    if (Number.isFinite(m) && m >= 0 && q.has("margin")) edgeMargin = m;
   }
   const dead0 = Math.asin(Math.min(1, 1 / knee)) / Math.PI;
   return {
-    knee, crossFraction, restFraction, descentUse, exposure, envIntensity, fov, maxPhonePx, dead0,
+    knee, crossFraction, restFraction, descentUse, exposure, envIntensity, fov, maxPhonePx,
+    edgeMargin, dead0,
     crossStart: dead0,
     crossEnd: dead0 + (1 - 2 * dead0) * crossFraction,
   };

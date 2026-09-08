@@ -29,9 +29,11 @@ after they had been set, committed and verified.
 
 Every figure in this document was taken from that URL on a production build.
 `?knee=`, `?crossFraction=`, `?restFraction=`, `?descentUse=`, `?exposure=`,
-`?fov=`, `?runway=` and `?envMode=` override the shipped defaults there
-without a rebuild, and `window.__phoneTour.debug().tuning` reads back what is
-actually applied — as distinct from what was requested.
+`?fov=`, `?maxPhonePx=`, `?margin=`, `?runway=` and `?envMode=` override the
+shipped defaults there without a rebuild, and `window.__phoneTour.debug()`
+reads back what is actually applied — as distinct from what was requested.
+`?margin=` accepts 0, which the others reject, because a run that asks
+"does the clipping guard actually catch a clip?" needs it.
 
 ---
 
@@ -664,6 +666,121 @@ with `descentUse` at 1.0:
 So 620 is the ceiling — not because the screens mush, but because the phone
 eats the room it needs to travel through.
 
+**AMENDED AGAIN 2026-09-08, and the table above is wrong in a way that
+matters. `620 px` was never the height of anything on screen.**
+
+The layout solved the camera distance from the model's world AABB measured at
+the raw glTF orientation — which on this export is EDGE-ON, thin axis across
+the view. Turned front-on the phone presents its 77 mm width to the 10° lean,
+and the lean folds that width into the height: +13 mm on a 163 mm phone.
+Perspective adds more, because at fov 35 the near half of a spinning phone is
+about 10% closer than the far half, and more again at the ends of the descent
+where the whole box is off-axis and shears.
+
+Measured on the shipped build at 1440 × 900:
+
+| | value |
+|---|---|
+| the layout solved for | 620 px |
+| the phone drew, at the centre | **652 px** |
+| the phone drew, at its worst pose | **664 px** |
+| its projected box, worst case | 710 px |
+
+The descent then handed out every "remaining" pixel on the strength of the
+620. The phone was **39 px off the top at chapter 1 and 39 px off the bottom
+at chapter 3**, cut at 12 of 202 scroll positions. The bottom-right corner
+goes first, because the phone leans.
+
+**The cap is now on the projected box, and the box is swept.** Both the size
+and the placement are solved against the projected corners of the model's own
+box across the FULL rotation and the full descent, by binary search rather
+than arithmetic — there is no closed form that survives the perspective shear.
+`MAX_PHONE_PX = 693` is chosen to leave the phone **exactly the size it
+already was**: this section's ceiling was approved from captures, and those
+captures showed a 652 px phone whatever the constant claimed. It caps the box
+rather than the silhouette because a rounded phone does not fill its own
+corners — the drawn phone is about 4% shorter than the number, conservative in
+the safe direction, and measuring the silhouette would mean reading pixels
+back off the GPU on every resize.
+
+**`EDGE_MARGIN_PX = 12`.** The descent is solved to use every pixel the frame
+has left, so without a margin the phone ends flush against the boundary and
+"does not clip" and "is cut off by one pixel" are the same build.
+
+**The horizontal is clamped by moving the phone IN, never by shrinking it.**
+At 800 × 900 the side offset drops from 0.25 to 0.224 and the phone is
+untouched. A narrow viewport is a placement problem.
+
+**What this costs: the descent falls from a reported 280 px to 195 px, and
+almost none of that was ever visible.** 78 px of the old 280 happened outside
+the frame; fully-visible travel went from about 202 px to 195 px.
+
+**§8's descent floor moves from 0.30 × viewport to 0.18, and the reason is
+arithmetic rather than convenience.** A 693 px box in a 900 px frame with two
+12 px margins leaves 195 px and no more, so ANY floor above ~0.21 is now
+unsatisfiable at this phone size and could only be met by shrinking the phone.
+It is paired with the assertion that cannot be gamed — the descent uses EVERY
+pixel of room the frame has left — so a build that quietly gives up travel
+fails even when its absolute number looks comfortable.
+
+### 7.1a The load screen holds for the scene (desktop)
+
+The load screen waits for the hero AND for the tour scene to have nothing left
+to block on: model parsed, textures uploaded, shaders compiled, environment
+prefiltered, and a frame lit by that environment presented. The hero plays
+behind it. Below 768 px and on reduced motion no scene is built at all, so it
+waits only for the hero — asserted as a network fact, not a look.
+
+Caps: **2500 ms** on the hero-only path, **8000 ms** on desktop. Past the cap
+the screen drops and the placeholder covers the tour. A load screen that
+outstays the thing it covers is the failure mode it exists to prevent.
+
+**The environment is built BEFORE `renderer.compile`, and that ordering is
+worth about two seconds.** Assigning `scene.environment` invalidates every
+material that can see it, so a compile that ran before the assignment compiles
+the no-envMap variant and the next render compiles the whole set again. The
+deferred build did exactly that, and the second compile is most of what the
+environment's measured cost was made of:
+
+| | cost |
+|---|---|
+| room → cube render | 342 ms |
+| PMREM prefilter | 2096 ms |
+| re-render with the environment | **2120 ms** ← the second compile |
+
+Only the first two are the environment. Deferring was right when the phone had
+to appear as early as possible; it is wrong once a load screen holds until the
+scene has settled, because there is no value in an early frame that is missing
+its reflections and will pay for them a second later. End to end this took the
+lift from 9.6 s to 6.4 s and the worst freeze from 4.6 s to 2.6 s.
+
+### 7.1b The tour does not render while it is off screen
+
+The ticker ran in full from the moment the scene was ready — a full-viewport
+WebGL frame of a reflective phone on every rAF, the whole time the visitor is
+eight screens above watching the hero. It was invisible to every instrument
+the project had: no long task, no failed assertion, just a page that was
+measurably less smooth at 1440 than the same page at 390, where no WebGL
+context exists at all.
+
+| after the lift | frames/s | worst frame |
+|---|---|---|
+| 390 px, no WebGL anywhere | 59.1 | 34 ms |
+| 1440 px, before | ~46 | 100–119 ms |
+| 1440 px, after | 58.2 | 50 ms |
+
+Two separate mechanisms, and they are not interchangeable. Skipping the whole
+ticker when the runway is out of view saves the per-frame layout read and the
+opacity writes. Skipping `setProgress` when progress has not changed is what
+stops the wasted rendering — progress is pinned at 0 or 1 whenever the section
+is off screen, so it covers that case too.
+
+**The opacity writes must NOT be skipped with the render.** Changing chapter
+re-renders those blocks and React restores their inline `opacity: active ? 1 :
+0`; the per-frame write is what lays the fade curve over the top of it.
+Skipping both left the incoming chapter at full opacity at exactly the moment
+the phone crosses. Two guards caught it.
+
 ### 7.2 Mobile
 
 **Below 768 px this is not a 3D scene.** Static screenshot, text beneath,
@@ -733,6 +850,45 @@ Specifically:
   or `aria-hidden` passes on a build that only changed opacity.
 - **Rest scale** — assert the phone's rendered height is ≤ 620 CSS px at
   1440 x 900 and at 1920 x 1080.
+
+**AMENDED 2026-09-08 — rest scale as written above measured the request, not
+the result.** `phoneHeightPx` was the height the layout ASKED for; the phone
+on screen was 652 px and clipping at both ends, and the check passed on every
+run. It now reads the projected box. Added with it:
+
+- **Nothing touches the canvas edge** — sample the outermost row and column of
+  the drawing buffer at 121 real scroll positions across the whole section.
+  The renderer is `alpha: true` and draws nothing but the phone, so a non-zero
+  alpha at an edge pixel IS the phone being cut. Geometry cannot be trusted
+  here: it inherits whatever the layout believes about the phone's size, which
+  is the belief that was wrong. NO-OP DEFENCE: a scene that draws nothing has
+  a perfectly clear edge, so every sample also reads the middle scanline and
+  an empty interior is a failure. Proved by `?maxPhonePx=8` — an 8 px phone
+  reported "all four edges clear" and FAILED.
+- **The descent uses every pixel of room the frame has left** — pairs with the
+  lowered floor. Proved by `?descentUse=1.3`, which drives the phone past the
+  fit: the edge check failed at 2 of 121 positions while "the descent is a
+  real distance" still passed, which is why both exist.
+- **No render while off screen** — count frames drawn. `0` in a second at the
+  top of the page, `> 0` once the section is in view. Proved by removing the
+  progress check: 60 wasted frames per second.
+- **The load screen's contract** (`build/verify-loadscreen.js`) — held until
+  the scene settled; every long task over 150 ms finished behind it; no frame
+  over 100 ms after the lift, with a frame count so "no gaps" cannot pass on a
+  dead page; mobile does not wait for a scene it never builds (network
+  assertion plus a time); and the cap fires with the model request HELD OPEN
+  rather than failed, since a failed request takes the error path and declares
+  ready at once.
+
+**One of these could not be proved, and it is recorded rather than dressed
+up.** "The screen held until the scene had settled" is a contract check, not
+evidence: with the environment built before the first render, `settled`
+resolves one frame after `createScene` returns, so a build that skips
+`settled` entirely lifts ~20 ms earlier and passes. It could not be made to
+fail even in the deferred mode, where there is a 5 s gap — because the
+deferred work is one unbroken task, and a task that would freeze the page also
+blocks the rAF chain that performs the lift. The cover stays up through its
+own worst moment whether or not anything asked it to.
 - **Context loss** — force it and assert the fallback renders.
 - **Colour pipeline** — assert `toneMapping`, `outputColorSpace` and the
   screen texture's `colorSpace` are the three values in §6.2. These are the

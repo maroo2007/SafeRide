@@ -110,20 +110,44 @@ const ms = (v) => (v === null || v === undefined || Number.isNaN(v) ? "     -" :
   });
 
   await send("Page.navigate", { url: URL });
-  await sleep(6000);
+
+  /*
+   * WAIT FOR THE LIFT, then scroll. In that order, and the order is the
+   * measurement.
+   *
+   * This used to sleep a flat 6000ms and then scroll. With the load screen
+   * now holding until the scene has settled, a fixed sleep would sometimes
+   * scroll while the cover was still up and sometimes after — so the same
+   * build would report a freeze as "hidden" or "visible" depending on how
+   * fast that run happened to be. Waiting for the actual lift makes the
+   * before/after split mean the same thing on every run.
+   */
+  for (let i = 0; i < 40; i++) {
+    if (await ev("window.__loadScreenGone !== null")) break;
+    await sleep(500);
+  }
+  for (let i = 0; i < 120; i++) {
+    if (await ev("!!(window.__tourMarks && window.__tourMarks.firstFrame)")) break;
+    await sleep(500);
+  }
 
   if (!process.argv.includes("--noscroll")) {
+    /* Trusted wheel, not scrollTo: this is the stretch the visitor is
+       actually looking at, and a scripted jump neither drives Lenis the same
+       way nor produces the same frame cadence. */
     const top = await ev(`(() => {
       const rw = document.querySelector('#parent-app [data-tour-runway]');
       if (!rw) throw new Error('no [data-tour-runway]');
       return Math.round(rw.getBoundingClientRect().top + scrollY);
     })()`);
-    await ev(`(async()=>{scrollTo(0,${top});await new Promise(r=>setTimeout(r,300));return 1})()`);
-  }
-
-  for (let i = 0; i < 120; i++) {
-    if (await ev("!!(window.__tourMarks && window.__tourMarks.firstFrame)")) break;
-    await sleep(500);
+    for (let i = 0; i < 30; i++) {
+      await send("Input.dispatchMouseEvent", {
+        type: "mouseWheel", x: Math.round(VW / 2), y: Math.round(VH / 2),
+        deltaX: 0, deltaY: Math.max(120, Math.round(top / 12)), pointerType: "mouse",
+      });
+      await sleep(90);
+    }
+    await sleep(800);
   }
 
   const out = JSON.parse(await ev(`(() => {
@@ -185,6 +209,9 @@ const ms = (v) => (v === null || v === undefined || Number.isNaN(v) ? "     -" :
   console.log(`   first frame with the phone                  ${ms(firstFrame)}   (first render took ${ms(firstFrame - out.marks.beforeFirstRender)}ms)`);
   if (out.marks.deferredEnvDone !== undefined) {
     console.log(`   deferred environment built                  ${ms(out.marks.deferredEnvDone)}   (took ${ms(out.marks.deferredEnvDone - out.marks.deferredEnvStart)}ms, AFTER the phone was visible)`);
+    console.log(`     room -> cube render                         ${ms(out.marks.envCubeDone)}   (took ${ms(out.marks.envCubeDone - out.marks.envCubeStart)}ms)`);
+    console.log(`     PMREM prefilter                             ${ms(out.marks.envPmremDone)}   (took ${ms(out.marks.envPmremDone - out.marks.envCubeDone)}ms)`);
+    console.log(`     re-render with the environment              ${ms(out.marks.deferredEnvDone)}   (took ${ms(out.marks.deferredEnvDone - out.marks.envPmremDone)}ms)  <- material recompile lands here`);
   }
   console.log(`   gate -> phone on screen                     ${ms(firstFrame - out.gate)}`);
   console.log(`   load screen lifted                          ${ms(out.loadScreenGone)}`);
@@ -216,6 +243,35 @@ const ms = (v) => (v === null || v === undefined || Number.isNaN(v) ? "     -" :
   console.log(`     timer lag p50 / p95 / max: ${pct(0.5)} / ${pct(0.95)} / ${lagSorted[lagSorted.length - 1]} ms  over ${lagSorted.length} samples`);
   console.log(`     samples over 100ms:        ${froze.length}${froze.length ? "  (" + froze.map((v) => v.toFixed(0) + "ms").join(", ") + ")" : ""}`);
   console.log(`     -> the page ${froze.length === 0 ? "stayed responsive" : `FROZE ${froze.length} time(s), worst ${lagSorted[lagSorted.length - 1].toFixed(0)}ms`} while loading\n`);
+
+  /*
+   * BEFORE AND AFTER THE LIFT, because they are not the same claim.
+   *
+   * The load screen exists to put the expensive work on the side of the line
+   * where nobody is looking at anything moving. A total for the whole load
+   * cannot say whether that worked: it counts a 900ms block behind an opaque
+   * cover the same as one over a playing film. What has to be zero is the
+   * count AFTER the lift.
+   */
+  const lift = out.loadScreenGone;
+  if (lift !== null) {
+    const before = out.long.filter((l) => l.start + l.dur <= lift);
+    /* No upper bound: the whole rest of the run, INCLUDING the scroll into
+       the tour. The main window above stops at the settled scene so its
+       number stays comparable with earlier runs; this one has to cover the
+       part the visitor is awake for. */
+    const after = out.long.filter((l) => l.start + l.dur > lift);
+    const sum = (a) => a.reduce((s, l) => s + Math.max(0, l.dur - 50), 0);
+    const worstAfter = [...after].sort((a, b) => b.dur - a.dur)[0];
+    console.log(`   SPLIT AT THE LIFT (${Math.round(lift)}ms)`);
+    console.log(`     long tasks BEHIND the load screen: ${before.length}, ${sum(before).toFixed(0)}ms blocking`
+      + (before.length ? `  (worst ${Math.max(...before.map((l) => l.dur)).toFixed(0)}ms)` : ""));
+    console.log(`     long tasks AFTER it lifted:        ${after.length}, ${sum(after).toFixed(0)}ms blocking`
+      + (worstAfter ? `  (worst ${worstAfter.dur.toFixed(0)}ms at ${Math.round(worstAfter.start)}ms)` : ""));
+    console.log(`     -> after the lift the page was ${after.length === 0 ? "clear of long tasks" : "STILL BLOCKING"}\n`);
+  } else {
+    console.log(`   SPLIT AT THE LIFT: the load screen never left within the run\n`);
+  }
 
   ws.close(); ch.kill();
   process.exit(0);
