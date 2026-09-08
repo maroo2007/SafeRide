@@ -1,373 +1,300 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  RUNWAY_VH, VIDEO_DURATION, bufferedEdge, clampToBuffer, easeEdge, pickMode,
-  upgradeOnly, type HeroMode,
-} from "@/lib/video-scrub";
-import {
-  CAPTIONS, CAPTION_SCRIM, HERO, HERO_SCRIM, captionOpacity, heroCopyOpacity,
-  heroScrimOpacity,
+  CAPTIONS, CAPTION_SCRIM, FILM_SECONDS, HERO, HERO_SCRIM, captionOpacity,
 } from "@/lib/hero-captions";
-import { useSmoothScroll } from "@/components/providers/smooth-scroll-provider";
 import { CtaButton } from "@/components/ui/cta-button";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { VariableProximity } from "@/components/hero/variable-proximity";
 
 /**
- * The scrub hero, built CLAMPED-first.
+ * The hero. A normal 100vh section with a film playing in it.
  *
- * On Regular 4G the scrub file needs ~110s to fully buffer while a scrub
- * advances 7.5x real-time, so a visitor on that connection spends the whole
- * visit in CLAMPED. It is the experience, not a fallback, and it must never
- * announce that anything did not finish: no spinner, no progress bar, no
- * loading language. The video stops leading and starts following.
+ * ── What this REPLACES, and why it is gone rather than dormant ────────────
+ *
+ * This was a scroll-scrubbed hero: a 1200vh runway, a scroll-driven playhead,
+ * three modes (FULL / CLAMPED / NO_SCRUB) selected from measured throughput,
+ * and a 56.2 MB all-intra WebM whose every frame was a keyframe so seeking
+ * stayed smooth. All of it is deleted, not disabled.
+ *
+ * The measurement that ended it: that file streams on `preload="auto"` and was
+ * the single biggest competitor for bandwidth on the page. Blocking it cut the
+ * phone tour's model download by 35% and its textures by 88%. Nothing on the
+ * page seeks any more, so the constraint that justified all-intra — and most
+ * of those 56 MB — no longer exists.
+ *
+ * ── The model now ─────────────────────────────────────────────────────────
+ *
+ *   - the film autoplays at normal speed, muted, inline
+ *   - scrolling scrolls the page past it, like any website
+ *   - it plays while ANY part of the hero is on screen and pauses only when
+ *     the hero is 100% out of view. Threshold 0, not a fraction: half-scrolled
+ *     or 90%-scrolled it keeps playing
+ *   - resuming continues from where it stopped, never restarts
+ *   - it HOLDS on the last frame. The wordmark reads as an end-card, which is
+ *     the same reasoning that removed the post-video transition; looping would
+ *     restart the story under whatever copy is on screen
+ *
+ * ── Captions run on the FILM, not on scroll ───────────────────────────────
+ *
+ * They were authored at scroll positions 0..1 while scroll mapped linearly to
+ * film time, so the same numbers now mean the same moments — read from
+ * currentTime instead. The guard asserted the opposite and was rewritten.
+ *
+ * ── The hero COPY does not run on either ──────────────────────────────────
+ *
+ * `heroCopyOpacity` and `heroScrimOpacity` also took scroll progress. Feeding
+ * them film time would fade the headline and both CTAs away a few seconds
+ * after load, while the visitor is still looking at the hero — so the copy and
+ * its scrim are constant now, and the section simply scrolls away like any
+ * other. That also retires the invisible-but-clickable CTA problem at source:
+ * there is no longer a state in which the copy is transparent and still in the
+ * tab order.
  */
 
-const SCRUB_FILE_BYTES = 53.6 * 1024 * 1024;
-const FILE_BYTES_PER_SECOND = SCRUB_FILE_BYTES / VIDEO_DURATION;
-
-/** Below this the hero does not scrub at all (spec 1.5). */
-const MOBILE_BREAKPOINT = 768;
+/*
+ * There is no mobile branch any more. The old hero had one because desktop
+ * scrubbed and mobile could not; now both do the same thing, so the breakpoint
+ * and its media query are gone rather than left computing a value nothing
+ * reads. Same reason `narrow` and the unread idle ref went with them.
+ */
 
 export function ScrubVideoHero() {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const idleRef = useRef<HTMLVideoElement>(null);
-  const runwayRef = useRef<HTMLDivElement>(null);
+  const sectionRef = useRef<HTMLElement>(null);
   const reducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
-  const narrow = useMediaQuery(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
-  // saveData is an external read like any other. Subscribing keeps it out of
-  // the effect body and gives SSR a defined answer.
-  const saveData = useSyncExternalStore(
-    () => () => {},
-    () => !!(navigator as unknown as { connection?: { saveData?: boolean } }).connection?.saveData,
-    () => false,
-  );
-  // Called for its guard: it throws if the hero is mounted outside the single
-  // app-root Lenis provider. The hero reads native scroll, which Lenis drives.
-  useSmoothScroll();
 
-  /** Scroll progress drives EVERYTHING the reader sees. Never currentTime. */
+  /** Film time, 0..1. Drives the captions and nothing else. */
   const [progress, setProgress] = useState(0);
-  const [mode, setMode] = useState<HeroMode>("clamped");
-  /** The idle loop has painted. Only then is the scrub file requested. */
-  const [idleReady, setIdleReady] = useState(false);
-  /** The scrub file has taken over the frame. One-way. */
+  /** The film has taken over from the idle loop. One-way. */
   const [handedOver, setHandedOver] = useState(false);
+  /**
+   * Autoplay was refused. Safari's Low Power Mode and Firefox's blocking
+   * policy both do this, and without a path for it the visitor gets a frozen
+   * first frame and no indication that anything is wrong.
+   */
+  const [blocked, setBlocked] = useState(false);
 
-  const easedEdgeRef = useRef(0);
-  const lastFrameRef = useRef(0);
-  const startedAtRef = useRef(0);
-
-  /* ---- scroll progress ------------------------------------------------ */
-  useEffect(() => {
-    const el = runwayRef.current;
-    if (!el) return;
-    let raf = 0;
-    const read = () => {
-      raf = 0;
-      const rect = el.getBoundingClientRect();
-      const span = rect.height - window.innerHeight;
-      const p = span <= 0 ? 0 : Math.min(1, Math.max(0, -rect.top / span));
-      setProgress(p);
-    };
-    const onScroll = () => { if (!raf) raf = requestAnimationFrame(read); };
-    read();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
-      if (raf) cancelAnimationFrame(raf);
-    };
-  }, []);
-
-  /* ---- has the idle loop painted? ------------------------------------- */
-  useEffect(() => {
-    if (reducedMotion || narrow || idleReady) return;
-    const idle = idleRef.current;
-    if (!idle) return;
-    // The onLoadedData prop alone is not enough. The idle file is
-    // <link rel=preload>-ed, so it is frequently ready BEFORE React attaches
-    // the handler, the event is missed, and idleReady never flips — which
-    // left the scrub file unrequested entirely.
-    if (idle.readyState >= 2) { setIdleReady(true); return; }
-    const on = () => setIdleReady(true);
-    idle.addEventListener("loadeddata", on, { once: true });
-    return () => idle.removeEventListener("loadeddata", on);
-  }, [reducedMotion, narrow, idleReady]);
-
-  /* ---- start fetching the scrub file once the idle loop has painted ---- */
-  useEffect(() => {
-    if (!idleReady || reducedMotion || narrow) return;
-    const v = videoRef.current;
-    if (!v || v.currentSrc) return;
-    // Inserting <source> children after mount does NOT start a load: the
-    // browser picks its source once, at load time. Without this the scrub
-    // video sat at readyState 0 with no currentSrc and the handoff could
-    // never fire — it looked fine and fetched nothing.
-    v.load();
-  }, [idleReady, reducedMotion, narrow]);
-
-  /* ---- idle loop -> scrub handoff (spec 1.4.2) ------------------------ */
-  useEffect(() => {
-    if (reducedMotion || narrow || handedOver) return;
+  const tryPlay = useCallback(() => {
     const v = videoRef.current;
     if (!v) return;
-    // Hand over on the first scroll input, but only once the scrub file can
-    // actually show a frame. Swapping to a video with nothing decoded yet is
-    // how you get a black flash where the film used to be.
-    if (progress <= 0) return;
-    if (v.readyState < 2) return;
-    setHandedOver(true);
-    const idle = idleRef.current;
-    // Pause rather than remove: if the visitor scrolls back to the very top
-    // the idle frame is still there underneath, already decoded.
-    if (idle) idle.pause();
-  }, [progress, reducedMotion, narrow, handedOver]);
+    /*
+     * play() explicitly rather than the autoPlay attribute, because the
+     * attribute gives no promise and therefore no way to detect refusal.
+     */
+    v.play().then(() => setBlocked(false)).catch(() => setBlocked(true));
+  }, []);
 
-  /* ---- mode selection, from MEASURED throughput ------------------------ */
+  /* ---- hand over from the idle loop once the film can actually play ---- */
   useEffect(() => {
+    if (reducedMotion || handedOver) return;
     const v = videoRef.current;
-    if (!v || reducedMotion || narrow) return;
-    startedAtRef.current = performance.now();
+    if (!v) return;
+    const ready = () => { setHandedOver(true); tryPlay(); };
+    if (v.readyState >= 3) { ready(); return; }
+    v.addEventListener("canplay", ready, { once: true });
+    return () => v.removeEventListener("canplay", ready);
+  }, [reducedMotion, handedOver, tryPlay]);
 
-    const tick = () => {
-      const edge = bufferedEdge(v.buffered);
-      const elapsedMs = performance.now() - startedAtRef.current;
-      // Bytes actually delivered, inferred from how much video is buffered.
-      const bytes = edge * FILE_BYTES_PER_SECOND;
-      const next = pickMode({
-        sample: elapsedMs > 800 ? { bytes, ms: elapsedMs } : null,
-        fileBytesPerSecond: FILE_BYTES_PER_SECOND,
-        fullyBuffered: v.duration > 0 && edge >= v.duration - 0.3,
-        // A real user signal, not a guess. pickMode lets it override everything.
-        saveData,
-        bufferedFraction: v.duration > 0 ? edge / v.duration : 0,
-        elapsedMs,
-      });
-      // Only ever upgrade. A hero that degrades under the cursor is worse
-      // than one that was never fancy.
-      setMode((m) => upgradeOnly(m, next));
-    };
-    // Deliberately NOT called synchronously here: that would be setState in an
-    // effect body. "clamped" is the correct starting assumption anyway — it is
-    // the mode we design for — and the first probe lands 500ms later.
-    const id = window.setInterval(tick, 500);
-    return () => window.clearInterval(id);
-  }, [reducedMotion, narrow, saveData]);
-
-  /* ---- bind the playhead ---------------------------------------------- */
+  /* ---- play while ANY part of the hero is on screen -------------------- */
   useEffect(() => {
+    if (reducedMotion) return;
+    const el = sectionRef.current;
     const v = videoRef.current;
-    if (!v || reducedMotion || narrow || mode === "no-scrub") return;
+    if (!el || !v) return;
+    /*
+     * Threshold 0 is the whole point: the callback fires when the section
+     * crosses fully out of view and not before, so a half-scrolled hero keeps
+     * playing. A fractional threshold would pause a film the visitor can
+     * still see.
+     */
+    const io = new IntersectionObserver(
+      ([e]) => {
+        if (e.isIntersecting) { if (handedOver) tryPlay(); }
+        else if (!v.paused) v.pause(); // resumes from here, never restarts
+      },
+      { threshold: 0 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [reducedMotion, handedOver, tryPlay]);
+
+  /* ---- caption clock --------------------------------------------------- */
+  useEffect(() => {
+    if (reducedMotion) return;
+    const v = videoRef.current;
+    if (!v) return;
     let raf = 0;
-    const frame = (now: number) => {
-      raf = requestAnimationFrame(frame);
-      const dt = lastFrameRef.current ? now - lastFrameRef.current : 16;
-      lastFrameRef.current = now;
-      if (v.readyState < 2 || !v.duration) return;
-
-      // Chase the real buffered edge so chunk arrivals become glides, not
-      // lurches. This is what makes the unlock invisible.
-      easedEdgeRef.current = easeEdge(easedEdgeRef.current, bufferedEdge(v.buffered), dt);
-
-      const target = progress * v.duration;
-      const next = clampToBuffer(target, easedEdgeRef.current, v.duration);
-      if (Math.abs(v.currentTime - next) > 1 / 96) v.currentTime = next;
+    const tick = () => {
+      /*
+       * The element's own duration when it has one, so a re-encode of a
+       * different length cannot desync the captions from the film. The
+       * constant is only the pre-metadata fallback.
+       */
+      const d = Number.isFinite(v.duration) && v.duration > 0 ? v.duration : FILM_SECONDS;
+      setProgress(Math.min(1, Math.max(0, v.currentTime / d)));
+      raf = requestAnimationFrame(tick);
     };
-    raf = requestAnimationFrame(frame);
+    raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [progress, mode, reducedMotion, narrow]);
-
-  const scrubs = !reducedMotion && !narrow && mode !== "no-scrub";
-  const copyOpacity = heroCopyOpacity(progress);
-  const scrimOpacity = heroScrimOpacity(progress);
+  }, [reducedMotion]);
 
   return (
     <section
-      ref={runwayRef}
+      ref={sectionRef}
       aria-labelledby="hero-headline"
-      /* The runway collapses to one viewport whenever we are not scrubbing,
-         so a NO-SCRUB visitor gets a normal hero rather than dead scroll. */
-      /* From the constant that SCRUB_RATE is derived from, so the two cannot
-         drift: a runway change that left the scrub rate stale would silently
-         mis-select the mode. */
-      style={{ height: scrubs ? `${RUNWAY_VH}vh` : "100svh" }}
-      className="relative"
+      /* One viewport. No runway, no pin, no dead scroll. */
+      className="dark relative h-svh overflow-hidden bg-surface-dark"
     >
-      {/* `dark` is load-bearing, not cosmetic. It is what switches
-          --accent-edge to transparent so the CTA does not wear a dark ring
-          over footage, and --accent-lift to the smaller dark-ground shadow.
-          Without it those tokens were dead code: defined for this surface and
-          never once applied on it. Guarded in __tests__/video-scrub.test.ts. */}
-      <div className="dark sticky top-0 h-svh overflow-hidden bg-surface-dark">
-        {reducedMotion ? (
-          /* Reduced motion means NO motion — a still, never a paused video. */
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src="/images/hero-poster.jpg"
-            alt=""
+      {/* `dark` above is load-bearing, not cosmetic: it switches --accent-edge
+          to transparent so the CTA does not wear a dark ring over footage, and
+          --accent-lift to the smaller dark-ground shadow. Guarded in
+          __tests__/hero-autoplay.test.tsx. */}
+      {reducedMotion ? (
+        /* Reduced motion means NO motion — a still, never a paused video. */
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src="/images/hero-poster.jpg"
+          alt=""
+          aria-hidden="true"
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      ) : (
+        <>
+          {/* THE IDLE LOOP. 336 KB holding the film's first two seconds,
+              preloaded in layout.tsx. It covers the gap before the full film
+              can play. Requested together they race and the small file loses,
+              which is the whole reason it is a separate element. */}
+          <video
             aria-hidden="true"
+            muted playsInline loop autoPlay preload="auto"
+            poster="/images/hero-poster.jpg"
             className="absolute inset-0 h-full w-full object-cover"
-          />
-        ) : narrow ? (
-          /* Spec 1.5: below 768px do not scrub. A normal looping background
-             from the 720p encode, and no runway. */
+            style={{ opacity: handedOver ? 0 : 1, transition: "opacity 200ms linear" }}
+          >
+            <source src="/video/saferide-hero-idle.mp4" type="video/mp4" />
+          </video>
+
+          {/* THE FILM. No `loop`: it holds on the last frame. */}
           <video
             ref={videoRef}
             aria-hidden="true"
-            muted playsInline loop autoPlay preload="metadata"
+            muted playsInline preload="auto"
             poster="/images/hero-poster.jpg"
             className="absolute inset-0 h-full w-full object-cover"
+            style={{ opacity: handedOver ? 1 : 0, transition: "opacity 200ms linear" }}
           >
-            <source src="/video/saferide-hero-mobile.mp4" type="video/mp4" />
+            {/*
+              AV1 first, H.264 behind it — and the AV1 source carries a FULL
+              codecs string, not a bare video/mp4.
+              
+              Without it, a browser that can play MP4 but has no AV1 decoder
+              (older Safari, plenty of mid-range Android) matches on the
+              container alone, picks the AV1 file and fails, instead of
+              falling through to the next source. The string is measured from
+              the file rather than guessed: Main profile, seq_level_idx 9
+              (4.1), Main tier, 8-bit.
+
+              AV1 was rejected earlier in this project for slow seeking. That
+              rejection is REVERSED and the reason is recorded in the spec:
+              it applied to a scrub hero, and nothing seeks any more.
+            */}
+            <source src="/video/saferide-hero-av1.mp4" type='video/mp4; codecs="av01.0.09M.10"' />
+            <source src="/video/saferide-hero.mp4" type='video/mp4; codecs="avc1.640032"' />
           </video>
-        ) : (
-          <>
-            {/* THE IDLE LOOP (spec 1.4.1-2).
-                A 336 KB file holding the film's first two seconds, preloaded
-                in layout.tsx. It is what the visitor sees while the 53 MB
-                scrub file is still arriving. The spec implements the loop with
-                a timeupdate handler resetting currentTime at IDLE_LOOP_END;
-                a dedicated file loops natively and needs no listener at all. */}
-            <video
-              ref={idleRef}
-              aria-hidden="true"
-              muted playsInline loop autoPlay preload="auto"
-              poster="/images/hero-poster.jpg"
-              className="absolute inset-0 h-full w-full object-cover"
-              style={{ opacity: handedOver ? 0 : 1, transition: "opacity 200ms linear" }}
-              onLoadedData={() => setIdleReady(true)}
-            >
-              <source src="/video/saferide-hero-idle.mp4" type="video/mp4" />
-            </video>
-            {/* THE SCRUB FILE.
-                Its sources are withheld until the idle loop has painted a
-                frame. Requested together they race for bandwidth and the
-                336 KB file loses to the 53 MB one, which is the whole reason
-                the loop was split out. */}
-            <video
-              ref={videoRef}
-              aria-hidden="true"
-              muted playsInline preload="auto"
-              className="absolute inset-0 h-full w-full object-cover"
-              style={{ opacity: handedOver ? 1 : 0, transition: "opacity 200ms linear" }}
-            >
-              {idleReady ? (
-                <>
-                  <source src="/video/saferide-hero-scrub.webm" type="video/webm" />
-                  <source src="/video/saferide-hero-scrub.mp4" type="video/mp4" />
-                </>
-              ) : null}
-            </video>
-          </>
-        )}
+        </>
+      )}
 
-        {/* Hero scrim. Spec and measurement live together in
-            lib/hero-captions.ts so the CSS cannot drift from the numbers that
-            justify it. Worst pixel over the whole fade window: headline
-            7.28:1, eyebrow 11.51:1. It holds and then TRAILS the copy out
-            rather than leaving with it — see HERO.scrimHoldTo. */}
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 z-0"
-          style={{ opacity: scrimOpacity, background: HERO_SCRIM }}
-        />
+      {/* Hero scrim, constant. The measurement that justifies it lives in
+          lib/hero-captions.ts so the CSS cannot drift from it. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 z-0"
+        style={{ opacity: HERO.scrimOpacity, background: HERO_SCRIM }}
+      />
 
-        {/* Caption scrims sit HERE, as siblings of the copy container rather
-            than inside it. `inset-0` resolves against the nearest positioned
-            ancestor: inside the centred max-w-6xl column that is a 1152px box,
-            so the ellipse would be sliced off at its left edge and draw a
-            vertical seam down the middle of the frame — the same class of bug
-            as the bottom strip it replaced. Out here the box is the viewport,
-            whose left and bottom edges cannot show a seam. */}
-        {CAPTIONS.map((c) => {
-          const o = captionOpacity(c, progress);
-          if (o <= 0 || !c.scrim) return null;
-          return (
-            <div
-              key={`${c.id}-scrim`}
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-0 z-0"
-              style={{ opacity: o, background: CAPTION_SCRIM }}
-            />
-          );
-        })}
-
-        {/* Overlay copy is real DOM text and is driven by SCROLL only. */}
-        <div className="relative z-10 mx-auto flex h-full max-w-6xl flex-col justify-center px-6">
-          {/* max-w in rem, NOT ch. `ch` on this wrapper resolves against the
-              BODY font size (16px), not the h1's 72px — 20ch was ~160px, which
-              is what stacked the headline into a column of single words.
-              576px holds the headline to three balanced lines AND keeps it in
-              the deep end of the scrim; at 768px its far end ran out into the
-              bright part of the frame at only 2.6:1. */}
-          {/* `inert` once fully faded. Opacity alone leaves the two CTAs
-              clickable and in the tab order while completely invisible —
-              measured: effective opacity 0 at progress 0.13, still hit-testing
-              and still focusable. Invisible controls that take a click are
-              worse than absent ones. */}
+      {/* Caption scrims are siblings of the copy container, not children.
+          `inset-0` resolves against the nearest positioned ancestor: inside
+          the centred max-w-6xl column that is a 1152px box, so the ellipse
+          would be sliced at its left edge and draw a vertical seam down the
+          middle of the frame. Out here the box is the viewport. */}
+      {CAPTIONS.map((c) => {
+        const o = captionOpacity(c, progress);
+        if (o <= 0 || !c.scrim) return null;
+        return (
           <div
-            style={{ opacity: copyOpacity }}
-            className="max-w-xl"
-            inert={copyOpacity === 0}
+            key={`${c.id}-scrim`}
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 z-0"
+            style={{ opacity: o, background: CAPTION_SCRIM }}
+          />
+        );
+      })}
+
+      <div className="relative z-10 mx-auto flex h-full max-w-6xl flex-col justify-center px-6">
+        {/* max-w in rem, NOT ch. `ch` on this wrapper resolves against the
+            BODY font size (16px), not the h1's 72px — 20ch was ~160px, which
+            stacked the headline into a column of single words. */}
+        <div className="max-w-xl">
+          <p className="label-mono" style={{ color: "var(--accent-warm)" }}>
+            {HERO.eyebrow}
+          </p>
+          <h1
+            id="hero-headline"
+            className="mt-5 text-5xl sm:text-6xl lg:text-7xl"
+            style={{ color: "#fcfbf8", textWrap: "balance" }}
           >
-            <p className="label-mono" style={{ color: "var(--accent-warm)" }}>
-              {HERO.eyebrow}
-            </p>
-            <h1
-              id="hero-headline"
-              className="mt-5 text-5xl sm:text-6xl lg:text-7xl"
-              style={{ color: "#fcfbf8", textWrap: "balance" }}
-            >
-              <VariableProximity text={HERO.headline} />
-            </h1>
-            {/* CTAs are never gated on MODE — clamped, full or no-scroll, they
-                are present and clickable from first paint. They do fade with
-                the rest of the hero copy on scroll, which is the spec 1.6
-                behaviour; `opacity: 1` here previously implied otherwise and
-                was simply false, since a parent's opacity applies to its whole
-                subtree and cannot be undone by a child. */}
-            <div className="mt-10 flex flex-wrap gap-4">
-              <CtaButton
-                href={HERO.primaryCta.href}
-                label={HERO.primaryCta.label}
-                fill="solid"
-                route="below"
-              />
-              {/* Over footage, not over paper — outlineInk resolves its ink
-                  against the light theme and measured 1.62:1 on film. The
-                  border variant keeps the outline empty on hover, which holds
-                  the hierarchy and takes the boundary to 13.36:1. */}
-              <CtaButton
-                href={HERO.ghostCta.href}
-                label={HERO.ghostCta.label}
-                fill="outlineOnMediaBorder"
-              />
-            </div>
+            <VariableProximity text={HERO.headline} />
+          </h1>
+          <div className="mt-10 flex flex-wrap gap-4">
+            <CtaButton
+              href={HERO.primaryCta.href}
+              label={HERO.primaryCta.label}
+              fill="solid"
+              route="below"
+            />
+            {/* Over footage, not over paper — outlineInk resolves its ink
+                against the light theme and measured 1.62:1 on film. */}
+            <CtaButton
+              href={HERO.ghostCta.href}
+              label={HERO.ghostCta.label}
+              fill="outlineOnMediaBorder"
+            />
           </div>
 
-          {CAPTIONS.map((c) => {
-            const o = captionOpacity(c, progress);
-            if (o <= 0) return null;
-            return (
-              <p
-                key={c.id}
-                aria-hidden={o < 0.5}
-                /* Stays inside the content column so it aligns to the same
-                   grid as the headline. Only the scrim needed hoisting. */
-                className="absolute bottom-24 left-6 max-w-[34ch] text-lg sm:left-10"
-                style={{
-                  opacity: o,
-                  color: c.ink === "white" ? "#fcfbf8" : "var(--ink)",
-                }}
-              >
-                {c.text}
-              </p>
-            );
-          })}
+          {/* Autoplay refused. A real control, not a hint: the visitor is
+              looking at a still frame and nothing else on the page says why. */}
+          {blocked ? (
+            <button
+              type="button"
+              onClick={tryPlay}
+              className="mt-8 inline-flex items-center gap-2 rounded-brand border-2 px-5 py-3 text-sm"
+              style={{ borderColor: "var(--accent-warm)", color: "var(--accent-warm)" }}
+            >
+              <span aria-hidden="true">▶</span>
+              Play the film
+            </button>
+          ) : null}
         </div>
+
+        {CAPTIONS.map((c) => {
+          const o = captionOpacity(c, progress);
+          if (o <= 0) return null;
+          return (
+            <p
+              key={c.id}
+              aria-hidden={o < 0.5}
+              className="absolute bottom-24 left-6 max-w-[34ch] text-lg sm:left-10"
+              style={{
+                opacity: o,
+                color: c.ink === "white" ? "#fcfbf8" : "var(--ink)",
+              }}
+            >
+              {c.text}
+            </p>
+          );
+        })}
       </div>
     </section>
   );

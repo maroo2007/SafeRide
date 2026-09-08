@@ -89,6 +89,9 @@ export type SceneDebug = {
   };
   toneMappingExposure: number;
   textureColorSpaces: string[];
+  /** Which environment path actually ran. Without this, a render diff between
+   *  two modes cannot tell "identical output" from "the switch did nothing". */
+  envMode: string;
   /*
    * The screen mesh's projected bounding box, in CSS px relative to the
    * canvas. Handed out because the colour harness was searching a crop for
@@ -139,6 +142,29 @@ export {
  * is the knob for that — the material colour, never the texture.
  */
 export const SCREEN_TINT = 0xffffff;
+
+/**
+ * PMREM prefilter blur. Measured on an AMD Vega 8 via ANGLE/D3D11 — a real
+ * GPU, not a software rasteriser — the prefilter cost 2588ms and was the
+ * single largest block on the critical path.
+ */
+export const PMREM_SIGMA = 0;
+
+/**
+ * The cubemap the environment is prefiltered FROM, in pixels per face.
+ *
+ * `PMREMGenerator.fromScene` prefilters at a fixed 256 and offers no way to
+ * ask for less, so the environment is rendered into a small cube target
+ * first and prefiltered from that. Fourfold fewer texels per face at 64.
+ *
+ * This is the only thing the phone's reflections come from — it is what makes
+ * the body read as an object rather than a flat shape — so the size is
+ * justified by a render diff, not by the timing alone.
+ */
+export const PMREM_CUBE_PX = 64;
+
+/** Which environment the scene ships with. See the block in createScene. */
+export const ENV_MODE: "pmrem" | "cube" | "none" | "defer" = "defer";
 
 /** Which chapter the scroll is heading toward. Flips at the half-turn, which
  *  is exactly where the back faces the camera — so by the time the away-edge
@@ -213,7 +239,9 @@ export async function createScene(
   const { GLTFLoader } = await import("three/examples/jsm/loaders/GLTFLoader.js");
   const { RoomEnvironment } = await import("three/examples/jsm/environments/RoomEnvironment.js");
 
+  mark("threeImported");
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  mark("rendererMade");
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
   /*
    * Spec §6.2. §4 tuned emissiveStrength 2.0 against a black base TO SURVIVE
@@ -231,9 +259,90 @@ export async function createScene(
    * clearcoat, specular and transmission — all of which render flat or black
    * with no environment. RoomEnvironment is procedural: nothing to download.
    */
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  const envRT = pmrem.fromScene(new RoomEnvironment(), 0.04);
-  scene.environment = envRT.texture;
+  /*
+   * EVERY FETCH STARTS FIRST, then the environment is prefiltered while they
+   * are in flight.
+   *
+   * Measured, these ran strictly one after another: the PMREM prefilter
+   * occupied 6863-9451ms and only then did the GLB request go out, finishing
+   * at 10160ms, with the textures after that. Nothing required that order —
+   * the prefilter needs no model and the model needs no environment until it
+   * is rendered. Sequencing them cost the download time outright.
+   */
+  mark("glbStart");
+  const gltfPromise = new GLTFLoader().loadAsync("/models/iphone_16_saferide_max.glb");
+  const texLoader = new THREE.TextureLoader();
+  mark("texStart");
+  const texturePromises = screenUrls.map((u) => texLoader.loadAsync(u));
+  /* Both promises are already rejecting-capable; a failure surfaces at the
+     await below, inside the caller's existing try/catch. Attaching a no-op
+     catch here keeps Node/browsers from reporting an unhandled rejection in
+     the window between starting and awaiting. */
+  gltfPromise.catch(() => {});
+  texturePromises.forEach((p) => p.catch(() => {}));
+
+  /*
+   * Warm the context before timing anything else on it.
+   *
+   * PMREM's cost did not respond to sigma (2588 vs 2571) or to a fourfold
+   * cut in source resolution, and its shader compile measures 4ms. That
+   * pattern says the number is not PMREM's work — it is whatever the first
+   * GPU operation on a fresh context pays for. This renders one empty frame
+   * first so the attribution lands where the cost actually is.
+   */
+  mark("warmStart");
+  renderer.setSize(2, 2, false);
+  renderer.render(new THREE.Scene(), new THREE.PerspectiveCamera());
+  mark("warmDone");
+
+  /*
+   * THE ENVIRONMENT, and why it is not a PMREM prefilter any more.
+   *
+   * The prefilter cost 2055-2588ms on an AMD Vega 8 over ANGLE/D3D11 — a real
+   * GPU, not a software rasteriser — and it was the largest single block on
+   * the critical path. Four hypotheses were tested and all four rejected:
+   *
+   *   sigma 0 instead of 0.04        2588 -> 2571ms   no effect
+   *   64px source instead of 256     2571 -> 2263ms   plus 400ms to render it
+   *   shader compilation                        4ms   not the cost
+   *   cold-context warm-up                     24ms   not the cost
+   *
+   * The passes themselves are simply expensive here, and PMREM's output size
+   * is fixed regardless of what it prefilters FROM, which is why resolution
+   * barely moved it.
+   *
+   * So the environment comes straight off a small cube render. `envMode` in
+   * the query string selects between the three candidates so they can be
+   * photographed from one build rather than three.
+   */
+  const envMode = new URLSearchParams(location.search).get("envMode") ?? ENV_MODE;
+  mark("envStart");
+  const roomScene = new RoomEnvironment();
+  mark("roomBuilt");
+  let pmrem: import("three").PMREMGenerator | null = null;
+  let envRT: import("three").WebGLRenderTarget | null = null;
+  const cubeRT = new THREE.WebGLCubeRenderTarget(PMREM_CUBE_PX);
+
+  const buildEnvironment = () => {
+    const cubeCam = new THREE.CubeCamera(0.1, 1000, cubeRT);
+    cubeCam.update(renderer, roomScene);
+    pmrem = new THREE.PMREMGenerator(renderer);
+    envRT = pmrem.fromCubemap(cubeRT.texture);
+    scene.environment = envRT.texture;
+  };
+
+  if (envMode === "pmrem") buildEnvironment();
+  if (envMode === "cube") {
+    /* Kept only as a measured negative result: assigning a raw cube texture
+       to scene.environment does NOT skip PMREM. three prefilters it lazily on
+       first use, so the output is pixel-identical to "pmrem" across 1.29M
+       pixels and the 2s simply moves into the first render, where it is worse
+       (3978ms against 1579ms). */
+    const cubeCam = new THREE.CubeCamera(0.1, 1000, cubeRT);
+    cubeCam.update(renderer, roomScene);
+    scene.environment = cubeRT.texture;
+  }
+  mark("envDone");
 
   const camera = new THREE.PerspectiveCamera(35, 1, 0.01, 100);
   camera.position.set(0, 0, 1);
@@ -245,8 +354,7 @@ export async function createScene(
   leanGroup.add(spinGroup);
   scene.add(leanGroup);
 
-  mark("glbStart");
-  const gltf = await new GLTFLoader().loadAsync("/models/iphone_16_saferide_max.glb");
+  const gltf = await gltfPromise;
   mark("glbDone");
   const model = gltf.scene;
   spinGroup.add(model);
@@ -279,12 +387,10 @@ export async function createScene(
   if (!screenMesh || !screenMat) throw new Error("phone tour: screen.001 material not found");
 
   /* ---- screen textures ------------------------------------------------- */
-  mark("texStart");
-  const texLoader = new THREE.TextureLoader();
   let uploadMs = 0;
   const textures = await Promise.all(
-    screenUrls.map(async (u) => {
-      const t = await texLoader.loadAsync(u);
+    texturePromises.map(async (pending) => {
+      const t = await pending;
       t.colorSpace = THREE.SRGBColorSpace;
       t.flipY = false; // glTF convention
       /*
@@ -596,8 +702,37 @@ export async function createScene(
     renderer.render(scene, camera);
   }
 
-  mark("firstFrame");
+  mark("beforeFirstRender");
   setProgress(0);
+  mark("firstFrame");
+
+  /*
+   * DEFERRED ENVIRONMENT.
+   *
+   * PMREM costs ~2.0-2.6s on an AMD Vega 8 over ANGLE/D3D11 and cannot be
+   * made cheaper: sigma, source resolution, shader precompilation and context
+   * warm-up were each measured and each rejected. It also cannot be skipped,
+   * because three prefilters any cube texture assigned to scene.environment
+   * anyway. So the only remaining lever is WHEN it is paid.
+   *
+   * Paid here, it lands after the phone is already on screen and holding
+   * still at chapter 1 rest — which is precisely where the environment
+   * matters least. Measured against the fully-lit render, chapter 1 at rest
+   * differs by 0.40% of pixels without it, while the edge-on mid-transition
+   * frames differ by 6.36%. The visitor cannot reach an edge-on frame without
+   * scrolling, and by then this has long since run.
+   *
+   * Two frames of delay, not one: the first render must have reached the
+   * compositor before this blocks the thread again.
+   */
+  if (envMode === "defer") {
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      mark("deferredEnvStart");
+      buildEnvironment();
+      setProgress(lastProgress);
+      mark("deferredEnvDone");
+    }));
+  }
   (window as unknown as { __tourMarks?: LoadMarks }).__tourMarks = marks;
 
   /* Colour lab: query-param gated so it is absent in normal operation. It
@@ -619,8 +754,9 @@ export async function createScene(
     resize() { layout(); setProgress(lastProgress); },
     dispose() {
       textures.forEach((t) => t.dispose());
-      envRT.dispose();
-      pmrem.dispose();
+      envRT?.dispose();
+      pmrem?.dispose();
+      cubeRT.dispose();
       renderer.dispose();
     },
     debug(): SceneDebug {
@@ -654,6 +790,7 @@ export async function createScene(
         },
         toneMappingExposure: renderer.toneMappingExposure,
         textureColorSpaces: textures.map((t) => t.colorSpace),
+        envMode,
         screenRect: (() => {
           const g = screenMesh!.geometry;
           g.computeBoundingBox();

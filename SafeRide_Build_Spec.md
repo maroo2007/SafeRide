@@ -31,7 +31,79 @@ contact the team.
 
 ---
 
-## 1. The Core Technique — Scroll-Scrubbed Video Hero
+## 1. The Core Technique — ~~Scroll-Scrubbed Video Hero~~ REPLACED
+
+**Superseded 2026-09-08. The scrub is removed — deleted, not disabled.**
+
+The hero is now a normal 100vh section with a film playing in it. No pin, no
+runway, no scroll-driven playhead, no mode selection.
+
+    the film autoplays at normal speed, muted, inline
+    scrolling scrolls the page past it, like any website
+    it plays while ANY part of the hero is on screen and pauses only at 100%
+      out of view — threshold 0, not a fraction
+    resuming continues from where it stopped, never restarts
+    it HOLDS on the last frame
+
+### 1.0a Why, in one measurement
+
+The scrub file streamed 56.2 MB on `preload="auto"` and was the single
+largest competitor for bandwidth on the page. Blocking it cut the phone
+tour's model download by **35%** and its texture stage by **88%**.
+
+Nothing seeks any more, which removes the constraint that produced that file:
+every frame was a keyframe so seeking stayed smooth. That is most of the
+56 MB, spent on a capability nothing uses.
+
+### 1.0b What was deleted
+
+`lib/video-scrub.ts` in full — `RUNWAY_VH`, `SCRUB_RATE` and everything
+derived from it, `pickMode` and the FULL / CLAMPED / NO_SCRUB selection,
+`bufferedEdge`, `easeEdge`, `clampToBuffer`, `upgradeOnly` — with its 49
+tests, plus `build/measure-scrub-lag.js` and `build/measure-handoff.js`.
+`public/video/saferide-hero-scrub-safari.mp4` (100.8 MB, existed only because
+Safari cannot seek WebM) and `saferide-hero-mobile.mp4` (8.19 MB, a separate
+encode for the one platform that already did what desktop now does).
+
+**`clampToBuffer`'s fix is recorded here rather than vanishing with the file.**
+Its hard ceiling made the last 0.946 s of the film unreachable: when the
+buffered edge reached the duration there was nothing left to be safe from, so
+the safety margin had to lift with it. A config-level guard passed on the
+half-fix. If buffered playback ever returns, that is the bug to expect first.
+
+**Retained: the idle-loop handoff** (a 336 KB file covering the gap before the
+full film can play; requested together they race and the small one loses) and
+**reduced motion rendering a still**, never a paused video.
+
+### 1.0c Autoplay can be refused
+
+Muted + `playsInline` autoplays in all three engines, but Safari's Low Power
+Mode and Firefox's blocking policy both refuse it. The hero calls `play()`
+explicitly rather than relying on the attribute — the attribute returns no
+promise and therefore gives no way to detect refusal — and renders a real play
+control when the promise rejects. Guarded by **forcing the rejection**
+(`HTMLMediaElement.prototype.play` overridden to reject), not by trusting that
+a catch block exists.
+
+### 1.0d Captions run on the film, the copy runs on neither
+
+Captions were authored at scroll positions 0..1 while scroll mapped linearly
+to film time, so the same numbers mean the same moments — read from
+`currentTime` now, preferring the element's own `duration` so a re-encode of a
+different length cannot desync them.
+
+`heroCopyOpacity` and `heroScrimOpacity` also took scroll progress. Feeding
+them film time would fade the headline and both CTAs away a few seconds after
+load while the visitor is still looking at them, so **the copy and its scrim
+are constant**. That also retires the invisible-but-clickable CTA problem at
+source: there is no longer a state where the copy is transparent and still in
+the tab order.
+
+---
+
+**Everything below is the superseded scrub specification.** It is kept because
+§1.2's asset facts and §1.6's overlay content still apply, and because the
+contrast measurements in §1.6 are the evidence for the constant scrim.
 
 ### 1.1 What We're Building
 

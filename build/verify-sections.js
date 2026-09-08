@@ -278,7 +278,7 @@ const check = (name, ok, detail = "") => {
   check("there is ink to check", ink.length > 40, `${ink.length} measured`);
   check("every piece of ink clears its threshold on the surface it is on",
     bad.length === 0,
-    bad.length ? bad.slice(0, 4).map((b) => `${b.sec}:"${b.sample}" ${b.contrast}:1 < ${b.min}`).join("  ") : "");
+    bad.length ? `${bad.length} failing: ` + bad.map((b) => `${b.sec}:"${b.sample}" ${b.contrast}:1 < ${b.min}`).join("  ") : "");
 
   /* Captures. */
   for (const s of data) {

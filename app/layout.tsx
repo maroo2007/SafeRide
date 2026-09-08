@@ -104,8 +104,10 @@ export default function RootLayout({
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
-        {/* The idle loop is the LCP-critical hero asset at 336 KB, not the
-            53 MB scrub file. Preload it; the scrub file loads lazily behind. */}
+        {/* The idle loop is the LCP-critical hero asset at 336 KB. It covers
+            the gap before the full film can play, and preloading it is what
+            stops the two racing — requested together the small file loses.
+            The film itself loads behind it on its own. */}
         <link
           rel="preload"
           as="video"

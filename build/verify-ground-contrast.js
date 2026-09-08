@@ -200,7 +200,7 @@ const check = (name, ok, detail = "") => {
   const bad = after.filter((r) => r.worst < r.min);
   check("there is ink to measure", after.length > 40, `${after.length} measured with the ground on`);
   check("every piece of ink clears its threshold against the REAL ground", bad.length === 0,
-    bad.length ? bad.slice(0, 4).map((b) => `${b.sec}:"${b.sample}" ${b.worst}:1 < ${b.min}`).join("  ") : "");
+    bad.length ? `${bad.length} failing: ` + bad.map((b) => `${b.sec}:"${b.sample}" ${b.worst}:1 < ${b.min}`).join("  ") : "");
 
   const moved = after.filter((r) => {
     const b = before.find((x) => x.sec === r.sec && x.sample === r.sample);

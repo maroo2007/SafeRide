@@ -1,10 +1,26 @@
-import { atSecond } from "./video-scrub";
+/**
+ * The film's length, seconds. Only a pre-metadata fallback: the hero prefers
+ * the video element's own `duration`, so a re-encode of a different length
+ * cannot silently desync the captions from the picture.
+ */
+export const FILM_SECONDS = 2510 / 48;
+
+/** A timestamp in the film as a 0..1 fraction of it. Was `atSecond` in the
+ *  deleted scrub module, where it converted seconds to scroll progress; the
+ *  arithmetic is identical because that mapping was linear. */
+export const atSecond = (s: number) => s / FILM_SECONDS;
+
 
 /**
  * Hero overlay schedule.
  *
- * Timings are anchored to timestamps in the source film and converted to
- * SCROLL progress. They live here, not in the component, so they can be tuned
+ * Timings are anchored to timestamps in the source film, expressed as a
+ * fraction of its length.
+ *
+ * They used to be described as SCROLL progress, because scroll drove the
+ * playhead. With the scrub removed they are read from `currentTime` instead —
+ * and because that mapping was linear, the numbers did not have to change.
+ * Same moments, different clock. They live here, not in the component, so they can be tuned
  * against the real footage without touching rendering code.
  *
  * `ink`, `scrim` and `worstContrast` are not preferences. They come from
@@ -134,8 +150,32 @@ export const HERO = {
    * plateau gives it 0..0.03 at full opacity, which at 1200vh is 297px of
    * scrolling at a 900px viewport.
    */
+  /*
+   * fadeOutFrom / fadeOutTo / scrimHoldTo / scrimGoneBy are RETAINED BUT NO
+   * LONGER APPLIED, and that is deliberate rather than an oversight.
+   *
+   * They described a fade against SCROLL progress inside a 1200vh runway.
+   * With the scrub removed the hero is one viewport, there is no scroll
+   * "within" it to fade against, and feeding these numbers film time instead
+   * would fade the headline and both CTAs away a few seconds after load while
+   * the visitor is still looking at them.
+   *
+   * The copy and its scrim are constant now. These stay because the contrast
+   * figures below were measured across this window and are the evidence for
+   * `scrimOpacity`; deleting them would leave that number unexplained.
+   */
   fadeOutFrom: 0.03,
   fadeOutTo: 0.12,
+  /**
+   * The constant hero scrim.
+   *
+   * This is the plateau value the fade used to start from — the strength at
+   * which the worst pixel over both target viewports measured 7.28:1 on the
+   * headline and 11.51:1 on the eyebrow. Holding it means the copy sits at
+   * its best measured contrast for as long as it is on screen, rather than at
+   * its worst.
+   */
+  scrimOpacity: 1,
   /**
    * The scrim fades on its OWN schedule, deliberately trailing the copy.
    *
