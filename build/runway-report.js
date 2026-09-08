@@ -24,7 +24,9 @@ const CHROME = "C:/Program Files/Google/Chrome/Application/chrome.exe";
 const P = process.argv[2], OUT = process.argv[3];
 const VW = 1440, VH = 900;
 /* A deliberate reading scroll. Wheel notch is 100px in Chrome on Windows. */
-const READING_PX_PER_SEC = 600;
+/* A steady wheel scroll: ~4 notches a second at Chrome's 100px notch. This
+   is the basis for the seconds column and it is stated, not implied. */
+const READING_PX_PER_SEC = 400;
 const NOTCH_PX = 100;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -67,8 +69,8 @@ const get = (u) => new Promise((res, rej) =>
   };
 
   console.log(`\n  SECTION PACE — crossFraction held at 0.85, ${VW}x${VH}\n`);
-  console.log("   runway   section    crossing            in notches   at 600px/s   descent   dwell after 1");
-  for (const vh of [400, 600, 800]) {
+  console.log("   runway   section     crossing    notches   SECONDS   descent   dwell after 1 notch");
+  for (const vh of [400, 600, 800, 1000]) {
     const top = await load(`runway=${vh}`);
     const r = JSON.parse(await ev(`(async () => {
       const rw = document.querySelector('#parent-app [data-tour-runway]');
@@ -105,11 +107,11 @@ const get = (u) => new Promise((res, rej) =>
 
     console.log(
       `   ${String(vh).padStart(4)}vh   ${(r.height / VH).toFixed(1).padStart(4)} scr` +
-      `   ${String(crossPx).padStart(5)}px` +
-      `   ${(crossPx / NOTCH_PX).toFixed(1).padStart(9)}` +
-      `   ${(crossPx / READING_PX_PER_SEC).toFixed(2).padStart(8)}s` +
+      `   ${String(crossPx).padStart(7)}px` +
+      `   ${(crossPx / NOTCH_PX).toFixed(1).padStart(7)}` +
+      `   ${(crossPx / READING_PX_PER_SEC).toFixed(2).padStart(7)}s` +
       `   ${String(Math.round(ys[1] - ys[0])).padStart(6)}px` +
-      `   ${String(after).padStart(11)}`,
+      `   ${String(after).padStart(14)}`,
     );
     await ev(`(async()=>{scrollTo(0,${top}+Math.round(${r.span}*0.25));await new Promise(r2=>setTimeout(r2,800));return 1})()`);
     fs.writeFileSync(path.join(OUT, `runway-${vh}-mid.png`),

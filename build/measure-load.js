@@ -79,6 +79,25 @@ const ms = (v) => (v === null || v === undefined || Number.isNaN(v) ? "     -" :
       /* Responsiveness, sampled: how late does a 0ms timer actually fire?
          A blocked main thread shows up here as delay even when no single task
          crosses the 50ms longtask threshold. */
+      /* When the load screen actually leaves the DOM — time to interactive
+         as the visitor experiences it, not as a synthetic metric. */
+      /*
+       * POLLED, not observed. addScriptToEvaluateOnNewDocument runs before
+       * document.documentElement exists, so observe() never attached and the
+       * probe reported null for an element that was plainly in the SSR
+       * markup. An observer also cannot report what was already there.
+       */
+      window.__loadScreenGone = null;
+      window.__loadScreenSeen = false;
+      (function pollLS() {
+        const el = document.querySelector('[data-load-screen]');
+        if (el) window.__loadScreenSeen = true;
+        if (!el && window.__loadScreenSeen && window.__loadScreenGone === null) {
+          window.__loadScreenGone = +performance.now().toFixed(1);
+          return;
+        }
+        if (performance.now() < 40000) setTimeout(pollLS, 40);
+      })();
       window.__lag = [];
       (function probe() {
         const t0 = performance.now();
@@ -123,6 +142,7 @@ const ms = (v) => (v === null || v === undefined || Number.isNaN(v) ? "     -" :
       domContentLoaded: +(nav.domContentLoadedEventEnd || 0).toFixed(1),
       loadEvent: +(nav.loadEventEnd || 0).toFixed(1),
       paint, res, long, lag,
+      loadScreenGone: window.__loadScreenGone ?? null,
       longUnsupported: window.__longUnsupported || null,
     });
   })()`));
@@ -167,6 +187,9 @@ const ms = (v) => (v === null || v === undefined || Number.isNaN(v) ? "     -" :
     console.log(`   deferred environment built                  ${ms(out.marks.deferredEnvDone)}   (took ${ms(out.marks.deferredEnvDone - out.marks.deferredEnvStart)}ms, AFTER the phone was visible)`);
   }
   console.log(`   gate -> phone on screen                     ${ms(firstFrame - out.gate)}`);
+  console.log(`   load screen lifted                          ${ms(out.loadScreenGone)}`);
+  console.log(`   TIME TO INTERACTIVE (screen gone)           ${ms(out.loadScreenGone)}`);
+  console.log(`   TIME TO PHONE READY                         ${ms(firstFrame)}`);
 
   console.log(`\n   slowest resources`);
   for (const r of out.res) {

@@ -7,6 +7,7 @@ import {
 import { CtaButton } from "@/components/ui/cta-button";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { VariableProximity } from "@/components/hero/variable-proximity";
+import { HERO_PLAYING_ATTR } from "@/components/ui/load-screen";
 
 /**
  * The hero. A normal 100vh section with a film playing in it.
@@ -83,7 +84,23 @@ export function ScrubVideoHero() {
      * play() explicitly rather than the autoPlay attribute, because the
      * attribute gives no promise and therefore no way to detect refusal.
      */
-    v.play().then(() => setBlocked(false)).catch(() => setBlocked(true));
+    v.play().then(() => {
+      setBlocked(false);
+      /*
+       * The signal the load screen and the phone tour both wait on. Set on
+       * `playing`, not on `canplay`: canplay means a frame COULD be shown,
+       * playing means one has been. The load screen lifting onto a frame
+       * that has not painted is the thing this distinction prevents.
+       */
+      const raise = () => document.documentElement.setAttribute(HERO_PLAYING_ATTR, "");
+      if (!v.paused && v.currentTime > 0) raise();
+      else v.addEventListener("playing", raise, { once: true });
+    }).catch(() => {
+      setBlocked(true);
+      /* Autoplay refused: nothing is going to play, so release the page
+         rather than hold it behind a wordmark until the timeout. */
+      document.documentElement.setAttribute(HERO_PLAYING_ATTR, "");
+    });
   }, []);
 
   /* ---- hand over from the idle loop once the film can actually play ---- */

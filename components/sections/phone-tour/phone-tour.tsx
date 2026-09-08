@@ -6,6 +6,7 @@ import { gsap } from "@/lib/gsap";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { CHAPTERS, type Chapter } from "./chapters";
 import { LEAN_DEG, MAX_PHONE_PX, PHONE_SIDE_X, readTuning } from "./constants";
+import { HERO_PLAYING_ATTR } from "@/components/ui/load-screen";
 import type { TourScene } from "./scene";
 
 /**
@@ -44,12 +45,30 @@ import type { TourScene } from "./scene";
  * each 360-degree transition takes one and a half screen-heights. Rest points
  * at 0, 0.5, 1.
  *
- * 400 rather than 300 because the phone now DESCENDS as well as turning
- * (§5.2a), and at 300vh an ordinary scroll completed a full 360 in under a
- * second: 0.40 deg/px against 0.27 here. 500vh reads better still and spends
- * five screens on three states.
+ * 800, and the route here matters more than the number.
+ *
+ * "Too fast" was reported five times and answered five times with a larger
+ * crossFraction — 297 -> 533 -> 662 -> 743px — and it was never fixed,
+ * because the crossing was not the thing that was fast. The SECTION was.
+ * A 743px crossing is long inside a section that is over in four screens.
+ *
+ * Measured at crossFraction 0.85, seconds at a steady wheel scroll:
+ *
+ *     400vh   4 screens    1.86s crossing   dwell 0.34 after one notch
+ *     600vh   6 screens    3.06s            dwell 0.60
+ *     800vh   8 screens    4.29s            dwell 0.72
+ *    1000vh  10 screens    5.52s            dwell 0.78
+ *
+ * The runway is the only knob that improves BOTH: crossing slows and the
+ * copy survives a wheel notch, because a longer section means one notch
+ * covers less of the fade. `knee` traded them against each other and
+ * `crossFraction` moved only the first. 800 rather than 1000 because dwell
+ * plateaus there — 0.72 to 0.78 is a small gain for two more screens.
+ *
+ * The descent does NOT scale with this: 310px at every runway, because it
+ * derives from viewport geometry. It needs descentUse or restFraction.
  */
-export const TOUR_RUNWAY_VH = 400;
+export const TOUR_RUNWAY_VH = 800;
 
 /** Query override, so section pace can be compared without a rebuild. */
 export function runwayVh(): number {
@@ -185,7 +204,6 @@ export function PhoneTour() {
 
     let cancelled = false;
     let tickerFn: ((t: number) => void) | null = null;
-    let io: IntersectionObserver | null = null;
 
     const onLost = (e: Event) => {
       e.preventDefault();
@@ -271,29 +289,43 @@ export function PhoneTour() {
     }
 
     /*
-     * The gate. Nothing is imported and nothing is fetched until the hero is
-     * fully out of view.
+     * THE GATE, inverted.
+     *
+     * It used to wait for the hero to leave the viewport, because the hero
+     * streamed a 56 MB all-intra scrub file and the 8 MB model competed with
+     * it for bandwidth. That file is gone — the film is 10.77 MB now — and
+     * with it the reason to wait.
+     *
+     * So the tour starts as soon as the hero is PLAYING, and does its work
+     * while the visitor watches 52 seconds of film. Everything expensive
+     * (GLB, three textures, the PMREM prefilter, shader compilation) happens
+     * in that window instead of after the scroll, which is the only place the
+     * cost was ever going to be invisible.
+     *
+     * A fallback timer covers the case where the flag never arrives at all —
+     * a hero that fails to load should not also cost the page its phone.
      */
-    const hero = document.querySelector('section[aria-labelledby="hero-headline"]');
-    if (!hero) {
+    let heroObs: MutationObserver | null = null;
+    let heroTimer = 0;
+    const begin = () => {
+      if (heroObs) { heroObs.disconnect(); heroObs = null; }
+      if (heroTimer) { window.clearTimeout(heroTimer); heroTimer = 0; }
       void start();
+    };
+    if (document.documentElement.hasAttribute(HERO_PLAYING_ATTR)) {
+      begin();
     } else {
-      io = new IntersectionObserver(
-        (entries) => {
-          if (entries.some((e) => !e.isIntersecting)) {
-            io?.disconnect();
-            io = null;
-            void start();
-          }
-        },
-        { threshold: 0 },
-      );
-      io.observe(hero);
+      heroObs = new MutationObserver(() => {
+        if (document.documentElement.hasAttribute(HERO_PLAYING_ATTR)) begin();
+      });
+      heroObs.observe(document.documentElement, { attributes: true, attributeFilter: [HERO_PLAYING_ATTR] });
+      heroTimer = window.setTimeout(begin, 6000);
     }
 
     return () => {
       cancelled = true;
-      io?.disconnect();
+      heroObs?.disconnect();
+      if (heroTimer) window.clearTimeout(heroTimer);
       canvas.removeEventListener("webglcontextlost", onLost);
       if (tickerFn) gsap.ticker.remove(tickerFn);
       if (sceneRef.current) {

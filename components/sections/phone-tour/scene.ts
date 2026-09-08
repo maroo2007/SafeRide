@@ -718,6 +718,16 @@ export async function createScene(
     renderer.render(scene, camera);
   }
 
+  /*
+   * Compile every material's shader BEFORE the first render rather than
+   * during it. The first render measured 1435ms and most of it was this;
+   * done here it happens while the hero is still playing, where the cost is
+   * invisible, instead of at the moment the phone is supposed to appear.
+   */
+  mark("compileStart");
+  renderer.compile(scene, camera);
+  mark("compileDone");
+
   mark("beforeFirstRender");
   setProgress(0);
   mark("firstFrame");

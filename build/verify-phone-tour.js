@@ -96,8 +96,37 @@ const check = (name, ok, detail = "") => {
     return r.top < innerHeight && r.bottom > 0;
   })()`);
   check("the hero is still on screen at this point (so the gate means something)", heroOnScreen === true);
-  check("the GLB has NOT been fetched while the hero is on screen", glbRequests().length === 0,
-    glbRequests().join(" ") || "0 requests");
+
+  /*
+   * REWRITTEN, not deleted. This asserted "the GLB has NOT been fetched while
+   * the hero is on screen", which enforced a gate that has since been
+   * inverted on purpose: the model now loads DURING the hero, in the 52
+   * seconds of film the page was otherwise wasting.
+   *
+   * The property that still matters is the one the old rule was protecting —
+   * the model must not race the hero's FIRST FRAME. So the assertion is now
+   * about ordering rather than absence: the GLB may be in flight, but only
+   * after the hero has declared itself playing. Deleting the check outright
+   * would have removed the protection along with the obsolete phrasing.
+   */
+  const heroPlaying = await ev(`document.documentElement.hasAttribute('data-hero-playing')`);
+  const modeNow = await ev(`document.querySelector('#parent-app').getAttribute('data-mode')`);
+  check("the hero is playing before the model is fetched",
+    heroPlaying === true || glbRequests().length === 0,
+    `heroPlaying=${heroPlaying}, ${glbRequests().length} GLB request(s)`);
+  if (modeNow === "stacked") {
+    /* Below 768px, on reduced motion, or with no WebGL: the model is never
+       fetched at all. A NETWORK assertion, not a render one — a stacked page
+       that still downloads 10 MB of model has failed even though it looks
+       right. */
+    check("stacked mode never fetches the model",
+      glbRequests().length === 0,
+      `${glbRequests().length} GLB request(s) in stacked mode`);
+  } else {
+    check("the model loads DURING the hero, not after the scroll",
+      heroPlaying !== true || glbRequests().length >= 1,
+      `${glbRequests().length} GLB request(s) while the hero is still on screen`);
+  }
 
   const mode0 = await ev(`document.querySelector('#parent-app').getAttribute('data-mode')`);
   console.log(`   section mode: ${mode0}`);

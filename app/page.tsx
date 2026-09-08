@@ -7,6 +7,7 @@ import { PhoneTour } from "@/components/sections/phone-tour/phone-tour";
 import { JourneySteps } from "@/components/sections/journey";
 import { IntelligenceLayer } from "@/components/sections/intelligence";
 import { PageGround } from "@/components/sections/page-ground";
+import { LoadScreen } from "@/components/ui/load-screen";
 
 /**
  * Phase 5a — the ground for the first three content sections.
@@ -29,6 +30,7 @@ import { PageGround } from "@/components/sections/page-ground";
 export default function Home() {
   return (
     <main id="main">
+      <LoadScreen />
       <SterlingGateNavigation />
       <ScrubVideoHero />
 
