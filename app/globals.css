@@ -339,18 +339,109 @@
   --grid-w: 6rem;
   --grid-h: 4rem;
 
+  /*
+   * The anchored contour's knobs, declared HERE and not on the SVG.
+   *
+   * They were on the child, and `?topoTop=` — which sets the property on this
+   * element — was silently overridden by the child's own declaration. The run
+   * came back byte-identical to the default and looked like the anchor simply
+   * did not move. A custom property a knob cannot reach is not a knob.
+   */
+  --topo-top: 0px;
+  --topo-w: 150%;
+
   position: absolute;
   inset: 0;
   z-index: -10;
   pointer-events: none;
+  overflow: hidden; /* the repeat option overruns the layer on purpose */
   background-color: var(--background);
+}
+
+/*
+ * THE LATTICE IS ON A PSEUDO-ELEMENT, ABOVE THE CONTOURS.
+ *
+ * It used to be the layer's own background-image, which paints BEHIND the
+ * layer's children — so the contour SVG would have covered it and the
+ * anchored option would have shown the grid stopping along a curve, which
+ * reads as a rendering bug rather than as a design. Drawn over the top, the
+ * survey grid runs continuously across the terrain, which is also the right
+ * way round for the map metaphor.
+ *
+ * The lattice is anchored to the layer's own top-left, which is the end of
+ * the hero. One origin for the whole run, so the rhythm never restarts.
+ */
+.page-ground::after {
+  content: "";
+  position: absolute;
+  inset: 0;
   background-image:
     linear-gradient(to right, color-mix(in srgb, var(--border) var(--grid-ink), transparent) 1px, transparent 1px),
     linear-gradient(to bottom, color-mix(in srgb, var(--border) var(--grid-ink), transparent) 1px, transparent 1px);
   background-size: var(--grid-w) var(--grid-h);
-  /* The lattice is anchored to the layer's own top-left, which is the end of
-     the hero. One origin for the whole run, so the rhythm never restarts. */
   background-position: 0 0;
+}
+
+/* ---- the contour candidate ---------------------------------------------
+ *
+ * Three placements of one fixed 1920x1080 composition on a 1440 x 10954
+ * ground. Hidden by default; `?ground=` picks one. Sizing is by aspect-ratio
+ * rather than by measurement, so nothing here needs a script or a resize
+ * observer to stay correct.
+ * ---------------------------------------------------------------------- */
+
+.topo {
+  display: none;
+  position: absolute;
+  left: 0;
+  width: 100%;
+}
+
+/* FIELD, distorted. The layer's full height against a 16:9 picture is a
+   13.5x vertical stretch at this page length. */
+.page-ground[data-ground="stretch"] .topo-stretch {
+  display: block;
+  top: 0;
+  height: 100%;
+}
+
+/* FIELD, undistorted, recurring. aspect-ratio does the arithmetic: twenty
+   tiles of 1920x1080 is one box of 1920x21600, and the layer's overflow
+   clips whatever is past the end. */
+.page-ground[data-ground="repeat"] .topo-repeat {
+  display: block;
+  top: 0;
+  aspect-ratio: 1920 / 21600;
+}
+
+/*
+ * FEATURE, once. Undistorted, wider than the page so the composition is not
+ * reduced to a letterbox strip, and masked out at its lower edge so it ends
+ * rather than stops.
+ *
+ * --topo-top and --topo-w are knobs (?topoTop=, ?topoW=) because "anchor it
+ * to one region" is a judgement about which region, and that is not a
+ * question a default answers.
+ */
+.page-ground[data-ground="anchor"] .topo-anchor {
+  display: block;
+  top: var(--topo-top);
+  left: 50%;
+  width: var(--topo-w);
+  transform: translateX(-50%);
+  aspect-ratio: 1920 / 1080;
+  /* A stencil, not a colour: black/transparent here are mask coverage, which
+     is why they are not a palette value and need no token. Unprefixed only —
+     this project does not rely on -webkit- mask or filter properties. */
+  mask-image: linear-gradient(to bottom, black 0 46%, transparent 100%);
+}
+
+/* Both field options replace the lattice rather than joining it: two full
+   textures at once is a pattern fighting a picture. The anchored option
+   keeps it, because a feature needs a field to sit on. */
+.page-ground[data-ground="stretch"]::after,
+.page-ground[data-ground="repeat"]::after {
+  display: none;
 }
 
 /*

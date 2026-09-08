@@ -1286,7 +1286,7 @@ rejected: `background-size: 6rem 4rem` re-origins at each section's top
 edge, so every boundary between two paper sections shows the rhythm
 restarting.
 
-### 4a.2 Paper run — grid only
+### 4a.2 Paper run — grid only *(amended by §4a.8: grid everywhere, plus one anchored contour composition over Platform)*
 
 | | |
 |---|---|
@@ -1352,6 +1352,113 @@ pinned. Both treatments were built and photographed before choosing.
 
 Nothing animates, so reduced motion is not a factor. There is no transition
 to disable — confirmed by inspection rather than by adding one and gating it.
+
+### 4a.8 Topographic contours — a feature over Platform, not a field
+
+**Added 2026-09-08. AMENDS §4a.2: the paper run is no longer grid only.**
+
+Source: a generated SVG of one organic blob drawn repeatedly at increasing
+scale and skew, each copy a step lighter, reading as elevation contours. One
+copy sits at the top of the page layer — the end of the hero, over Platform —
+undistorted, masked out at its lower edge, with the **survey grid drawn over
+the top of it**. Terrain under a grid, which is the right way round for the
+metaphor.
+
+**Twelve bands, not thirteen.** The source file has thirteen paths; the first
+carries no transform and no style override, so it renders at the generator's
+default `#FFFA72` and every later copy paints over it. Verified by RENDERING
+it at 1920x1080 and counting pixels rather than by reading the file: zero
+yellowish pixels, and the only colours present are white plus the twelve ramp
+stops. Dead geometry, dropped.
+
+#### The warm remap, and why it stays live
+
+The source ramp is cool grey on white, 255 down to 177. Cool grey on `#FDF8F0`
+paper reads as dirt rather than as texture, so every stop is remapped by
+interpolating between `--background` and `--neutral-warm`:
+
+```
+t = (255 - v) / (255 - 177)
+fill = color-mix(in srgb, var(--neutral-warm) t%, var(--background))
+```
+
+**DO NOT "optimise" this into a `background-image` data URI.** That is the
+obvious-looking cleanup and it silently freezes the ramp: a background-image
+cannot see custom properties, so a data URI means twelve baked hex values —
+the thing this project's whole colour discipline exists to prevent. It would
+also stop following the tokens into the dark scope. The cost of keeping it
+live is about 1 KB of inline SVG in the DOM; the cost of the "optimisation" is
+twelve literals nobody can trace back to a source.
+
+The bands are **opaque**, not a stack of translucent ones. Nested transparent
+fills compound — the innermost band would sit under eleven others and land
+nowhere near its intended stop. Opaque fills put every band exactly on the
+ramp, and cost nothing because the outermost band IS `--background`.
+
+#### The two field placements, measured and rejected
+
+The composition is a fixed 1920x1080 picture; the page layer is 1440 x 10954,
+which is 1:7.6 against 16:9. There is no placement that is simply correct.
+
+| | what it does | worst ink |
+|---|---|---|
+| stretch | 13.5x vertical. Does not distort the contours — **removes** them. What is left is a smooth vertical wash: a vignette, not a map. | 4.69:1 |
+| repeat | 810px tiles at 1440, so **13.5 recurrences**, about one blob per screen. The blob runs off the top of its own tile, so every boundary is a visible seam. | 4.72:1 |
+| **anchor** | one undistorted copy, masked out from 46% down, grid over the top | 5.00:1 |
+
+Both field options also cost 2-4 points of contrast on every section they
+cover, against the grid's 7.2-7.9:1.
+
+#### Not on the phone tour, and the reason is not the contrast figure
+
+Anchoring it inside the tour was measured and rejected on structure. The tour
+is eight screens; one 16:9 composition covers one of them. Placed there,
+chapter 1 gets terrain and chapters 2 and 3 get plain grid — three things
+meant to read as a series stop matching. The contrast cost of doing it is
+negligible (5.88:1 at chapter 1, the other two untouched), which is precisely
+why the number is not the argument.
+
+Over Platform it reads as the ground continuing out of the hero, which is the
+job a single composition can actually do.
+
+#### Kept switchable
+
+`?ground=grid|stretch|repeat|anchor`, plus `?topoTop=` and `?topoW=`, so the
+rejected options can be re-photographed from a shipped build rather than
+re-implemented. The hidden variants are `display: none` and cost no rendering.
+
+**A knob must be readable back.** `--topo-top` was first declared on the SVG
+while `?topoTop=` set it on the parent, so the override was overruled by the
+child's own declaration and the run came back byte-identical to the default —
+which reads as "moving it changes nothing", the opposite of what was
+happening. The guard now aborts if a requested knob does not resolve on the
+element.
+
+### 4a.9 The contrast guard read opacity off the wrong node
+
+**Found 2026-09-08 while adding per-chapter stops for the tour, and it
+predates the contours entirely.**
+
+`verify-ground-contrast.js` skipped invisible text with
+`getComputedStyle(el).opacity < 0.9` — the element's OWN opacity. The phone
+tour fades whole chapters by setting opacity on the wrapping div, so every
+paragraph inside an invisible chapter reported 1 and was measured. At chapter
+3's rest point that put chapter 2's hidden copy against the phone's titanium
+body and reported **1.63:1 — a failure on a correct build**.
+
+It now walks the ancestors, multiplying opacity, and treats `inert` or
+`aria-hidden="true"` on any ancestor as zero.
+
+**The general rule, which is the reason this is in the spec at all:** reading
+a property directly rather than its computed effect through the tree is the
+same family of mistake as reading a setting rather than a rendered pixel —
+§4a.5 exists because of the second one. Both measure something adjacent to
+the subject and report it as the subject. A guard built that way does not
+merely fail to catch bugs; it invents them, which is worse, because a failure
+on correct code trains everyone to stop believing the guard.
+
+Proved by forcing the ramp's dark end to `#8a8474`: 16 runs drop below
+threshold and every tour chapter falls to 2.47-3.89:1.
 
 ---
 
