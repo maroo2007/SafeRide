@@ -5,20 +5,22 @@ import Image from "next/image";
 import { gsap } from "@/lib/gsap";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { CHAPTERS, type Chapter } from "./chapters";
+import { FADE_KNEE, LEAN_DEG, MAX_PHONE_PX, PHONE_SIDE_X, REST_FRACTION } from "./constants";
 import type { TourScene } from "./scene";
 
 /**
  * §2 The Parent App — the 3D phone tour.
  *
- * Three chapters. The text holds the left side and does not move; the phone
- * holds the right and DESCENDS through the frame, spinning 360 degrees about
- * its own long axis as it goes. Two transitions, 2 x 360 degrees, mapped
- * linearly across the section's runway. Driven by scroll position alone —
- * stop mid-scroll and the phone sits mid-turn, mid-descent.
+ * Three chapters. The phone DESCENDS through the frame, spinning 360 degrees
+ * about its own long axis, and alternates sides as it goes — right, left,
+ * right. The text takes the opposite side each time, so the two are never in
+ * the same half.
  *
- * The alternation this used to have was not dropped for taste: with the text
- * pinned to one side, a phone that alternates lands on top of it at chapter 2
- * (spec §5.1).
+ * The horizontal and the vertical come off one scroll value on two curves.
+ * On a single curve the phone travels diagonally and crosses the text's band
+ * while still moving sideways, which is the collision that made alternation
+ * look impossible when the text was pinned to one side. The crossing instead
+ * happens entirely inside the fade's dead zone (spec §5.1, §5.2a).
  *
  * ── What this deliberately does NOT do ────────────────────────────────────
  *
@@ -106,20 +108,30 @@ function ChapterText({ c, active }: { c: Chapter; active: boolean }) {
       aria-hidden={!active}
       data-chapter={c.id}
       data-active={active}
+      data-side={c.side}
       /*
-       * Opacity is set per frame from scroll, not by a CSS transition, and
-       * there is no transform at all any more (§5.5a).
+       * Opacity is set per frame from scroll, not by a CSS transition. Tying
+       * the fade to scroll rather than to a timer is what puts the text at
+       * zero exactly while the phone crosses, which is also exactly when the
+       * texture swaps.
        *
-       * Tying the fade to scroll rather than to a timer is what puts the text
-       * at zero exactly when the phone is centre-stage, which is also exactly
-       * when the texture swaps. A timed fade left the outgoing text at full
-       * opacity while the phone arrived on top of it.
+       * CONTENT HEIGHT, not `inset-y-0`. A full-height block's rect is the
+       * whole viewport, which makes any vertical-band test trivially true and
+       * any overlap test purely horizontal — a guard written against it would
+       * have failed on a correct build.
        *
-       * LEFT for all three chapters. The block does not move; the phone
-       * descends past it on the right.
+       * WIDTH shrinks with the viewport. 46ch is 478px; the phone's bbox is
+       * ~262px centred at 0.75W, so a fixed 46ch column overlaps the phone
+       * below about 873px of viewport width — 79px of overlap at 768px, on a
+       * correct build. That is a layout constraint, not a defect, and it is
+       * fixed here rather than papered over by narrowing the guard.
        */
-      className="absolute inset-y-0 left-[max(24px,6vw)] flex max-w-[46ch] flex-col justify-center will-change-[opacity]"
-      style={{ opacity: active ? 1 : 0 }}
+      className="absolute top-1/2 flex w-[min(46ch,38vw)] -translate-y-1/2 flex-col will-change-[opacity]"
+      style={{
+        opacity: active ? 1 : 0,
+        /* The text takes the side OPPOSITE the phone (§5.1). */
+        [c.side === "right" ? "left" : "right"]: "max(24px, 6vw)",
+      } as React.CSSProperties}
     >
       <h3 className="text-3xl sm:text-4xl">{c.heading}</h3>
       <p className="mt-4 leading-relaxed text-muted-foreground">{c.body}</p>
@@ -142,6 +154,7 @@ export function PhoneTour() {
   const sceneRef = useRef<TourScene | null>(null);
   const [chapter, setChapter] = useState(0);
   const [fallback, setFallback] = useState(false);
+  const [ready, setReady] = useState(false);
 
   const reduced = useMediaQuery("(prefers-reduced-motion: reduce)");
   const narrow = useMediaQuery(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
@@ -164,6 +177,9 @@ export function PhoneTour() {
     canvas.addEventListener("webglcontextlost", onLost);
 
     async function start() {
+      /* Marks only. When the gate opened, so the diagnosis can separate
+         "the loader is slow" from "the loader was not allowed to begin". */
+      (window as unknown as { __tourGateAt?: number }).__tourGateAt = +performance.now().toFixed(1);
       /*
        * Re-read matchMedia here, do not trust the closed-over value.
        * useSyncExternalStore hands back the SERVER snapshot on the first
@@ -184,6 +200,7 @@ export function PhoneTour() {
         );
         if (cancelled) { scene.dispose(); return; }
         sceneRef.current = scene;
+        setReady(true);
 
         const blocks = () => Array.from(
           runway!.querySelectorAll<HTMLElement>("[data-chapter]"),
@@ -204,7 +221,9 @@ export function PhoneTour() {
            */
           const t = p * (CHAPTERS.length - 1);
           const swing = Math.abs(Math.sin(Math.PI * t));
-          const vis = Math.max(0, 1 - swing * 2.2);
+          /* FADE_KNEE is owned by scene.ts, which derives the crossing window
+             from it. Typing 2.2 here again is how the two drift apart. */
+          const vis = Math.max(0, 1 - swing * FADE_KNEE);
           for (const el of blocks()) {
             el.style.opacity = el.dataset.active === "true" ? String(vis) : "0";
           }
@@ -305,6 +324,41 @@ export function PhoneTour() {
         >
           <div className="sticky top-0 h-svh overflow-hidden">
             <canvas ref={canvasRef} className="absolute inset-0 block h-full w-full" aria-hidden="true" />
+            {/*
+              The section must never be an empty rectangle while 1.4 MB of
+              model and texture arrives. There is no layout shift to fix —
+              the canvas is absolute inside a fixed-height pin, so the space
+              was always reserved — the problem is that the reserved space
+              showed nothing.
+
+              The 540px mobile JPEG at 63 KB, not the 1080px desktop texture.
+              Fetching an 856 KB image to cover a slow fetch would compete
+              with the thing it is covering for. It is already on the wire for
+              the stacked fallback, so on most visits it costs nothing new.
+
+              Placed and sized from the same numbers the scene uses: chapter 1
+              sits on the right at PHONE_SIDE_X of the width, REST_FRACTION of
+              the height, leaning LEAN_DEG. Typing those again here is how the
+              placeholder and the phone drift apart.
+            */}
+            {!ready ? (
+              <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+                <Image
+                  src={CHAPTERS[0].mobile}
+                  alt=""
+                  width={540}
+                  height={1157}
+                  priority
+                  className="absolute top-1/2 h-auto -translate-x-1/2 -translate-y-1/2 rounded-[1.6rem] opacity-40"
+                  style={{
+                    left: `${50 + PHONE_SIDE_X * 100}%`,
+                    height: `min(${REST_FRACTION * 100}svh, ${MAX_PHONE_PX}px)`,
+                    width: "auto",
+                    transform: `translate(-50%, -50%) rotate(${-LEAN_DEG}deg)`,
+                  }}
+                />
+              </div>
+            ) : null}
             <div className="relative mx-auto h-full max-w-6xl px-6">
               {CHAPTERS.map((c, i) => (
                 <ChapterText key={c.id} c={c} active={i === chapter} />

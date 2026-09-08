@@ -6,10 +6,13 @@
  * because the three full-size PNGs are 3.11 MiB and the fallback exists to
  * avoid exactly that weight on exactly that connection.
  *
- * `side` is REMOVED (spec §5.1 as amended). It described the right/left/right
- * alternation; the phone now holds one side and the text holds the other, and
- * it drove nothing in the stacked fallback. A field that no longer describes
- * anything gets believed.
+ * `side` is BACK, having been removed one commit ago. The removal was right
+ * then — the phone held one side, so a per-chapter side described nothing.
+ * The alternation has since been reinstated with the TEXT alternating too, so
+ * the field describes the build again. It is the single source for both
+ * positions: `side` is the PHONE's side, and the text takes the opposite.
+ * The reversal is noted rather than silent, because a field that comes back
+ * without explanation reads like one that was never meant to go.
  *
  * Chapter 3 uses the real texture. The camera-feed imagery is AI-generated —
  * no licensing question and no real children — so the earlier exclusion was
@@ -21,6 +24,8 @@
 
 export type Chapter = {
   id: string;
+  /** The PHONE's side. The text block sits opposite it. Right, left, right. */
+  side: "right" | "left";
   screen: string;
   mobile: string;
   heading: string;
@@ -31,7 +36,8 @@ export type Chapter = {
 export const CHAPTERS: Chapter[] = [
   {
     id: "home",
-    screen: "/models/screens/screen_01_home.png",
+    side: "right",
+    screen: "/models/screens/screen_01_home.webp",
     mobile: "/models/screens/m_screen_01_home.jpg",
     heading: "The whole morning, on one screen",
     body: "Open SafeRide and the answer is already there: where the bus is, which stop it has reached, who is aboard, who is still waiting, and how many minutes until arrival.",
@@ -44,7 +50,8 @@ export const CHAPTERS: Chapter[] = [
   },
   {
     id: "tracking",
-    screen: "/models/screens/screen_02_tracking.png",
+    side: "left",
+    screen: "/models/screens/screen_02_tracking.webp",
     mobile: "/models/screens/m_screen_02_tracking.jpg",
     heading: "The route, as it happens",
     body: "The bus on a real map with an accurate ETA, the driver one tap away, and a timeline that fills in as the morning happens.",
@@ -57,7 +64,8 @@ export const CHAPTERS: Chapter[] = [
   },
   {
     id: "cameras",
-    screen: "/models/screens/screen_03_cameras.png",
+    side: "right",
+    screen: "/models/screens/screen_03_cameras.webp",
     mobile: "/models/screens/m_screen_03_cameras.jpg",
     heading: "See inside, whenever it matters",
     body: "Three cameras — front, rear and door — encrypted and restricted to verified guardians. Most parents look once and never need to again.",

@@ -1283,6 +1283,68 @@ to disable — confirmed by inspection rather than by adding one and gating it.
 
 ---
 
+## 4b. Asset weight — measured before optimised
+
+Added 2026-09-08, after a diagnosis that first had to correct its own
+instrument. `Network.enable` makes Chrome buffer every response body through
+the DevTools pipe: it attributed **24.9s** to a GLB that curl pulls in
+**0.24s**. Optimising against that number would have been work against a
+problem that did not exist. Absolute milliseconds from that harness are not
+user-facing; only between-run comparisons under identical conditions are.
+
+### 4b.1 Where the bytes were
+
+    GLB total            7.76 MB
+      embedded images    5.17 MB   (67%)
+      geometry + rest    2.54 MB   (51,520 triangles)
+
+Geometry compression attacks the smaller half, so Draco was not the lever.
+Two of the four embedded images were indefensible:
+
+| image | was | why |
+|---|---|---|
+| #0 metalframe normal | 2048x2048 PNG, 4.24 MB | on a phone that renders 414 px tall |
+| #1 screen.001 base+emissive | 1080x2314 PNG, 0.83 MB | replaced at runtime by the unlit material (§4a), so it shipped, decoded and uploaded to never be seen |
+
+Normal map to 512px, screen texture to a 1x1 pixel. Indices are **not**
+renumbered — #1 is replaced rather than deleted, so textures and materials
+keep the indices the file has.
+
+### 4b.2 Textures: PNG to WebP
+
+    PNG      3.11 MB      WebP q90   0.37 MB   (-88%)   AVIF crf28  0.26 MB
+    
+WebP shipped. The PNGs move to `assets/screens-source/`, out of `public/`,
+and stay the guard's ground truth — the rendered-vs-source check compares the
+lossy texture against the original, which is the only way to measure what the
+compression cost.
+
+### 4b.3 Result
+
+    over the wire   GLB 5.70 MB gzipped -> 1.01 MB     textures 3.11 MB -> 0.37 MB
+    harness, same conditions, from reaching the section:  38.2s -> 17.3s
+    Regular 4G (0.49 MB/s, this project's own measured figure): ~19s -> ~2.9s
+
+**Verified by rendering, not by reading the file.** All five captures — both
+rest points and both edge-on mid-transitions, where a normal map actually
+shows — differ by mean 0.00, with at most 5 pixels of 1,293,661 exceeding 8
+units. The rendered-vs-source screen guard still passes at 4 / 1 / 5.
+
+### 4b.4 The placeholder
+
+`m_screen_01_home.jpg` at 63 KB, not the 856 KB desktop texture: fetching a
+large image to cover a slow fetch competes with the thing it is covering for,
+and this one is already on the wire for the stacked fallback.
+
+There was never a layout shift to fix. The canvas is absolute inside a
+fixed-height pin, so the space was always reserved — the problem was that the
+reserved space showed nothing.
+
+Placed and sized from the same constants the scene uses (`./constants`), so
+the placeholder and the phone cannot drift apart.
+
+---
+
 ## 5. Motion & UI System
 
 ### 5.1 ui-ux-pro-max Skill — Install It First

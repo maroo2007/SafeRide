@@ -191,26 +191,25 @@ const check = (name, ok, detail = "") => {
   /* ---- rest scale ------------------------------------------------------ */
   check("the phone is at most 620 CSS px tall", d.phoneHeightPx <= 620.5, `${Math.round(d.phoneHeightPx)}px`);
 
-  /* ---- one side, and a descent (spec §5.1, §5.2a) ---------------------- */
+  /* ---- alternating sides, and a descent (spec §5.1, §5.2a) ------------- */
   const xs = [], ys = [], textRects = [];
   for (const p of [0, 0.5, 1]) {
     await at(p);
     const dp = await dbg();
     xs.push(dp.phoneCentreXPx); ys.push(dp.phoneCentreYPx);
-    /* VIEWPORT coordinates, deliberately. The three blocks are absolutely
-       positioned inside the pin, so their rects match each other at any
-       scroll position whether or not the pin works. What distinguishes a
-       working pin is that the ACTIVE block occupies the same place ON SCREEN
-       at two different scroll positions. */
     textRects.push(JSON.parse(await ev(`(() => {
       const el = document.querySelector('#parent-app [data-chapter][data-active="true"]');
       const r = el.getBoundingClientRect();
-      return JSON.stringify({ x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) });
+      return JSON.stringify({ side: el.dataset.side, x: Math.round(r.x), y: Math.round(r.y),
+        w: Math.round(r.width), h: Math.round(r.height) });
     })()`)));
   }
-  check("the phone holds ONE side, it does not alternate",
-    xs.every((x) => x > VW / 2) && Math.max(...xs) - Math.min(...xs) < 2,
+  check("the phone alternates sides: right, left, right",
+    xs[0] > VW / 2 && xs[1] < VW / 2 && xs[2] > VW / 2,
     `x = ${xs.map((x) => Math.round(x)).join(", ")}`);
+  check("the text takes the opposite side at every rest point",
+    textRects.every((r, i) => (xs[i] > VW / 2 ? r.x + r.w < VW / 2 : r.x > VW / 2)),
+    textRects.map((r, i) => `ch${i + 1}: text ${r.x}..${r.x + r.w}, phone ${Math.round(xs[i])}`).join("  |  "));
   check("the phone DESCENDS between rest points",
     ys[0] < ys[1] && ys[1] < ys[2],
     `y = ${ys.map((y) => Math.round(y)).join(" -> ")}`);
@@ -219,36 +218,97 @@ const check = (name, ok, detail = "") => {
     `${Math.round(ys[2] - ys[0])}px of a ${VH}px viewport`);
 
   /*
-   * The text is pinned — by outcome, in viewport coordinates, and with the
-   * phone as the control. Asserting "position is sticky" passes on a build
-   * where nothing moves at all; asserting the rect alone passes on a build
-   * where the whole section is frozen.
+   * Vertically pinned, horizontally alternating. Only Y is asserted equal
+   * now — X is supposed to change, and asserting the whole rect (as this did
+   * while the text held one side) would fail on the correct build.
    */
-  const sameRect = (a, b) => a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
-  check("the text block holds the SAME viewport position at every rest point",
-    sameRect(textRects[0], textRects[1]) && sameRect(textRects[1], textRects[2]),
-    textRects.map((r) => `${r.x},${r.y} ${r.w}x${r.h}`).join("  |  "));
+  /* The CENTRE, not the top edge. The three blocks carry different amounts of
+     copy, so a centred block with taller content legitimately starts higher —
+     asserting equal `y` failed on a correct build (291/301/299 for heights
+     319/299/302). What is pinned is where the block is centred. */
+  const mid = (r) => r.y + r.h / 2;
+  check("the text is vertically pinned: same viewport centre at every rest point",
+    textRects.every((r) => Math.abs(mid(r) - mid(textRects[0])) <= 1),
+    textRects.map((r) => `${r.side}: centre ${mid(r).toFixed(1)} (y=${r.y} h=${r.h}) x=${r.x}`).join("  |  "));
   check("...while the phone moved, so the page was not simply frozen",
     Math.abs(ys[2] - ys[0]) > 40, `phone y moved ${Math.round(ys[2] - ys[0])}px`);
-  check("the text is on the LEFT, the phone on the right",
-    textRects[0].x + textRects[0].w < VW / 2 && xs[0] > VW / 2,
-    `text ends at ${textRects[0].x + textRects[0].w}, phone centre ${Math.round(xs[0])}`);
 
   /* Released at both boundaries. Without this, position:fixed passes every
      assertion above — it would hold the same viewport position forever. */
   const release = JSON.parse(await ev(`(async () => {
     const rw = document.querySelector('#parent-app [data-tour-runway]');
     const el = () => document.querySelector('#parent-app [data-chapter][data-active="true"]');
-    const at = async (y) => { scrollTo(0, y); await new Promise(r => setTimeout(r, 700)); return Math.round(el().getBoundingClientRect().y); };
+    const go = async (y) => { scrollTo(0, y); await new Promise(r => setTimeout(r, 700)); return Math.round(el().getBoundingClientRect().y); };
     const top = Math.round(rw.getBoundingClientRect().top + scrollY);
-    const above = await at(Math.max(0, top - innerHeight * 0.9));
-    const below = await at(top + rw.offsetHeight + innerHeight * 0.4);
-    const inside = await at(top + innerHeight);
+    const above = await go(Math.max(0, top - innerHeight * 0.9));
+    const below = await go(top + rw.offsetHeight + innerHeight * 0.4);
+    const inside = await go(top + innerHeight);
     return JSON.stringify({ above, inside, below });
   })()`));
   check("the text releases above and below the runway, it is not fixed",
     release.above !== release.inside && release.below !== release.inside,
     `y above ${release.above}, inside ${release.inside}, below ${release.below}`);
+
+  /*
+   * NEVER OVERLAPPING VISIBLE TEXT, sampled across the whole section.
+   *
+   * The literal form of "if the vertical bands overlap, the horizontal is
+   * already complete" cannot hold and is not what protects anything: the
+   * text is vertically centred and the phone descends THROUGH the centre, so
+   * the bands overlap for most of the section by design. Written that way the
+   * guard fails on a correct build.
+   *
+   * The property that does hold, and is the one the rule was reaching for:
+   * the phone never overlaps text that anyone can see. It is true because the
+   * crossing runs entirely inside the fade's dead zone — which is why
+   * CROSS_START and CROSS_END are derived from FADE_KNEE rather than typed.
+   */
+  const cross = JSON.parse(await ev(`(async () => {
+    const rw = document.querySelector('#parent-app [data-tour-runway]');
+    const top = Math.round(rw.getBoundingClientRect().top + scrollY);
+    const span = rw.offsetHeight - innerHeight;
+    let worstOverlap = 0, worstAt = 0, worstDetail = '';
+    let lastVisibleWhileMoving = -1;
+    let prevX = null;
+    for (let i = 0; i <= 150; i++) {
+      const p = i / 150;
+      scrollTo(0, top + Math.round(span * p));
+      await new Promise(r => requestAnimationFrame(r));
+      await new Promise(r => requestAnimationFrame(r));
+      const d = window.__phoneTour.debug();
+      const c = document.querySelector('#parent-app canvas').getBoundingClientRect();
+      const ph = { x: c.x + d.phoneRect.x, w: d.phoneRect.w };
+      /* Movement is read from the CONTROL VALUE, not the projected box. The
+         box's x drifts a little as the phone descends, because an off-axis
+         object under a perspective camera projects differently at different
+         heights — so a box-based test reported the phone "still travelling
+         sideways" at p=1, where it is not moving sideways at all. */
+      const moving = prevX !== null && Math.abs(d.phoneCentreXPx - prevX) > 0.5;
+      prevX = d.phoneCentreXPx;
+      for (const el of document.querySelectorAll('#parent-app [data-chapter]')) {
+        const o = parseFloat(getComputedStyle(el).opacity) || 0;
+        if (o <= 0.02) continue;
+        const r = el.getBoundingClientRect();
+        const ov = Math.min(ph.x + ph.w, r.right) - Math.max(ph.x, r.left);
+        if (ov > worstOverlap) {
+          worstOverlap = ov; worstAt = p;
+          worstDetail = 'phone ' + Math.round(ph.x) + '..' + Math.round(ph.x + ph.w) +
+            ' vs text ' + Math.round(r.left) + '..' + Math.round(r.right) + ' at opacity ' + o.toFixed(2);
+        }
+        if (moving) lastVisibleWhileMoving = p;
+      }
+    }
+    return JSON.stringify({ worstOverlap: Math.round(worstOverlap), worstAt: +worstAt.toFixed(3),
+      worstDetail, lastVisibleWhileMoving: +lastVisibleWhileMoving.toFixed(3) });
+  })()`));
+  check("the phone never overlaps text anyone can see",
+    cross.worstOverlap <= 0,
+    cross.worstOverlap > 0 ? `${cross.worstOverlap}px at p=${cross.worstAt}  (${cross.worstDetail})`
+      : "no overlap at any of 151 positions");
+  check("no text is legible while the phone is still travelling sideways",
+    cross.lastVisibleWhileMoving < 0,
+    cross.lastVisibleWhileMoving < 0 ? "the crossing happens entirely inside the fade's dead zone"
+      : `text visible mid-crossing at p=${cross.lastVisibleWhileMoving}`);
 
   /* ---- text sync at rest points ---------------------------------------- */
   const HEADINGS = ["The whole morning, on one screen", "The route, as it happens", "See inside, whenever it matters"];
@@ -444,9 +504,9 @@ const check = (name, ok, detail = "") => {
   };
 
   const SCREENS = [
-    "public/models/screens/screen_01_home.png",
-    "public/models/screens/screen_02_tracking.png",
-    "public/models/screens/screen_03_cameras.png",
+    "assets/screens-source/screen_01_home.png",
+    "assets/screens-source/screen_02_tracking.png",
+    "assets/screens-source/screen_03_cameras.png",
   ];
 
   /*

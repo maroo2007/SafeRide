@@ -42,6 +42,11 @@
  * kind of thing that works on this export and breaks on the next.
  */
 
+import {
+  MAX_PHONE_PX, REST_FRACTION, PHONE_SIDE_X, DESCENT_USE, LEAN_DEG,
+  CROSS_START, CROSS_END,
+} from "./constants";
+
 export type SwapRecord = {
   chapter: number;
   dot: number;
@@ -102,6 +107,9 @@ export type SceneDebug = {
    * and read the difference as a wash.
    */
   screenQuad: { u: number; v: number; x: number; y: number }[];
+  /** The WHOLE phone's projected box, CSS px relative to the canvas. The
+   *  overlap guard needs the body, not just the display. */
+  phoneRect: { x: number; y: number; w: number; h: number };
 };
 
 export type TourScene = {
@@ -115,19 +123,15 @@ export type TourScene = {
 export const CHAPTERS = 3;
 export const TURNS = CHAPTERS - 1; // two transitions, 360 degrees each
 
-/** Spec §7.1 as amended: at most 620 CSS px tall, whatever the viewport. */
-export const MAX_PHONE_PX = 620;
-/** Spec §5.2a. The cap above still wins on tall viewports; this is what
- *  leaves room underneath it for the phone to descend through the frame. */
-export const REST_FRACTION = 0.46;
-/** Spec §5.1. The phone holds the right side; the text holds the left.
- *  A fraction of the visible width, from centre. */
-export const PHONE_SIDE_X = 0.25;
-/** Spec §5.2a. How much of the free vertical room the descent uses. 1 would
- *  put the phone flush against both edges at the extremes. */
-export const DESCENT_USE = 0.86;
-/** Spec §5.4: 8-12 degrees. */
-export const LEAN_DEG = 10;
+/*
+ * Geometry and timing constants live in ./constants, imported by both this
+ * module and the DOM around it. Re-exported here so existing importers and
+ * the spec's references keep working.
+ */
+export {
+  MAX_PHONE_PX, REST_FRACTION, PHONE_SIDE_X, DESCENT_USE, LEAN_DEG,
+  FADE_KNEE, CROSS_START, CROSS_END,
+} from "./constants";
 
 /**
  * The screen's tint. 0xffffff reproduces the source texture exactly; lower
@@ -144,21 +148,67 @@ export function targetChapter(p: number): number {
 }
 
 /*
- * `sideOf` and `sideFraction` are GONE, not left in place unused.
+ * `sideOf` and `sideFraction` are BACK, and the note is deliberate.
  *
- * They described the right/left/right alternation that §5.1 supersedes. An
- * exported helper that still computes the old behaviour is the same hazard as
- * a `side` field that no longer describes anything: the next person to touch
- * this finds a working function with a plausible name and believes it.
- * `smoothstep` went with them — it existed only to ease that traverse, and
- * the descent is deliberately linear against a linear spin.
+ * They were deleted one commit ago with a comment arguing that a helper still
+ * computing superseded behaviour is a hazard. That was right at the time: the
+ * phone held one side. The alternation has since been reinstated with the
+ * text alternating too, so the reason no longer holds and the functions
+ * describe the build again. Recorded here so the next reader finds the
+ * reversal explained rather than wondering whether the deletion was an
+ * accident.
+ *
+ * What did NOT come back is `smoothstep`. It eased the old traverse across
+ * the whole transition; the crossing now runs on an ease-out inside a much
+ * narrower window, and the descent stays linear against a linear spin.
  */
+
+/** Right, left, right (spec §5.1). The TEXT takes the opposite side. */
+export function sideOf(chapter: number): 1 | -1 {
+  return chapter % 2 === 0 ? 1 : -1;
+}
+
+/** Ease out, so the phone settles onto its new side rather than stopping. */
+const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+
+/**
+ * Where the phone sits horizontally, in [-1, 1].
+ *
+ * The crossing happens INSIDE the fade's dead zone and nowhere else: it has
+ * not started while the outgoing text is still legible, and it has finished
+ * long before the incoming one appears.
+ */
+export function sideFraction(p: number): number {
+  const t = Math.min(1, Math.max(0, p)) * TURNS;
+  const i = Math.min(TURNS - 1, Math.floor(t));
+  const local = Math.min(1, Math.max(0, t - i));
+  const k = easeOutCubic(
+    Math.min(1, Math.max(0, (local - CROSS_START) / (CROSS_END - CROSS_START))),
+  );
+  const from = sideOf(i);
+  const to = sideOf(i + 1);
+  return from + (to - from) * k;
+}
+
+/*
+ * Load-stage marks. MARKS ONLY — nothing here changes what is fetched, when,
+ * or in what order. The point is to find out which stage dominates before
+ * anything is altered, because "the model is slow" has four candidate causes
+ * and three of them would be fixed by a change that does nothing.
+ *
+ * All values are milliseconds since navigation start, so they line up with
+ * PerformanceResourceTiming without any arithmetic at the far end.
+ */
+export type LoadMarks = Record<string, number>;
+const marks: LoadMarks = {};
+const mark = (k: string) => { marks[k] = +performance.now().toFixed(1); };
 
 export async function createScene(
   canvas: HTMLCanvasElement,
   screenUrls: string[],
   opts: { keepTransmission?: boolean } = {},
 ): Promise<TourScene> {
+  mark("createScene");
   const THREE = await import("three");
   const { GLTFLoader } = await import("three/examples/jsm/loaders/GLTFLoader.js");
   const { RoomEnvironment } = await import("three/examples/jsm/environments/RoomEnvironment.js");
@@ -195,7 +245,9 @@ export async function createScene(
   leanGroup.add(spinGroup);
   scene.add(leanGroup);
 
+  mark("glbStart");
   const gltf = await new GLTFLoader().loadAsync("/models/iphone_16_saferide_max.glb");
+  mark("glbDone");
   const model = gltf.scene;
   spinGroup.add(model);
 
@@ -227,7 +279,9 @@ export async function createScene(
   if (!screenMesh || !screenMat) throw new Error("phone tour: screen.001 material not found");
 
   /* ---- screen textures ------------------------------------------------- */
+  mark("texStart");
   const texLoader = new THREE.TextureLoader();
+  let uploadMs = 0;
   const textures = await Promise.all(
     screenUrls.map(async (u) => {
       const t = await texLoader.loadAsync(u);
@@ -238,10 +292,14 @@ export async function createScene(
        * a frame, and it costs it at the exact moment the swap is supposed to
        * be invisible. Upload all three now.
        */
+      const u0 = performance.now();
       renderer.initTexture(t);
+      uploadMs += performance.now() - u0;
       return t;
     }),
   );
+  mark("texDone");
+  marks.uploadMs = +uploadMs.toFixed(1);
 
   /*
    * THE SCREEN IS UNLIT. This supersedes §4's material pinning, and the
@@ -498,7 +556,14 @@ export async function createScene(
     lastProgress = clamped;
     spinGroup.rotation.y = baseSpin + clamped * TURNS * Math.PI * 2;
     /*
-     * ONE SIDE, and downward. Spec §5.1 / §5.2a supersede the traverse.
+     * ALTERNATING, and downward. Spec §5.1 as amended again.
+     *
+     * Horizontal and vertical come off the same `clamped` but on different
+     * curves, and that is the whole point: on one curve the phone travels
+     * diagonally and passes through the text's band while still crossing,
+     * which is the collision the alternation was originally ruled out for.
+     * Horizontal finishes inside the fade's dead zone; vertical runs the
+     * whole transition.
      *
      * Both come off `clamped`, the same value that drives the rotation —
      * there is no second timeline to fall out of step with. The descent is
@@ -509,7 +574,7 @@ export async function createScene(
      * the phone, so the phone never leaves the frame and the number cannot go
      * stale when MAX_PHONE_PX or REST_FRACTION change.
      */
-    leanGroup.position.x = PHONE_SIDE_X * visibleW;
+    leanGroup.position.x = sideFraction(clamped) * PHONE_SIDE_X * visibleW;
     const visibleH = visibleW / camera.aspect;
     const freeH = Math.max(0, visibleH * (1 - phoneHeightPx / (canvas.clientHeight || 1)));
     leanGroup.position.y = (0.5 - clamped) * freeH * DESCENT_USE;
@@ -531,7 +596,9 @@ export async function createScene(
     renderer.render(scene, camera);
   }
 
+  mark("firstFrame");
   setProgress(0);
+  (window as unknown as { __tourMarks?: LoadMarks }).__tourMarks = marks;
 
   /* Colour lab: query-param gated so it is absent in normal operation. It
      exists to measure candidate fixes against the source texture rather than
@@ -599,6 +666,22 @@ export async function createScene(
           for (let i = 0; i < 8; i++) {
             v.set(i & 1 ? bb.max.x : bb.min.x, i & 2 ? bb.max.y : bb.min.y, i & 4 ? bb.max.z : bb.min.z);
             v.applyMatrix4(screenMesh!.matrixWorld).project(camera);
+            const px = (v.x * 0.5 + 0.5) * W;
+            const py = (-v.y * 0.5 + 0.5) * H;
+            x0 = Math.min(x0, px); x1 = Math.max(x1, px);
+            y0 = Math.min(y0, py); y1 = Math.max(y1, py);
+          }
+          return { x: Math.round(x0), y: Math.round(y0), w: Math.round(x1 - x0), h: Math.round(y1 - y0) };
+        })(),
+        phoneRect: (() => {
+          const W = canvas.clientWidth || 0;
+          const H = canvas.clientHeight || 0;
+          const bb = new THREE.Box3().setFromObject(model);
+          const v = new THREE.Vector3();
+          let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+          for (let i = 0; i < 8; i++) {
+            v.set(i & 1 ? bb.max.x : bb.min.x, i & 2 ? bb.max.y : bb.min.y, i & 4 ? bb.max.z : bb.min.z);
+            v.project(camera);
             const px = (v.x * 0.5 + 0.5) * W;
             const py = (-v.y * 0.5 + 0.5) * H;
             x0 = Math.min(x0, px); x1 = Math.max(x1, px);

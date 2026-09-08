@@ -221,7 +221,26 @@ Reference: **flowty.co** — four frames attached separately.
 
 ### 5.1 Per chapter
 
-**SUPERSEDED — alternation removed 2026-09-07.**
+**REINSTATED 2026-09-08.** The removal below was correct only while the text
+held one side. Both alternate now, so they are never in the same half.
+
+The phone alternates **right, left, right**. The text takes the **opposite**
+side each chapter — left, right, left. `Chapter.side` is the phone's side and
+is the single source for both.
+
+The collision that ruled alternation out is avoided by *timing*, not by
+geometry: the horizontal travel happens entirely inside the text fade's dead
+zone (§5.2b), so the phone is never crossing while anything is legible.
+
+**Layout constraint, measured.** The text column must shrink with the
+viewport. At 46ch fixed (478px) against a phone bbox of ~262px centred at
+0.75W, the two overlap below about **873px** of viewport width — 79px of
+overlap at 768px, on a correct build. Shipping `w-[min(46ch,38vw)]`.
+
+---
+
+**Superseded text, kept because the reasoning still applies if the text is
+ever pinned again:**
 
 The phone holds the **right** side for all three chapters. The text holds the
 **left** side for all three chapters. Neither crosses.
@@ -322,6 +341,35 @@ transition one and a half viewport heights.
 
 Degrees-per-pixel and pixels-per-pixel both derive from the runway constant.
 Neither is typed in.
+
+### 5.2b The crossing window — derived, never typed
+
+Horizontal and vertical come off the same scroll progress on **different
+curves**. On one curve the phone travels diagonally and crosses the text's
+band while still moving sideways, which is the collision §5.1 was originally
+ruled out for.
+
+    DEAD0       = asin(1 / FADE_KNEE) / pi     = 0.150
+    CROSS_START = DEAD0                         = 0.150
+    CROSS_END   = DEAD0 + (1 - 2*DEAD0) * 0.35  = 0.395
+
+Ease-out on the horizontal, linear on the vertical.
+
+**Both edges are derived from `FADE_KNEE`, and `FADE_KNEE` lives in exactly
+one module.** The 40% completion figure is not special — the crossing is
+invisible because no text is on screen while it happens. Typing 40% beside a
+fade curve that owns the real constraint is the SCRUB_RATE mistake: move
+either constant and the other silently stops protecting anything.
+
+Starting the crossing at 0 instead was measured by breaking it: **236px of
+overlap at p=0.067, with the text at 0.11 opacity.**
+
+**The guard is the relationship, not the number.** "If the phone's vertical
+band overlaps the text's, the horizontal is complete" cannot hold and is not
+what protects anything — the text is vertically centred and the phone
+descends through the centre, so those bands overlap by design and the guard
+would fail on a correct build. What holds is: *the phone never overlaps text
+anyone can see*, sampled at 151 positions.
 
 ### 5.3 The screen swap
 
