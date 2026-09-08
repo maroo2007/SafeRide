@@ -506,7 +506,7 @@ export async function createScene(
      * replace 720px of horizontal — a drift, not a descent. 0.46 gives 414px
      * and about 486px of travel. See spec §5.2a.
      */
-    const targetPx = Math.min(MAX_PHONE_PX, h * TUNING.restFraction);
+    const targetPx = Math.min(TUNING.maxPhonePx, h * TUNING.restFraction);
     const halfFov = THREE.MathUtils.degToRad(camera.fov) / 2;
     const d = (modelHeight * h) / (2 * targetPx * Math.tan(halfFov));
     camera.position.set(0, 0, d);

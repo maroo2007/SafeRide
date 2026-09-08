@@ -13,6 +13,28 @@
 
 ---
 
+## 0. The URL to judge on
+
+**`http://localhost:3100/` — a PRODUCTION build, started like this:**
+
+```
+npx next build
+npx next start -p 3100
+```
+
+Nothing in this spec is measured or judged on a dev server. `next dev` runs
+unminified, recompiles on demand, and does not reflect committed defaults
+until it rebuilds — which is how several changes were reported as unfixed
+after they had been set, committed and verified.
+
+Every figure in this document was taken from that URL on a production build.
+`?knee=`, `?crossFraction=`, `?restFraction=`, `?descentUse=`, `?exposure=`,
+`?fov=`, `?runway=` and `?envMode=` override the shipped defaults there
+without a rebuild, and `window.__phoneTour.debug().tuning` reads back what is
+actually applied — as distinct from what was requested.
+
+---
+
 ## 1. Placement and what changes
 
 **New section, immediately after Platform (§4.3), before The Journey (§4.4).**
@@ -618,11 +640,29 @@ chapter 2 without anyone zooming.
 2314 px of texture that is a 3.7× downsample, safely above chapter 2's 487 px
 source. Assert it.
 
-**AMENDED for the descent (§5.2a).** The 620 px cap is unchanged. The
-viewport fraction that sits under it drops from `h × 0.62` to `h × 0.46`, to
-free the vertical room the descent needs. At 1440×900 the phone is 414 px,
-a 5.6× downsample — further from chapter 2's source, not closer, so the
-mushing this section exists to prevent gets further away.
+**AMENDED AGAIN 2026-09-08. The 620 px cap is now the binding constraint,
+and the fraction beneath it is inert.**
+
+`min(620, h × f)` clamps at a 900 px viewport for any f above ~0.689, so
+0.689, 0.70 and 0.80 all produce the same **620 px** phone. The fraction is
+set to 0.80 so the cap is visibly what is in control.
+
+**Chapter 2 is not what limits this, and the number is worth recording so it
+is not re-litigated.** Its 487 px source is stretched to 1080 in the texture;
+at a 620 px phone it renders 289 px wide, still downsampling 1.68×. Upsampling
+would not begin until a **1043 px** phone — far beyond any value under
+discussion.
+
+**What binds is descent room**, and it fails before mushing does. Measured
+with `descentUse` at 1.0:
+
+| cap | phone | downsample | descent | verdict |
+|---|---|---|---|---|
+| **620 px** | 620 px | 3.73× | **280 px** | passes |
+| 700 px | 700 px | 3.31× | 200 px | **FAILS** the descent floor (270 px) |
+
+So 620 is the ceiling — not because the screens mush, but because the phone
+eats the room it needs to travel through.
 
 ### 7.2 Mobile
 

@@ -26,9 +26,14 @@ export const REST_FRACTION = 0.46;
  *  opposite side. */
 export const PHONE_SIDE_X = 0.25;
 
-/** Spec §5.2a. How much of the free vertical room the descent uses. 1 would
- *  put the phone flush against both edges at the extremes. */
-export const DESCENT_USE = 0.86;
+/**
+ * Spec §5.2a. How much of the free vertical room the descent uses.
+ *
+ * 1.0, because a bigger phone spends that room and this is the only lever
+ * that gives any of it back. At the 620px cap it buys 280px of descent where
+ * 0.86 would give 241px — and 280px is what clears the guard's floor.
+ */
+export const DESCENT_USE = 1.0;
 
 /** Spec §5.4: 8-12 degrees. */
 export const LEAN_DEG = 10;
@@ -65,10 +70,14 @@ export const FADE_KNEE = 3.0;
 /**
  * Spec §5.2a as amended. The 620px cap still wins on tall viewports.
  *
- * 0.60, up from 0.46, because the app's own text was hard to read. Chapter 2
- * is NOT the constraint people expect: at 0.60 the phone is still downsampling
- * 4.29x, and its 487px source would only begin upsampling above a ~1043px
- * phone, far past the cap. What binds is descent room.
+ * 0.80, and above ~0.689 at a 900px viewport this value does nothing at all:
+ * `min(620, h * f)` clamps, so 0.689, 0.70 and 0.80 are the same 620px phone.
+ * It is set to 0.80 so the CAP is visibly the thing in control, and so a
+ * taller viewport gets the cap rather than a fraction of itself.
+ *
+ * Chapter 2 is NOT the constraint people expect: at 620px it is still
+ * downsampling 1.68x against its 487px source, which would only begin
+ * upsampling above a 1043px phone. What binds is descent room.
  *
  * That costs descent: 310px total, 155px per transition against a 540px
  * phone — 29% of its own height, where 0.46 gave 50%. Below the 342px once
@@ -77,7 +86,7 @@ export const FADE_KNEE = 3.0;
  * horizontal traverse. The phone now does both, so a number that assumed
  * otherwise does not transfer.
  */
-export const REST_FRACTION_DEFAULT = 0.60;
+export const REST_FRACTION_DEFAULT = 0.80;
 
 /**
  * How much of the fade's dead zone the crossing occupies.
@@ -125,6 +134,9 @@ export type Tuning = {
    *  camera distance to hit a target pixel height, so a narrower fov at the
    *  same size flattens perspective rather than shrinking the phone. */
   fov: number;
+  /** The 620px cap itself. Above restFraction ~0.689 at a 900px viewport it
+   *  is the cap, not the fraction, that decides the phone's size. */
+  maxPhonePx: number;
   /** Where the text reaches zero opacity, as a fraction of one transition. */
   dead0: number;
   crossStart: number;
@@ -139,6 +151,7 @@ export function readTuning(): Tuning {
   let exposure = EXPOSURE_DEFAULT;
   let envIntensity = 1;
   let fov = 35;
+  let maxPhonePx = MAX_PHONE_PX;
   if (typeof location !== "undefined") {
     const q = new URLSearchParams(location.search);
     const num = (k: string, d: number) => {
@@ -152,10 +165,11 @@ export function readTuning(): Tuning {
     exposure = num("exposure", exposure);
     envIntensity = num("envIntensity", envIntensity);
     fov = num("fov", fov);
+    maxPhonePx = num("maxPhonePx", maxPhonePx);
   }
   const dead0 = Math.asin(Math.min(1, 1 / knee)) / Math.PI;
   return {
-    knee, crossFraction, restFraction, descentUse, exposure, envIntensity, fov, dead0,
+    knee, crossFraction, restFraction, descentUse, exposure, envIntensity, fov, maxPhonePx, dead0,
     crossStart: dead0,
     crossEnd: dead0 + (1 - 2 * dead0) * crossFraction,
   };
