@@ -27,9 +27,9 @@ const get = (u) => new Promise((res, rej) =>
   http.get(u, (r) => { let d = ""; r.on("data", (c) => (d += c)); r.on("end", () => res(JSON.parse(d))); }).on("error", rej));
 
 const OPTIONS = [
-  { name: "current", knee: 2.2, crossFraction: 0.35 },
-  { name: "wider",   knee: 3.0, crossFraction: 0.60 },
-  { name: "widest",  knee: 4.0, crossFraction: 0.80 },
+  { name: "shipping", knee: 3.0, crossFraction: 0.60 },
+  { name: "f=0.75",   knee: 3.0, crossFraction: 0.75 },
+  { name: "f=0.85",   knee: 3.0, crossFraction: 0.85 },
 ];
 
 (async () => {

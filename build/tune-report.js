@@ -26,11 +26,11 @@ const get = (u) => new Promise((res, rej) =>
 
 /* Crossing options: dead-zone width (knee) paired with how much of it is used. */
 const CROSSINGS = [
-  { name: "current", knee: 2.2, crossFraction: 0.35 },
-  { name: "wider",   knee: 3.0, crossFraction: 0.60 },
-  { name: "widest",  knee: 4.0, crossFraction: 0.80 },
+  { name: "shipping", knee: 3.0, crossFraction: 0.60 },
+  { name: "f=0.75",   knee: 3.0, crossFraction: 0.75 },
+  { name: "f=0.85",   knee: 3.0, crossFraction: 0.85 },
 ];
-const SIZES = [0.46, 0.53, 0.60];
+const SIZES = [];
 
 (async () => {
   fs.mkdirSync(OUT, { recursive: true });

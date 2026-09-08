@@ -96,6 +96,9 @@ export type SceneDebug = {
   /** Which environment path actually ran. Without this, a render diff between
    *  two modes cannot tell "identical output" from "the switch did nothing". */
   envMode: string;
+  /** What envMapIntensity the BODY materials actually hold, so a null result
+   *  from sweeping it can be told from the sweep never landing. */
+  bodyEnvIntensity: number[];
   /*
    * The screen mesh's projected bounding box, in CSS px relative to the
    * canvas. Handed out because the colour harness was searching a crop for
@@ -252,7 +255,7 @@ export async function createScene(
    * out. sRGB output and sRGB texture colour space go with it.
    */
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1;
+  renderer.toneMappingExposure = TUNING.exposure;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
 
   const scene = new THREE.Scene();
@@ -347,7 +350,7 @@ export async function createScene(
   }
   mark("envDone");
 
-  const camera = new THREE.PerspectiveCamera(35, 1, 0.01, 100);
+  const camera = new THREE.PerspectiveCamera(TUNING.fov, 1, 0.01, 100);
   camera.position.set(0, 0, 1);
 
   /* lean outside, spin inside — see the header. */
@@ -388,6 +391,16 @@ export async function createScene(
     }
   });
   if (!screenMesh || !screenMat) throw new Error("phone tour: screen.001 material not found");
+
+  /* Diagnostic knob: how much the environment contributes to the BODY. The
+     screen is replaced with an unlit material below and never sees this. */
+  if (TUNING.envIntensity !== 1) {
+    model.traverse((o) => {
+      const m = (o as import("three").Mesh).material as
+        import("three").MeshStandardMaterial | undefined;
+      if (m && typeof m.envMapIntensity === "number") m.envMapIntensity = TUNING.envIntensity;
+    });
+  }
 
   /* ---- screen textures ------------------------------------------------- */
   let uploadMs = 0;
@@ -794,6 +807,15 @@ export async function createScene(
         toneMappingExposure: renderer.toneMappingExposure,
         textureColorSpaces: textures.map((t) => t.colorSpace),
         envMode,
+        bodyEnvIntensity: (() => {
+          const seen = new Set<number>();
+          model.traverse((o) => {
+            const m = (o as import("three").Mesh).material as
+              import("three").MeshStandardMaterial | undefined;
+            if (m && typeof m.envMapIntensity === "number") seen.add(+m.envMapIntensity.toFixed(2));
+          });
+          return [...seen];
+        })(),
         tuning: {
           knee: TUNING.knee, crossFraction: TUNING.crossFraction,
           restFraction: TUNING.restFraction, descentUse: TUNING.descentUse,

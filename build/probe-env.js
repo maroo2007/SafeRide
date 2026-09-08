@@ -19,6 +19,6 @@ const get = u => new Promise((res, rej) => http.get(u, r => { let d=""; r.on("da
   await ev(`(async()=>{scrollTo(0,${top});await new Promise(r=>setTimeout(r,600));return 1})()`);
   for(let i=0;i<60;i++){ if(await ev("!!window.__phoneTour")) break; await sleep(500); }
   console.log("    envMode=" + await ev("window.__phoneTour.debug().envMode") +
-              "   sceneEnv=" + await ev("(()=>{const d=window.__phoneTour.debug();return d.envMode;})()"));
+              "   bodyEnvIntensity=" + await ev("JSON.stringify(window.__phoneTour.debug().bodyEnvIntensity)"));
   ws.close(); ch.kill(); process.exit(0);
 })();

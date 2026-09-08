@@ -103,6 +103,15 @@ export type Tuning = {
   /** How much of the free vertical room the descent uses. Independent of
    *  phone size, so it can recover descent a larger phone gives up. */
   descentUse: number;
+  /** Renderer exposure. The screen is toneMapped:false so it is IMMUNE to
+   *  this — which makes it the one brightness knob that cannot touch §4. */
+  exposure: number;
+  /** Multiplier on the environment's contribution to the body materials. */
+  envIntensity: number;
+  /** Camera field of view. SEPARATE from restFraction: the layout solves
+   *  camera distance to hit a target pixel height, so a narrower fov at the
+   *  same size flattens perspective rather than shrinking the phone. */
+  fov: number;
   /** Where the text reaches zero opacity, as a fraction of one transition. */
   dead0: number;
   crossStart: number;
@@ -114,6 +123,9 @@ export function readTuning(): Tuning {
   let crossFraction = CROSS_FRACTION_DEFAULT;
   let restFraction = REST_FRACTION_DEFAULT;
   let descentUse = DESCENT_USE;
+  let exposure = 1;
+  let envIntensity = 1;
+  let fov = 35;
   if (typeof location !== "undefined") {
     const q = new URLSearchParams(location.search);
     const num = (k: string, d: number) => {
@@ -124,10 +136,13 @@ export function readTuning(): Tuning {
     crossFraction = num("crossFraction", crossFraction);
     restFraction = num("restFraction", restFraction);
     descentUse = num("descentUse", descentUse);
+    exposure = num("exposure", exposure);
+    envIntensity = num("envIntensity", envIntensity);
+    fov = num("fov", fov);
   }
   const dead0 = Math.asin(Math.min(1, 1 / knee)) / Math.PI;
   return {
-    knee, crossFraction, restFraction, descentUse, dead0,
+    knee, crossFraction, restFraction, descentUse, exposure, envIntensity, fov, dead0,
     crossStart: dead0,
     crossEnd: dead0 + (1 - 2 * dead0) * crossFraction,
   };
