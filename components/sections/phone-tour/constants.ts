@@ -50,7 +50,80 @@ export const LEAN_DEG = 10;
  * outgoing text is still at 0.32 opacity while an eased-from-zero phone is
  * already 58% across — 236px of overlap, measured by breaking it.
  */
-export const FADE_KNEE = 2.2;
-const DEAD0 = Math.asin(1 / FADE_KNEE) / Math.PI;
-export const CROSS_START = DEAD0;
-export const CROSS_END = DEAD0 + (1 - 2 * DEAD0) * 0.35;
+export const FADE_KNEE = 3.0;
+
+/**
+ * Spec §5.2a as amended. The 620px cap still wins on tall viewports.
+ *
+ * 0.60, up from 0.46, because the app's own text was hard to read. Chapter 2
+ * is NOT the constraint people expect: at 0.60 the phone is still downsampling
+ * 4.29x, and its 487px source would only begin upsampling above a ~1043px
+ * phone, far past the cap. What binds is descent room.
+ *
+ * That costs descent: 310px total, 155px per transition against a 540px
+ * phone — 29% of its own height, where 0.46 gave 50%. Below the 342px once
+ * called "a drift", and the threshold is retired rather than ignored: it was
+ * set when the descent was the ONLY motion and had to replace 720px of lost
+ * horizontal traverse. The phone now does both, so a number that assumed
+ * otherwise does not transfer.
+ */
+export const REST_FRACTION_DEFAULT = 0.60;
+
+/**
+ * How much of the fade's dead zone the crossing occupies.
+ *
+ * 0.60 with a knee of 3.0 gives 533px of crossing against 297px before —
+ * 1.8x slower. A wider option (knee 4.0, fraction 0.80, 729px) was measured
+ * and REFUSED: at that fade one wheel notch takes the copy from 1.00 to 0.13
+ * opacity, which is a flicker rather than a shorter dwell. At 3.0 a notch
+ * leaves it at 0.35.
+ *
+ * Measured with trusted wheel events at Chrome's 100px notch. A trackpad
+ * scrolls finer and would feel smoother; the mouse-wheel case is the one that
+ * breaks and the common one on this viewport.
+ */
+export const CROSS_FRACTION_DEFAULT = 0.60;
+
+/**
+ * The two knobs, read together.
+ *
+ * Crossing speed and phone size are ONE decision, not two: a bigger phone has
+ * a wider projected box, which tightens the no-overlap constraint that the
+ * crossing window exists to satisfy. Tuning either alone moves a limit the
+ * other depends on.
+ *
+ * Query overrides exist so every candidate can be photographed and measured
+ * from a single build rather than one build per option. Defaults are what
+ * ships; `location` is guarded because this module is imported during SSR.
+ */
+export type Tuning = {
+  knee: number;
+  crossFraction: number;
+  restFraction: number;
+  /** Where the text reaches zero opacity, as a fraction of one transition. */
+  dead0: number;
+  crossStart: number;
+  crossEnd: number;
+};
+
+export function readTuning(): Tuning {
+  let knee = FADE_KNEE;
+  let crossFraction = CROSS_FRACTION_DEFAULT;
+  let restFraction = REST_FRACTION_DEFAULT;
+  if (typeof location !== "undefined") {
+    const q = new URLSearchParams(location.search);
+    const num = (k: string, d: number) => {
+      const v = Number(q.get(k));
+      return Number.isFinite(v) && v > 0 ? v : d;
+    };
+    knee = num("knee", knee);
+    crossFraction = num("crossFraction", crossFraction);
+    restFraction = num("restFraction", restFraction);
+  }
+  const dead0 = Math.asin(Math.min(1, 1 / knee)) / Math.PI;
+  return {
+    knee, crossFraction, restFraction, dead0,
+    crossStart: dead0,
+    crossEnd: dead0 + (1 - 2 * dead0) * crossFraction,
+  };
+}

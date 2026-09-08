@@ -349,9 +349,32 @@ curves**. On one curve the phone travels diagonally and crosses the text's
 band while still moving sideways, which is the collision §5.1 was originally
 ruled out for.
 
-    DEAD0       = asin(1 / FADE_KNEE) / pi     = 0.150
-    CROSS_START = DEAD0                         = 0.150
-    CROSS_END   = DEAD0 + (1 - 2*DEAD0) * 0.35  = 0.395
+    DEAD0       = asin(1 / FADE_KNEE) / pi     = 0.108   (knee 3.0)
+    CROSS_START = DEAD0                         = 0.108
+    CROSS_END   = DEAD0 + (1 - 2*DEAD0) * 0.60  = 0.578
+
+**Tuned 2026-09-08, and one option refused.** The crossing read as a snap, so
+the dead zone was widened (knee 2.2 -> 3.0) and the crossing given more of it
+(0.35 -> 0.60): 297px -> 533px, 1.8x slower.
+
+A wider option was measured and REFUSED. Knee 4.0 at fraction 0.80 gives
+729px of crossing, but the fade that buys it is too steep:
+
+| option | at rest | after 1 wheel notch | after 2 | notches to invisible |
+|---|---|---|---|---|
+| knee 2.2 | 1.00 | 0.49 | 0.04 | 3 |
+| **knee 3.0** | 1.00 | **0.35** | 0.00 | 2 |
+| knee 4.0 | 1.00 | **0.13** | 0.00 | 2 |
+
+One notch to 0.13 is a flicker, not a shorter dwell — arrive at a chapter,
+nudge the wheel to settle, and the bullets are gone. Measured with trusted
+wheel events at Chrome's 100px notch; a trackpad scrolls finer and would feel
+smoother, but the mouse-wheel case is the one that breaks and the common one
+on this viewport.
+
+**Widening the dead zone SPENDS READING TIME** and that cost is stated with
+the benefit, never alone. Per transition, legible scroll at opacity > 0:
+410px at knee 2.2, 296px at 3.0, 228px at 4.0.
 
 Ease-out on the horizontal, linear on the vertical.
 
@@ -506,6 +529,60 @@ pass every frame**.
 **Set `transmissionFactor = 0` on that material at load.** Measure frame
 timing with and without and report both: if it costs nothing it stays, for
 honesty; if it costs a frame it goes.
+
+### 6.4a The environment: PMREM is unavoidable, so it is DEFERRED
+
+Measured on an AMD Radeon Vega 8 over ANGLE/D3D11 — a real GPU, confirmed by
+reading `UNMASKED_RENDERER_WEBGL`, not a software rasteriser. The prefilter
+cost **2588 ms** and was the largest single block on the critical path.
+
+**Do not re-propose these. Each was measured and rejected:**
+
+| attempt | result |
+|---|---|
+| `sigma` 0 instead of 0.04 | 2588 → 2571 ms. No effect. |
+| 64 px source cubemap instead of 256 | 2571 → 2263 ms, plus 400 ms to render the cube. Net worse. |
+| `compileCubemapShader()` first | the compile is **4 ms**. Not the cost. |
+| warm the context with a 2×2 frame first | **24 ms**. Not the cost. |
+
+**Resolution cannot help, and the reason matters:** `PMREMGenerator`'s output
+size is fixed regardless of what it prefilters FROM. Shrinking the source
+changes the input, not the passes.
+
+**It cannot be skipped either.** Assigning a raw `WebGLCubeRenderTarget`
+texture to `scene.environment` renders **pixel-identically across 1,293,661
+pixels** — three prefilters it lazily on first use. The cost does not
+disappear, it relocates into the first render, where it is *worse*: 3978 ms
+against 1579 ms.
+
+**So the only lever is WHEN.** Built from a `requestAnimationFrame` callback
+after the first frame, the main thread issues the commands and returns; the
+GPU works behind it. The 3457 ms build registers as **no long task at all**.
+That is a better outcome than any reduction would have produced — the cost is
+converted, not moved.
+
+It lands where the environment matters least: chapter 1 at rest differs by
+0.40% of pixels without it, while the edge-on mid-transition frames differ by
+6.36%. The visitor cannot reach an edge-on frame without scrolling.
+
+Every fetch also starts before the prefilter rather than after it. They were
+strictly sequential and nothing required that order.
+
+    gate -> phone on screen    5728 ms -> 2330 ms
+    worst freeze               3301 ms -> 1101 ms
+    total blocking             6725 ms -> 1421 ms
+
+**The floor, stated rather than hidden.** The remaining 1101 ms is one task
+from GLB-ready to first frame: parse tail, scene assembly, texture upload,
+first render — of which the render alone is 663 ms. Going below ~200 ms would
+need GLTF parsing off the main thread, which three's loader does not support
+wholesale. 2330 ms is where this lands.
+
+**Instrument note.** The blocking window originally ended at the first frame,
+which after deferral EXCLUDED the very work that had been moved — it would
+have reported improvement partly by measuring less. It now runs to a settled
+scene. Fifth instrument correction in this phase, alongside the p95
+responsiveness verdict and the oversized landmark box.
 
 ### 6.5 One rAF loop
 

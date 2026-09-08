@@ -5,7 +5,7 @@ import Image from "next/image";
 import { gsap } from "@/lib/gsap";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { CHAPTERS, type Chapter } from "./chapters";
-import { FADE_KNEE, LEAN_DEG, MAX_PHONE_PX, PHONE_SIDE_X, REST_FRACTION } from "./constants";
+import { LEAN_DEG, MAX_PHONE_PX, PHONE_SIDE_X, readTuning } from "./constants";
 import type { TourScene } from "./scene";
 
 /**
@@ -202,6 +202,8 @@ export function PhoneTour() {
         sceneRef.current = scene;
         setReady(true);
 
+        const tuning = readTuning();
+
         const blocks = () => Array.from(
           runway!.querySelectorAll<HTMLElement>("[data-chapter]"),
         );
@@ -223,7 +225,7 @@ export function PhoneTour() {
           const swing = Math.abs(Math.sin(Math.PI * t));
           /* FADE_KNEE is owned by scene.ts, which derives the crossing window
              from it. Typing 2.2 here again is how the two drift apart. */
-          const vis = Math.max(0, 1 - swing * FADE_KNEE);
+          const vis = Math.max(0, 1 - swing * tuning.knee);
           for (const el of blocks()) {
             el.style.opacity = el.dataset.active === "true" ? String(vis) : "0";
           }
@@ -352,7 +354,7 @@ export function PhoneTour() {
                   className="absolute top-1/2 h-auto -translate-x-1/2 -translate-y-1/2 rounded-[1.6rem] opacity-40"
                   style={{
                     left: `${50 + PHONE_SIDE_X * 100}%`,
-                    height: `min(${REST_FRACTION * 100}svh, ${MAX_PHONE_PX}px)`,
+                    height: `min(${readTuning().restFraction * 100}svh, ${MAX_PHONE_PX}px)`,
                     width: "auto",
                     transform: `translate(-50%, -50%) rotate(${-LEAN_DEG}deg)`,
                   }}

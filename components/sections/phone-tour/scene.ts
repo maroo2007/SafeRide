@@ -43,9 +43,11 @@
  */
 
 import {
-  MAX_PHONE_PX, REST_FRACTION, PHONE_SIDE_X, DESCENT_USE, LEAN_DEG,
-  CROSS_START, CROSS_END,
+  MAX_PHONE_PX, PHONE_SIDE_X, DESCENT_USE, LEAN_DEG, readTuning,
 } from "./constants";
+
+/* One read, at module load, shared by sideFraction and the layout. */
+const TUNING = readTuning();
 
 export type SwapRecord = {
   chapter: number;
@@ -89,6 +91,8 @@ export type SceneDebug = {
   };
   toneMappingExposure: number;
   textureColorSpaces: string[];
+  /** The two coupled knobs, as actually applied. */
+  tuning: { knee: number; crossFraction: number; restFraction: number; crossStart: number; crossEnd: number };
   /** Which environment path actually ran. Without this, a render diff between
    *  two modes cannot tell "identical output" from "the switch did nothing". */
   envMode: string;
@@ -132,8 +136,7 @@ export const TURNS = CHAPTERS - 1; // two transitions, 360 degrees each
  * the spec's references keep working.
  */
 export {
-  MAX_PHONE_PX, REST_FRACTION, PHONE_SIDE_X, DESCENT_USE, LEAN_DEG,
-  FADE_KNEE, CROSS_START, CROSS_END,
+  MAX_PHONE_PX, PHONE_SIDE_X, DESCENT_USE, LEAN_DEG, FADE_KNEE, readTuning,
 } from "./constants";
 
 /**
@@ -209,7 +212,7 @@ export function sideFraction(p: number): number {
   const i = Math.min(TURNS - 1, Math.floor(t));
   const local = Math.min(1, Math.max(0, t - i));
   const k = easeOutCubic(
-    Math.min(1, Math.max(0, (local - CROSS_START) / (CROSS_END - CROSS_START))),
+    Math.min(1, Math.max(0, (local - TUNING.crossStart) / (TUNING.crossEnd - TUNING.crossStart))),
   );
   const from = sideOf(i);
   const to = sideOf(i + 1);
@@ -490,7 +493,7 @@ export async function createScene(
      * replace 720px of horizontal — a drift, not a descent. 0.46 gives 414px
      * and about 486px of travel. See spec §5.2a.
      */
-    const targetPx = Math.min(MAX_PHONE_PX, h * REST_FRACTION);
+    const targetPx = Math.min(MAX_PHONE_PX, h * TUNING.restFraction);
     const halfFov = THREE.MathUtils.degToRad(camera.fov) / 2;
     const d = (modelHeight * h) / (2 * targetPx * Math.tan(halfFov));
     camera.position.set(0, 0, d);
@@ -791,6 +794,11 @@ export async function createScene(
         toneMappingExposure: renderer.toneMappingExposure,
         textureColorSpaces: textures.map((t) => t.colorSpace),
         envMode,
+        tuning: {
+          knee: TUNING.knee, crossFraction: TUNING.crossFraction,
+          restFraction: TUNING.restFraction,
+          crossStart: +TUNING.crossStart.toFixed(4), crossEnd: +TUNING.crossEnd.toFixed(4),
+        },
         screenRect: (() => {
           const g = screenMesh!.geometry;
           g.computeBoundingBox();
