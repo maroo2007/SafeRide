@@ -359,6 +359,24 @@ const KEYS = {
   /* ---- reduced motion -------------------------------------------------- */
   console.log("\n   REDUCED MOTION");
   const rm = await session({ reduced: true });
+  /*
+   * WAIT FOR THE ACCORDION TO EXIST before reading styles off it.
+   *
+   * Under reduced motion the loader lifts on the hero alone and never waits
+   * for a tour scene, so it is gone seconds earlier — and the session's wait
+   * loop, which watches for the loader, therefore returns before React has
+   * hydrated. Reading t[0] at that moment threw "Cannot read properties of
+   * undefined", which is a harness race and not a defect in the page.
+   */
+  let ready = false;
+  for (let i = 0; i < 60 && !ready; i++) {
+    ready = await rm.ev("document.querySelectorAll('#faq button[aria-expanded]').length === 7");
+    if (!ready) await sleep(500);
+  }
+  check("the FAQ is present and hydrated under reduced motion", ready,
+    ready ? "7 triggers" : "the accordion never mounted");
+  if (!ready) { rm.close(); console.log("\n  FAILED: " + fails.join(" | ") + "\n"); process.exit(1); }
+
   const durations = JSON.parse(await rm.ev(`JSON.stringify((() => {
     const t = [...document.querySelectorAll('#faq button[aria-expanded]')];
     const svg = getComputedStyle(t[0].querySelector('svg')).transitionDuration;
