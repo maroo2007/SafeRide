@@ -94,9 +94,7 @@ export function Faq() {
           <li
             key={q}
             data-open={on ? "" : undefined}
-            /* bg-card because this sits on the moving ground (§4b): an answer
-               is body copy and needs a surface that does not drift under it. */
-            className="rounded-brand border border-border bg-card"
+            className="rounded-brand border border-border"
           >
             <h3 className="m-0">
               <button

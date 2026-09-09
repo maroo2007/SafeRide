@@ -88,14 +88,7 @@
      was a border doing the job.
      ELEVATION ON PAPER IS BORDER + SHADOW, NOT FILL. Guarded in
      __tests__/tokens.contrast.test.ts so this cannot drift back into a value
-     that pretends.
-
-     AMENDED by build spec 4b, and the token is unchanged: the ground is no
-     longer paper, it is a moving video, so this same value is now doing real
-     work. A card that declares --card is opaque and stationary against
-     drifting ribbons; on paper it was invisible and the rule above said so
-     correctly. The rule was about the GROUND, not about the token, which is
-     why nothing here needs a new hex. */
+     that pretends. */
   --card: var(--paper);
   --card-foreground: var(--ink);
   /* Same arithmetic as --card, one line below it: #ffffff is 1.057:1 from
@@ -362,19 +355,7 @@
   z-index: -10;
   pointer-events: none;
   overflow: hidden; /* the repeat option overruns the layer on purpose */
-
-  /*
-   * NO background-color, and no ::after lattice — build spec §4b.
-   *
-   * Both are gone because the ground is now the video layer beneath this one,
-   * and an opaque paper fill here would hide it completely. This element
-   * survives as the host for the contours and as the thing dark sections
-   * paint over; it no longer paints anything itself.
-   *
-   * The dark sections keep their own ground, their grid and their glow. Only
-   * the PAPER grid goes, and it goes because a hairline lattice ruled over
-   * moving ribbons is two competing textures in the same pixels.
-   */
+  background-color: var(--background);
 }
 
 /*
@@ -390,8 +371,16 @@
  * The lattice is anchored to the layer's own top-left, which is the end of
  * the hero. One origin for the whole run, so the rhythm never restarts.
  */
-/* The paper lattice was here. See the note in .page-ground: it is gone,
-   not disabled, because the video is the ground now. */
+.page-ground::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--border) var(--grid-ink), transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--border) var(--grid-ink), transparent) 1px, transparent 1px);
+  background-size: var(--grid-w) var(--grid-h);
+  background-position: 0 0;
+}
 
 /* ---- the contour candidate ---------------------------------------------
  *
@@ -468,17 +457,11 @@
   --grid-ink: 100%; /* dark --border is already #ffffff24 */
   --glow-strength: 14%;
   /*
-   * NARROWER SCREEN, WEAKER GLOW — and it is a contrast fix, not taste.
-   *
-   * The glow is anchored at 88% 12%, which at 1440 puts its peak clear of the
-   * copy: Intelligence Layer measures 4.99:1 there. At 390 the column is the
-   * whole viewport, so the same anchor lands the bright part of the glow
-   * directly under the section's lead, and --muted-foreground (#b0aa9e) over
-   * it measured 4.48:1 against the 4.5 that 18px needs.
-   *
-   * Confirmed pre-existing and NOT caused by the video: the control run with
-   * the ground layer hidden reports the same 4.48. Everything else on the
-   * page moves when the video is hidden; this did not.
+   * NARROWER SCREEN, WEAKER GLOW — a contrast fix, not taste. The glow is
+   * anchored at 88% 12%, which at 1440 puts its peak clear of the copy
+   * (4.99:1). At 390 the column is the whole viewport, the peak lands under
+   * the section's lead, and --muted-foreground over it measured 4.48:1
+   * against the 4.5 that 18px needs. 9% takes it to 5.14:1.
    */
   @media (width < 768px) {
     --glow-strength: 9%;
@@ -802,100 +785,156 @@
 }
 
 /* ==========================================================================
-   THE MOVING GROUND — build spec §4b
+   THE SCROLL STACK — replaces the Platform grid
 
-   A fixed, full-viewport layer that is never bounded to a section, and has no
-   scroll listener, no gradient mask and no scroll-driven opacity anywhere.
-   The boundary above Platform is drawn by the HERO, which declares an opaque
-   ground and covers this one. One mechanism decides where the edge is, so
-   there is no second mechanism to disagree with it.
+   Two layouts from one DOM. Without `data-pinned` this is a plain vertical
+   list: image above text, which is what a phone and a reduced-motion visitor
+   get, and what the server renders. `data-pinned` is added by the component
+   only when the viewport is wide enough and motion is allowed, and it is the
+   whole switch to the sticky/stacked presentation.
 
-   z-index -20 puts it below .page-ground (-10) and below every dark section,
-   which paint over it. It is above the root background, which is where the
-   paper still lives if the image itself never arrives.
+   Nothing here animates in CSS. The transforms are written from one
+   gsap.ticker callback, so the cards cannot fight a transition on their way
+   to a position the scroll has already moved past.
    ========================================================================== */
 
-.bg-video {
-  /*
-   * HOW STRONGLY THE RIBBONS READ, as one number.
-   *
-   * The layer is composited over the canvas, which is paper, so this is a
-   * blend toward paper rather than a dimmer: at 0.5 the darkest ribbon meets
-   * body copy half way between its own value and the page it replaced. It
-   * exists because at full strength the video's dark bands take lead copy on
-   * Platform to 4.26:1 and the tour's captions to 2.55:1 — measured, not
-   * guessed, by build/verify-background.js sweeping the whole clip.
-   *
-   * This is a CONSTANT opacity and not a fade: nothing reads scroll, nothing
-   * animates it, and it is the same value at every point on the page.
-   *
-   * 0.35 is the first value at which EVERY section clears WCAG AA against the
-   * worst frame of the whole clip. Worst text contrast per section, swept by
-   * build/verify-background.js at twelve points across the video:
-   *
-   *              s=1    s=0.7   s=0.55   s=0.4   s=0.35   s=0.3   needs
-   *   features   4.27   4.98    5.43     6.24    6.49     6.80    4.5
-   *   tour       2.87   3.70    4.11     4.47    4.66     4.85    4.5
-   *   journey    2.84   4.14    4.91     5.65    6.00     6.31    4.5
-   *   coverage   3.20   4.48    5.18     6.01    6.31     6.61    4.5
-   *
-   * THE TOUR SETS THIS NUMBER and nothing else comes close. Its captions are
-   * 14px over a canvas that is deliberately alpha:true so the ground shows
-   * through, and they are the smallest copy on the page with no surface of
-   * its own. At 0.35 they clear by 3.5%, which is not generous: if the tour's
-   * captions ever get smaller or lighter, this value has to move with them.
-   *
-   * 0.4 was chosen first, from a coarser six-point sweep that reported the
-   * tour at 4.63. The twelve-point run found a worse moment in the same clip
-   * and the same section, at 4.47 — a sweep that samples more coarsely than
-   * the check it feeds will keep choosing values that fail the check, so both
-   * now use twelve.
-   */
-  --ground-strength: 0.35;
-
-  position: fixed;
-  inset: 0;
-  z-index: -20;
-  pointer-events: none;
-  overflow: hidden;
-  opacity: var(--ground-strength);
-  /* Under the still, not instead of it: a failed image request leaves paper,
-     which is the ground this site had before any of this. */
-  background-color: var(--background);
+.stack {
+  position: relative;
 }
 
-.bg-video-still,
-.bg-video-film {
+.stack-viewport {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.stack-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background-color: var(--surface-dark);
+  box-shadow: var(--shadow-lg, 0 18px 40px rgba(12, 8, 3, 0.18));
+  /* The image is the card; this is its aspect ratio in the plain list. */
+  aspect-ratio: 16 / 10;
+}
+
+.stack-img {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  /* The composition is centred; cover crops the sides on tall viewports and
-     the top and bottom on wide ones, and the ribbons run edge to edge either
-     way. */
   object-position: center;
 }
 
 /*
- * The video arrives ON TOP of the still and fades in. Both are the same
- * frame family, so the fade is between two pictures of the same thing rather
- * than between a picture and a blank.
+ * THE SCRIM. Bottom-weighted, because the copy sits bottom-left and the top
+ * of every one of these frames is a bright window. A flat overlay at the
+ * strength the text needs would grey out the whole picture; a gradient puts
+ * the density only where the words are.
+ *
+ * --surface-dark rather than black, so the darkening belongs to the same
+ * palette as the dark sections. No new hex.
  */
-.bg-video-film {
-  opacity: 0;
-  transition: opacity 400ms linear;
+.stack-scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    /* A short one at the TOP, for the counter. Card 2's top-right corner is
+       bright sky, and the counter measured 1.38:1 there — invisible, which
+       defeats it even as decoration. Symmetric with the bottom, so it reads
+       as intentional rather than as a patch. */
+    linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--surface-dark) 58%, transparent) 0%,
+      color-mix(in srgb, var(--surface-dark) 26%, transparent) 9%,
+      transparent 20%
+    ),
+    linear-gradient(
+      to top,
+      color-mix(in srgb, var(--surface-dark) 88%, transparent) 0%,
+      color-mix(in srgb, var(--surface-dark) 72%, transparent) 26%,
+      color-mix(in srgb, var(--surface-dark) 34%, transparent) 52%,
+      transparent 78%
+    );
 }
 
-.bg-video-film[data-on] {
-  opacity: 1;
+.stack-counter {
+  position: absolute;
+  top: 1.5rem;
+  right: 1.75rem;
+  margin: 0;
+  color: var(--paper);
+  /* Low, but not invisible. 0.55 put it under 2:1 on a bright corner even
+     with the top scrim; 0.7 keeps it quiet and keeps it readable. */
+  opacity: 0.7;
 }
+
+.stack-copy {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 2rem;
+  max-width: 46rem;
+}
+
+.stack-eyebrow {
+  margin: 0;
+  color: var(--accent-warm);
+}
+
+.stack-heading {
+  margin: 0.75rem 0 0;
+  color: var(--paper);
+  font-size: clamp(1.75rem, 3vw, 2.75rem);
+  line-height: 1.1;
+}
+
+.stack-body {
+  margin: 1rem 0 0;
+  color: var(--paper);
+  /* Not --muted-foreground: that token is tuned for a paper ground, and on a
+     photograph the only safe body colour is the same cream as the heading,
+     carried by the scrim underneath it. */
+  opacity: 0.9;
+  line-height: var(--leading-body);
+  max-width: 62ch;
+}
+
+@media (width >= 48rem) {
+  .stack-copy { padding: 3rem; }
+  .stack-counter { top: 2rem; right: 2.5rem; }
+}
+
+/* ---- pinned ------------------------------------------------------------- */
 
 /*
- * REDUCED MOTION: the video is never created, so this rule is a belt on top
- * of a brace — it is here so that a video attached by any future path is
- * still not shown, rather than relying on one effect's early return.
+ * 300vh of runway: one viewport per card. The sticky child holds at the top
+ * for the whole of it, and the cards move inside it.
  */
-@media (prefers-reduced-motion: reduce) {
-  .bg-video-film { display: none; }
+.stack[data-pinned] {
+  height: 300vh;
+}
+
+.stack[data-pinned] .stack-viewport {
+  position: sticky;
+  top: 0;
+  display: block;
+  height: 100vh;
+  /* Above the header's height so a card's top edge is not tucked under the
+     floating nav as it arrives. */
+  padding: calc(var(--header-h) + 1.5rem) 0 2.5rem;
+}
+
+.stack[data-pinned] .stack-card {
+  position: absolute;
+  inset: calc(var(--header-h) + 1.5rem) 0 2.5rem;
+  aspect-ratio: auto;
+  /* The compositor gets told once, on the layer that is about to move for
+     three viewports of scrolling, rather than per frame. */
+  will-change: transform, opacity;
+  transform-origin: 50% 0%;
+  backface-visibility: hidden;
 }

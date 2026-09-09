@@ -36,38 +36,22 @@ export function Difference() {
         this project settled on is that wide content scrolls inside its own
         box rather than making the document scroll sideways.
       */}
-      {/*
-        The table carries its own opaque surface (§4b). Two columns of body
-        copy read against ribbons drifting underneath the words is the exact
-        thing the moving ground must not be allowed to do, and a border alone
-        does not stop it — only a fill does. rounded-brand and the padding are
-        so the fill reads as a panel rather than as a rectangle someone forgot
-        to style.
-      */}
       <div
         /*
          * FOCUSABLE, because it scrolls. Below about 640px the table is wider
          * than the viewport and this box scrolls sideways; a scroll container
-         * that cannot take focus is one a keyboard user cannot scroll, and
-         * the content past the edge is simply unreachable for them. axe flags
-         * it as scrollable-region-focusable, and it only appears at 390 —
-         * at 1440 and 800 the table fits and the box never scrolls.
+         * that cannot take focus is one a keyboard user cannot scroll, and the
+         * content past the edge is unreachable for them. axe reports it as
+         * scrollable-region-focusable, and only at 390.
          *
-         * role="region" with a name, so the stop announces what it is rather
-         * than arriving as an unlabelled group in the tab order.
+         * Named by the TABLE'S caption, not the section heading — the section
+         * is already a landmark carrying that heading, and two landmarks with
+         * one name is what axe reports as landmark-unique.
          */
         tabIndex={0}
         role="region"
-        /*
-         * Named by the TABLE'S OWN caption, not by the section heading. The
-         * section is already a region landmark carrying that heading as its
-         * name, and two landmarks with the same name is what axe reports as
-         * landmark-unique — the fix for one violation produced another. The
-         * caption is the honest name for this box anyway: it says what is
-         * inside it rather than what the section is called.
-         */
         aria-labelledby="difference-table-caption"
-        className="overflow-x-auto rounded-brand border border-border bg-card p-6 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring sm:p-8"
+        className="overflow-x-auto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
         <table className="w-full min-w-[34rem] border-collapse text-left">
           <caption id="difference-table-caption" className="sr-only">

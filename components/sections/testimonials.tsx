@@ -44,7 +44,7 @@ export function Testimonials() {
     <ul className="grid gap-6 sm:grid-cols-2">
       {QUOTES.map((q) => (
         <li key={q.name}>
-          <figure className="flex h-full flex-col rounded-brand border border-border bg-card p-6">
+          <figure className="flex h-full flex-col rounded-brand border border-border p-6">
             <blockquote className="flex-1">
               <p className="text-lg leading-relaxed">{q.quote}</p>
             </blockquote>

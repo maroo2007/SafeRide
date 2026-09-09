@@ -1,7 +1,7 @@
 import { ScrubVideoHero } from "@/components/hero/scrub-video-hero";
 import { SterlingGateNavigation } from "@/components/ui/sterling-gate-kinetic-navigation";
 import { Section } from "@/components/sections/section";
-import { PlatformGrid } from "@/components/sections/platform";
+import { ScrollStack } from "@/components/sections/scroll-stack";
 import { PhoneTour } from "@/components/sections/phone-tour/phone-tour";
 import { JourneySteps } from "@/components/sections/journey";
 import { IntelligenceLayer } from "@/components/sections/intelligence";
@@ -10,7 +10,6 @@ import { Coverage } from "@/components/sections/coverage";
 import { Testimonials } from "@/components/sections/testimonials";
 import { Pricing } from "@/components/sections/pricing";
 import { PageGround } from "@/components/sections/page-ground";
-import { BackgroundVideo } from "@/components/sections/background-video";
 import { LoadScreen } from "@/components/ui/load-screen";
 import { Faq } from "@/components/sections/faq";
 import { Contact } from "@/components/sections/contact";
@@ -40,13 +39,6 @@ export default function Home() {
     <main id="main">
       <LoadScreen />
 
-      {/*
-        The moving ground (§4b), FIRST and outside the post-hero wrapper.
-        It is position: fixed and full-viewport for the whole page; the hero
-        covers it above the Platform boundary by being opaque, which is the
-        only mechanism deciding where that edge is.
-      */}
-      <BackgroundVideo />
 
       <SterlingGateNavigation />
       <ScrubVideoHero />
@@ -60,16 +52,25 @@ export default function Home() {
       <div className="relative">
         <PageGround />
 
-      {/* §4.3 */}
-      <Section
-        id="features"
-        headingId="platform"
-        eyebrow="Platform"
-        heading="Everything a safe journey needs"
-        subhead="Five systems working together in the background, so nothing about a child's commute is left to chance."
-      >
-        <PlatformGrid />
-      </Section>
+      {/*
+        §2 — the Scroll Stack, in place of the Platform grid.
+
+        It keeps id="features" because the navbar and the footer both point
+        there and those links have to keep resolving. It carries no Section
+        eyebrow or heading: the brief removed Platform's, and the three cards
+        carry their own. The h2 is present but visually hidden, so the landmark
+        still has a name for anyone navigating by region.
+
+        Multi-language Support and Dark & Light Mode are CUT from the site
+        rather than moved — they were two of the five Platform cards and they
+        do not appear anywhere else.
+      */}
+      <section id="features" aria-labelledby="features-heading" className="relative isolate">
+        <div className="mx-auto max-w-6xl px-6 py-[clamp(72px,9vw,136px)]">
+          <h2 id="features-heading" className="sr-only">Platform</h2>
+          <ScrollStack />
+        </div>
+      </section>
 
       {/* Phone tour §2 — sits between Platform and The Journey, and carries
           the five capability cards Platform gave up. */}

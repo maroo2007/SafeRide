@@ -31,12 +31,6 @@ import { contactSchema, type ContactValues } from "@/lib/contact-schema";
  * Validation runs on the client for speed and AGAIN in the server action,
  * from the same schema in lib/contact-schema.ts.
  *
- * ── The inputs carry an opaque fill ───────────────────────────────────────
- *
- * Same reason the cards do (§4b), and more urgently: a text field is where
- * someone reads back what they typed, and ribbons drifting under their own
- * words is worse than ribbons drifting under body copy.
- *
  * Copy verbatim from https://safe-ridee.vercel.app/ (spec 12).
  */
 
@@ -133,7 +127,7 @@ export function Contact() {
         ))}
       </dl>
 
-      <div className="rounded-brand border border-border bg-card p-6 sm:p-8">
+      <div className="rounded-brand border border-border p-6 sm:p-8">
         {/*
           ALWAYS IN THE TREE, both of them. The status region is what a screen
           reader announces on submit, and a live region that is created at the

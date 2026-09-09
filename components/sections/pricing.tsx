@@ -11,13 +11,6 @@ import { Button } from "@/components/ui/button";
  * and shadow, not fill". A tint here would be a token change that changes no
  * pixels.
  *
- * AMENDED, §4b: all three tiers now carry bg-card, and that is not a reversal
- * of the paragraph above. The ground under them is a moving video, so an
- * opaque fill is what stops a price and five feature lines from being read
- * against drifting ribbons — it is doing legibility work, not elevation work.
- * Professional is still marked out by weight and not by tone, because all
- * three cards share the same fill.
- *
  * So Professional is marked by weight instead: a full-strength border where
  * the others carry a hairline, the shadow, the badge, and the only `cta`
  * button on the page outside the hero. Those are all real separations.
@@ -76,7 +69,7 @@ export function Pricing() {
         <li key={t.name}>
           <div
             className={[
-              "relative flex h-full flex-col rounded-brand bg-card p-7",
+              "relative flex h-full flex-col rounded-brand p-7",
               t.featured
                 ? "border-2 border-foreground shadow-lg"
                 : "border border-border",
