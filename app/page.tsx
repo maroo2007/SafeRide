@@ -6,6 +6,10 @@ import { PlatformGrid } from "@/components/sections/platform";
 import { PhoneTour } from "@/components/sections/phone-tour/phone-tour";
 import { JourneySteps } from "@/components/sections/journey";
 import { IntelligenceLayer } from "@/components/sections/intelligence";
+import { Difference } from "@/components/sections/difference";
+import { Coverage } from "@/components/sections/coverage";
+import { Testimonials } from "@/components/sections/testimonials";
+import { Pricing } from "@/components/sections/pricing";
 import { PageGround } from "@/components/sections/page-ground";
 import { LoadScreen } from "@/components/ui/load-screen";
 
@@ -83,6 +87,49 @@ export default function Home() {
         subhead="AI assists, it never overwhelms. Every prediction ships with a confidence score and a plain-language reason, so the people using SafeRide always understand what it's telling them and why."
       >
         <IntelligenceLayer />
+      </Section>
+
+      {/* §4.6 */}
+      <Section
+        id="difference"
+        headingId="difference-heading"
+        eyebrow="The Difference"
+        heading="Why Choose SafeRide"
+      >
+        <Difference />
+      </Section>
+
+      {/* §4.7. The three-stat row is CUT, not deferred: no figures exist for
+          Smart Buses, Students Protected or System Uptime. */}
+      <Section
+        id="coverage"
+        headingId="coverage-heading"
+        eyebrow="Coverage"
+        heading="Protecting journeys across Egypt"
+        subhead="From Alexandria to Aswan, every SafeRide school reports into the same live network. Tap a city to see it."
+      >
+        <Coverage />
+      </Section>
+
+      {/* §4.8 */}
+      <Section
+        id="testimonials"
+        headingId="testimonials-heading"
+        eyebrow="Trusted By Schools"
+        heading="What families and schools tell us"
+      >
+        <Testimonials />
+      </Section>
+
+      {/* §4.9 */}
+      <Section
+        id="pricing"
+        headingId="pricing-heading"
+        eyebrow="Pricing"
+        heading="Priced for one school, ready for a hundred"
+        subhead="Every plan includes the same core safety layer. Higher tiers add scale and AI depth, not fewer guarantees."
+      >
+        <Pricing />
       </Section>
 
       {/*

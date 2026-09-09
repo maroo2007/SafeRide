@@ -145,7 +145,15 @@ const check = (name, ok, detail = "") => {
    * that forgets its ground and is not on this list still fails, and dark
    * sections keep the requirement in full.
    */
-  const ON_PAGE_GROUND = ["features", "parent-app", "journey"];
+  /* Added 2026-09-09 with §4.6-§4.9. Each name is a deliberate decision that
+     this section stands on the page layer rather than painting its own — the
+     list is the record of those decisions, which is the whole reason the
+     exemption is by name and not by a rule that would let the next section in
+     silently. */
+  const ON_PAGE_GROUND = [
+    "features", "parent-app", "journey",
+    "difference", "coverage", "testimonials", "pricing",
+  ];
   const groundless = data.filter((s) => s.alpha !== 1 && !ON_PAGE_GROUND.includes(s.id));
   check("every section either declares an opaque ground or is a named tenant of the page layer",
     data.length > 0 && groundless.length === 0,
@@ -251,7 +259,28 @@ const check = (name, ok, detail = "") => {
         const large = px >= 24 || (px >= 18.66 && bold);
         out.push({ sec: sec.id, kind: 'text', large, min: large ? 3 : 4.5,
           sample: txt.slice(0, 28), size: Math.round(px),
-          contrast: +ratio(fg, painted(el.parentElement || el)).toFixed(2) });
+          /*
+           * painted(el), NOT painted(el.parentElement) — and no backticks in
+           * this comment, per the warning twenty lines up, which I ignored
+           * once already and broke the file.
+           *
+           * Starting at the parent skips the element's OWN background, which
+           * is right for a transparent p and wrong for anything that paints
+           * its own ground. The Pricing badge is ink on paper at 18.82:1 and
+           * this reported it as 1:1, because the walk stepped straight past
+           * the pill to the card behind it and compared near-white text with
+           * near-white paper.
+           *
+           * Starting at the element is strictly better: a transparent element
+           * fails the alpha test and the walk continues to the parent exactly
+           * as before, so nothing that passed changes.
+           *
+           * verify-ground-contrast.js carries the same note about the same
+           * symptom: on a filled button the ring is the page behind the
+           * button, so the label was compared against paper and reported 1:1.
+           * It was fixed there and not here.
+           */
+          contrast: +ratio(fg, painted(el)).toFixed(2) });
       }
       /* Indicators: non-text graphics that carry meaning. 1.4.11 -> 3:1. */
       for (const el of sec.querySelectorAll('[data-live-dot]')) {
