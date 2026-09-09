@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { BlurReveal } from "@/components/ui/blur-reveal";
 
 /**
  * §4.12 Final CTA — centre-set, and the last thing before the footer.
@@ -29,9 +30,9 @@ const LOGIN_HREF = "https://safe-ridee.vercel.app/login";
 export function FinalCta() {
   return (
     <div className="mx-auto max-w-2xl text-center">
-      <h2 id="final-cta-heading" className="text-4xl sm:text-5xl">
+      <BlurReveal as="h2" id="final-cta-heading" className="text-4xl sm:text-5xl" inView once>
         Ready to experience SafeRide?
-      </h2>
+      </BlurReveal>
       <p className="mx-auto mt-5 max-w-[46ch] text-lg leading-relaxed text-muted-foreground">
         Bring live tracking, AI safety monitoring, and total peace of mind to your
         school&apos;s daily run.

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { DarkGround } from "./page-ground";
+import { BlurReveal } from "@/components/ui/blur-reveal";
 
 /**
  * The ground every content section stands on (spec §4).
@@ -126,9 +127,18 @@ export function Section({
         <div className={split ? "grid gap-12 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:gap-20" : ""}>
           <div className={split ? "lg:sticky lg:top-[calc(var(--header-h)+2rem)] lg:self-start" : ""}>
             <p className="label-mono text-muted-foreground">{eyebrow}</p>
-            <h2 id={headingId} className="mt-4 max-w-[18ch] text-4xl sm:text-5xl">
+            {/* §4 — headings only. The scope note lives in blur-reveal.tsx. */}
+            <BlurReveal
+              as="h2"
+              id={headingId}
+              className="mt-4 max-w-[18ch] text-4xl sm:text-5xl"
+              inView
+              once
+              speedReveal={1.5}
+              speedSegment={0.5}
+            >
               {heading}
-            </h2>
+            </BlurReveal>
             {subhead ? (
               <p className="mt-5 max-w-[52ch] text-lg leading-relaxed text-muted-foreground">
                 {subhead}
