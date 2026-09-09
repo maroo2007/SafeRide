@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { BlurBody } from "@/components/ui/blur-reveal";
 
 /**
  * §4.9 Pricing — three tiers, Professional featured.
@@ -104,7 +105,7 @@ export function Pricing() {
               {t.per ? <span className="text-muted-foreground">{t.per}</span> : null}
             </p>
 
-            <p className="mt-4 leading-relaxed text-muted-foreground">{t.blurb}</p>
+            <BlurBody className="mt-4 leading-relaxed text-muted-foreground">{t.blurb}</BlurBody>
 
             <ul className="mt-6 flex-1 space-y-3">
               {t.features.map((f) => (
@@ -117,7 +118,7 @@ export function Pricing() {
                   >
                     <path d="M3 8.5 6.5 12 13 4" />
                   </svg>
-                  <span>{f}</span>
+                  <BlurBody as="span">{f}</BlurBody>
                 </li>
               ))}
             </ul>

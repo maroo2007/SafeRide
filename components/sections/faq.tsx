@@ -2,6 +2,7 @@
 
 import { useId, useRef, useState } from "react";
 import { FAQ_EN } from "@/lib/faq-en";
+import { BlurBody } from "@/components/ui/blur-reveal";
 
 /**
  * §4.10 FAQ — seven questions, one open at a time.
@@ -146,7 +147,7 @@ export function Faq() {
                   inert={!on}
                   className="px-6 pb-6"
                 >
-                  <p className="max-w-[62ch] leading-relaxed text-muted-foreground">{a}</p>
+                  <BlurBody className="max-w-[62ch] leading-relaxed text-muted-foreground">{a}</BlurBody>
                 </div>
               </div>
             </div>

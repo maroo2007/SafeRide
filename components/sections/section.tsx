@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { DarkGround } from "./page-ground";
-import { BlurReveal } from "@/components/ui/blur-reveal";
+import { BlurReveal, BlurBody } from "@/components/ui/blur-reveal";
 
 /**
  * The ground every content section stands on (spec §4).
@@ -140,9 +140,9 @@ export function Section({
               {heading}
             </BlurReveal>
             {subhead ? (
-              <p className="mt-5 max-w-[52ch] text-lg leading-relaxed text-muted-foreground">
+              <BlurBody className="mt-5 max-w-[52ch] text-lg leading-relaxed text-muted-foreground">
                 {subhead}
-              </p>
+              </BlurBody>
             ) : null}
           </div>
           {children ? <div className={split ? "" : "mt-14"}>{children}</div> : null}

@@ -523,7 +523,22 @@ const check = (name, ok, detail = "") => {
       const active = [...document.querySelectorAll('#parent-app [data-chapter]')].filter((e) => e.dataset.active === 'true');
       return JSON.stringify({
         count: active.length,
-        heading: active[0] ? active[0].querySelector('h3').textContent.trim() : null,
+        /*
+         * The FIRST text node's worth, not the whole h3.
+         *
+         * A revealed heading holds the full string in a visually-hidden span
+         * AND the same string again split into per-character spans, so
+         * textContent returns it twice: "Live, from the first stopLive,
+         * fromthefirststop". The hidden span is the canonical copy — it is
+         * what a crawler and a screen reader get — so read that when it is
+         * there and fall back to textContent when it is not.
+         */
+        heading: (() => {
+          const h = active[0] ? active[0].querySelector('h3') : null;
+          if (!h) return null;
+          const hidden = h.querySelector('span[style*="inset"]');
+          return (hidden ? hidden.textContent : h.textContent).trim();
+        })(),
         bound: window.__phoneTour.debug().boundChapter,
       });
     })()`));

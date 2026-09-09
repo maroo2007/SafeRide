@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { gsap } from "@/lib/gsap";
+import { BlurReveal, BlurBody } from "@/components/ui/blur-reveal";
 
 /**
  * §4.4 / §5 The Journey — a sequence, not an inventory, and now horizontal.
@@ -149,12 +150,12 @@ export function JourneySteps() {
     <ol ref={ref} className="journey" style={{ ["--p" as string]: 1 }}>
       {STEPS.map((s, i) => (
         <li key={`${s.title}-${i}`} className="j-step">
-          <h3 className="j-title">{s.title}</h3>
+          <BlurReveal as="h3" className="j-title" inView once>{s.title}</BlurReveal>
           <span aria-hidden="true" data-j-node="" className="j-node label-mono">
             {String(i + 1).padStart(2, "0")}
           </span>
-          <p className="j-body j-long">{s.body}</p>
-          <p className="j-body j-short">{s.short}</p>
+          <BlurBody className="j-body j-long">{s.body}</BlurBody>
+          <BlurBody className="j-body j-short">{s.short}</BlurBody>
         </li>
       ))}
     </ol>

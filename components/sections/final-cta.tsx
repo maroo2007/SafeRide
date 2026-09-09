@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { BlurReveal } from "@/components/ui/blur-reveal";
+import { BlurReveal, BlurBody } from "@/components/ui/blur-reveal";
 
 /**
  * §4.12 Final CTA — centre-set, and the last thing before the footer.
@@ -33,10 +33,9 @@ export function FinalCta() {
       <BlurReveal as="h2" id="final-cta-heading" className="text-4xl sm:text-5xl" inView once>
         Ready to experience SafeRide?
       </BlurReveal>
-      <p className="mx-auto mt-5 max-w-[46ch] text-lg leading-relaxed text-muted-foreground">
-        Bring live tracking, AI safety monitoring, and total peace of mind to your
-        school&apos;s daily run.
-      </p>
+      <BlurBody className="mx-auto mt-5 max-w-[46ch] text-lg leading-relaxed text-muted-foreground">
+        Bring live tracking, AI safety monitoring, and total peace of mind to your school&apos;s daily run.
+      </BlurBody>
       <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
         <Button asChild variant="cta">
           <a href="#contact">Talk to Our Team</a>

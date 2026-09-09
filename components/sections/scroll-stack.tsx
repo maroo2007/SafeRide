@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { MOBILE_BREAKPOINT } from "@/components/sections/phone-tour/constants";
 import { gsap } from "@/lib/gsap";
 import { BlurReveal } from "@/components/ui/blur-reveal";
+import { BlurBody } from "@/components/ui/blur-reveal";
 
 /**
  * The Scroll Stack — replaces the Platform card grid.
@@ -197,7 +198,7 @@ export function ScrollStack() {
             <div className="stack-copy">
               <p className="label-mono stack-eyebrow">{c.eyebrow}</p>
               <BlurReveal as="h3" className="stack-heading" inView once>{c.heading}</BlurReveal>
-              <p className="stack-body">{c.body}</p>
+              <BlurBody className="stack-body">{c.body}</BlurBody>
             </div>
           </article>
         ))}

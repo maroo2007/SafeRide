@@ -8,6 +8,7 @@ import { CHAPTERS, type Chapter } from "./chapters";
 import { LEAN_DEG, MAX_PHONE_PX, MOBILE_BREAKPOINT, PHONE_SIDE_X, readTuning } from "./constants";
 import { HERO_PLAYING_ATTR, TOUR_READY_ATTR } from "@/components/ui/load-screen";
 import type { TourScene } from "./scene";
+import { BlurReveal, BlurBody } from "@/components/ui/blur-reveal";
 
 /**
  * §2 The Parent App — the 3D phone tour.
@@ -92,12 +93,12 @@ function StackedChapter({ c }: { c: Chapter }) {
         className="h-auto w-[60%] max-w-[220px] rounded-[1.6rem] sm:w-full"
       />
       <div>
-        <h3 className="text-2xl">{c.heading}</h3>
-        <p className="mt-3 max-w-[52ch] leading-relaxed text-muted-foreground">{c.body}</p>
+        <BlurReveal as="h3" className="text-2xl" inView once>{c.heading}</BlurReveal>
+        <BlurBody className="mt-3 max-w-[52ch] leading-relaxed text-muted-foreground">{c.body}</BlurBody>
         <ul className="mt-5 space-y-2">
           {c.bullets.map((b) => (
             <li key={b} className="max-w-[52ch] text-sm leading-relaxed text-muted-foreground">
-              {b}
+              <BlurBody as="span">{b}</BlurBody>
             </li>
           ))}
         </ul>
@@ -157,12 +158,12 @@ function ChapterText({ c, active }: { c: Chapter; active: boolean }) {
         [c.side === "right" ? "left" : "right"]: "max(24px, 6vw)",
       } as React.CSSProperties}
     >
-      <h3 className="text-3xl sm:text-4xl">{c.heading}</h3>
-      <p className="mt-4 leading-relaxed text-muted-foreground">{c.body}</p>
+      <BlurReveal as="h3" className="text-3xl sm:text-4xl" inView once>{c.heading}</BlurReveal>
+      <BlurBody className="mt-4 leading-relaxed text-muted-foreground">{c.body}</BlurBody>
       <ul className="mt-6 space-y-2.5">
         {c.bullets.map((b) => (
           <li key={b} className="text-sm leading-relaxed text-muted-foreground">
-            {b}
+            <BlurBody as="span">{b}</BlurBody>
           </li>
         ))}
       </ul>

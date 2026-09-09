@@ -1,4 +1,5 @@
 import { DarkGround } from "./page-ground";
+import { BlurBody } from "@/components/ui/blur-reveal";
 
 /**
  * §4.13 Footer — dark, and keeping its own ground, grid and glow.
@@ -49,10 +50,9 @@ export function Footer() {
         <div className="grid gap-12 sm:grid-cols-2 lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)] lg:gap-20">
           <div>
             <p className="text-2xl">SafeRide</p>
-            <p className="mt-4 max-w-[44ch] leading-relaxed text-muted-foreground">
-              Because every child deserves a safe ride home. AI-powered school
-              transportation for the schools that take safety seriously.
-            </p>
+            <BlurBody className="mt-4 max-w-[44ch] leading-relaxed text-muted-foreground">
+              Because every child deserves a safe ride home. AI-powered school transportation for the schools that take safety seriously.
+            </BlurBody>
           </div>
 
           {/*

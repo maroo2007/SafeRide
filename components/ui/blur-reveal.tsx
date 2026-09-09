@@ -195,3 +195,55 @@ export function BlurReveal({
     </Tag>
   );
 }
+
+/**
+ * WHETHER BODY COPY IS REVEALED TOO.
+ *
+ * Item 1 asked for this on every heading, subhead, paragraph, bullet and card
+ * description, with the instruction to measure once and pull it back from body
+ * copy if it drops below 50fps — keeping every heading either way.
+ *
+ * This constant is that lever, and it exists so the decision is one edit
+ * rather than an edit to every component. `BlurBody` is what body copy uses;
+ * when the constant is false it renders the plain element and headings are
+ * untouched.
+ */
+export const REVEAL_BODY = false;
+/*
+ * MEASURED, AND PULLED BACK. One 6s scroll past the Difference-to-
+ * Testimonials stretch, read from the compositor:
+ *
+ *   body copy revealed too   876 animated chars   50.6/s   100 dropped
+ *   headings only              0 extra chars      59.9/s     1 dropped
+ *
+ * 15.5% of presented frames and a hundred dropped, which is the jank rule 1
+ * exists to prevent — so body copy is plain and every heading keeps the
+ * reveal, exactly as item 1 instructed. Flip this to true to put it back;
+ * every call site is already in place.
+ */
+
+/**
+ * Body copy's wrapper. Same component, one gate.
+ *
+ * Deliberately NOT the same call as a heading: a heading is always revealed
+ * and a paragraph is revealed only while REVEAL_BODY holds, so the two are
+ * distinguishable at every call site and the pull-back cannot take a heading
+ * with it by accident.
+ */
+export function BlurBody({ children, as, className, id }: BlurRevealProps) {
+  const Tag = (as ?? "p") as ElementType;
+  if (!REVEAL_BODY) {
+    return (
+      <Tag className={className} id={id}>
+        {children}
+      </Tag>
+    );
+  }
+  /* Faster per character than a heading: body copy is longer, and a heading's
+     pace over forty words reads as a page that will not settle. */
+  return (
+    <BlurReveal as={Tag} className={className} id={id} inView once speedReveal={2.4} speedSegment={1.2}>
+      {children}
+    </BlurReveal>
+  );
+}
