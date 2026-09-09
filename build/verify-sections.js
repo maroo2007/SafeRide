@@ -153,15 +153,40 @@ const check = (name, ok, detail = "") => {
   const ON_PAGE_GROUND = [
     "features", "parent-app", "journey",
     "difference", "coverage", "testimonials", "pricing",
+    /* Added with 4.10-4.12. Same decision as the seven above: these stand on
+       the page's ground layer, which since 4b is the moving video, and do not
+       paint one of their own. The footer is NOT here — it is dark and paints
+       its own, and the dark check below would catch it if it stopped. */
+    "faq", "contact", "final-cta",
   ];
   const groundless = data.filter((s) => s.alpha !== 1 && !ON_PAGE_GROUND.includes(s.id));
   check("every section either declares an opaque ground or is a named tenant of the page layer",
     data.length > 0 && groundless.length === 0,
     data.map((s) => `${s.id}=${s.alpha === 1 ? "own" : ON_PAGE_GROUND.includes(s.id) ? "page-layer" : "NONE"}`).join(" "));
-  check("the page layer itself exists and is opaque",
-    (await ev(`(() => { const e = document.querySelector('.page-ground');
-      return e ? getComputedStyle(e).backgroundColor : 'missing'; })()`)).startsWith("rgb("),
-    await ev("document.querySelector('.page-ground') ? getComputedStyle(document.querySelector('.page-ground')).backgroundColor : 'missing'"));
+  /*
+   * THE GROUND LAYER IS THE VIDEO NOW (4b), so this asks a different question
+   * than it used to.
+   *
+   * .page-ground deliberately paints nothing any more — an opaque paper fill
+   * there would hide the video underneath it — so the old check, which read
+   * that element's own background-color, would fail on a correct build. What
+   * still has to be true is that the STACK under a tenant section is opaque:
+   * the video layer exists, and the canvas behind it is a solid colour, so
+   * there is no configuration in which a tenant section shows through to
+   * nothing.
+   */
+  const stack = JSON.parse(await ev(`(() => {
+    const v = document.querySelector('[data-bg-video]');
+    return JSON.stringify({
+      layer: !!v,
+      layerBg: v ? getComputedStyle(v).backgroundColor : 'missing',
+      canvas: getComputedStyle(document.body).backgroundColor,
+      still: !!document.querySelector('.bg-video-still')
+    });
+  })()`));
+  check("the page's ground layer exists and the canvas behind it is opaque",
+    stack.layer && stack.still && /^rgb\(/.test(stack.canvas),
+    "layer=" + stack.layer + " still=" + stack.still + " layer-bg=" + stack.layerBg + " canvas=" + stack.canvas);
   /* By measured luminance, not by a class list: any section whose ground is
      dark must have painted it itself rather than relying on the page layer. */
   const darkSecs = data.filter((s) => s.lum !== null && s.lum < 0.05);

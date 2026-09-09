@@ -1,4 +1,3 @@
-import { Button } from "@/components/ui/button";
 import { ScrubVideoHero } from "@/components/hero/scrub-video-hero";
 import { SterlingGateNavigation } from "@/components/ui/sterling-gate-kinetic-navigation";
 import { Section } from "@/components/sections/section";
@@ -13,6 +12,10 @@ import { Pricing } from "@/components/sections/pricing";
 import { PageGround } from "@/components/sections/page-ground";
 import { BackgroundVideo } from "@/components/sections/background-video";
 import { LoadScreen } from "@/components/ui/load-screen";
+import { Faq } from "@/components/sections/faq";
+import { Contact } from "@/components/sections/contact";
+import { FinalCta } from "@/components/sections/final-cta";
+import { Footer } from "@/components/sections/footer";
 
 /**
  * Phase 5a — the ground for the first three content sections.
@@ -142,42 +145,40 @@ export default function Home() {
         <Pricing />
       </Section>
 
-      {/*
-        Phase 1 scaffolding, not a content section. It keeps the token system
-        visible while sections are built on top of it, and it comes out before
-        launch — logged in TODO.md.
-      */}
-      <section aria-labelledby="states" className="mx-auto max-w-6xl px-6 py-20">
-        <p className="label-mono text-muted-foreground">Design system</p>
-        <h2 id="states" className="mt-4 text-3xl">
-          Interaction states
-        </h2>
-        <div className="mt-8 flex flex-wrap items-center gap-4">
-          <Button variant="cta">CTA</Button>
-          <Button variant="primary">Primary</Button>
-          <Button variant="outline">Outline</Button>
-          <Button variant="ghost">Ghost</Button>
-          <Button variant="primary" loading>Sending</Button>
-          <Button variant="primary" disabled>Disabled</Button>
-        </div>
+      {/* §4.10 — split so a seven-item accordion is not pushed a screen down
+          the page by its own heading. */}
+      <Section
+        id="faq"
+        headingId="faq-heading"
+        eyebrow="Questions"
+        heading="Frequently asked questions"
+        split
+      >
+        <Faq />
+      </Section>
 
-        <div className="mt-12 grid grid-cols-2 gap-4 sm:grid-cols-4">
-          {[
-            { name: "primary", cls: "bg-primary text-primary-foreground" },
-            { name: "secondary", cls: "bg-secondary text-secondary-foreground" },
-            { name: "accent", cls: "accent-fill" },
-            { name: "muted", cls: "bg-muted text-muted-foreground" },
-          ].map((t) => (
-            <div
-              key={t.name}
-              className={`rounded-brand px-4 py-8 text-sm font-medium ${t.cls}`}
-            >
-              {t.name}
-            </div>
-          ))}
+      {/* §4.11 — the page's primary conversion. */}
+      <Section
+        id="contact"
+        headingId="contact-heading"
+        eyebrow="Get in Touch"
+        heading="Let's bring SafeRide to your school"
+        subhead="Tell us about your fleet and we'll walk you through a live demo tailored to your school's routes."
+      >
+        <Contact />
+      </Section>
+
+      {/* §4.12. Its own heading, so no Section eyebrow above it — this is the
+          close, and an eyebrow would make it look like one more topic. */}
+      <section id="final-cta" aria-labelledby="final-cta-heading" className="relative isolate">
+        <div className="mx-auto max-w-6xl px-6 py-[clamp(72px,9vw,136px)]">
+          <FinalCta />
         </div>
       </section>
       </div>
+
+      {/* §4.13 */}
+      <Footer />
     </main>
   );
 }

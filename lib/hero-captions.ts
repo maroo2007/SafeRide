@@ -139,7 +139,21 @@ export const HERO = {
   eyebrow: "AI-Powered School Transportation Safety",
   headline: "Because every child deserves a safe ride home",
   primaryCta: { label: "Explore Platform", href: "#features" },
-  ghostCta: { label: "Our Story", href: "#story" },
+  /*
+   * "#difference", not "#story", and this is a compromise rather than a fix.
+   *
+   * It pointed at #story, and no section with that id has ever existed on
+   * this page — the hero's secondary button scrolled nowhere, which is the
+   * same defect as a link pointing at "#" with an extra step, and it is what
+   * removed six links from the footer. Caught by the in-page link check in
+   * build/verify-faq-contact.js, which resolves every hash against the DOM.
+   *
+   * #difference is "Why Choose SafeRide", which is the nearest thing on the
+   * page to the case this label promises. It is not a story section, and the
+   * honest resolution is either to build one or to change the label. Logged
+   * in TODO.md rather than settled here, because both are content decisions.
+   */
+  ghostCta: { label: "Our Story", href: "#difference" },
   /**
    * Hero copy fade window (spec 1.6: finishes by 0.12).
    *

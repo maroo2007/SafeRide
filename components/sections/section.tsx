@@ -80,6 +80,7 @@ export function Section({
   headingId,
   children,
   className = "",
+  split = false,
 }: {
   id?: string;
   tone?: SectionTone;
@@ -89,6 +90,8 @@ export function Section({
   headingId: string;
   children?: ReactNode;
   className?: string;
+  /** Header beside the content rather than above it. See the note below. */
+  split?: boolean;
 }) {
   return (
     <section
@@ -109,16 +112,31 @@ export function Section({
        * two adjacent sections is 144px and the largest 272px.
        */}
       <div className="mx-auto max-w-6xl px-6 py-[clamp(72px,9vw,136px)]">
-        <p className="label-mono text-muted-foreground">{eyebrow}</p>
-        <h2 id={headingId} className="mt-4 max-w-[18ch] text-4xl sm:text-5xl">
-          {heading}
-        </h2>
-        {subhead ? (
-          <p className="mt-5 max-w-[52ch] text-lg leading-relaxed text-muted-foreground">
-            {subhead}
-          </p>
-        ) : null}
-        {children ? <div className="mt-14">{children}</div> : null}
+        {/*
+         * SPLIT puts the header block in its own column beside the content
+         * instead of above it. It exists for the FAQ, where a stacked heading
+         * pushes a seven-item accordion most of a screen down the page and
+         * leaves the top third empty — and where the header is short enough
+         * to sit still while a long list changes height next to it.
+         *
+         * One grid, two arrangements, rather than a second Section: the
+         * eyebrow, heading and subhead keep identical markup and identical
+         * classes in both, so nothing about the type can drift between them.
+         */}
+        <div className={split ? "grid gap-12 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:gap-20" : ""}>
+          <div className={split ? "lg:sticky lg:top-[calc(var(--header-h)+2rem)] lg:self-start" : ""}>
+            <p className="label-mono text-muted-foreground">{eyebrow}</p>
+            <h2 id={headingId} className="mt-4 max-w-[18ch] text-4xl sm:text-5xl">
+              {heading}
+            </h2>
+            {subhead ? (
+              <p className="mt-5 max-w-[52ch] text-lg leading-relaxed text-muted-foreground">
+                {subhead}
+              </p>
+            ) : null}
+          </div>
+          {children ? <div className={split ? "" : "mt-14"}>{children}</div> : null}
+        </div>
       </div>
     </section>
   );
