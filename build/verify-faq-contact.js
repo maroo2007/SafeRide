@@ -124,10 +124,22 @@ const KEYS = {
   const missing = answers.filter((a) => !html.includes(a));
   check("all seven answers are server-rendered while collapsed", missing.length === 0,
     missing.length ? "missing: " + missing.join(" | ") : "7 of 7 in the initial HTML");
+  /*
+   * COUNTED INSIDE THE FAQ, not across the document.
+   *
+   * This asserted exactly 7 role="region" on the page, which was true until
+   * the comparison table's horizontal scroll box became a named region to fix
+   * an axe violation. The page then had 8 and this went red on a correct
+   * build — a guard that breaks whenever an unrelated section gains a landmark
+   * is measuring the wrong scope.
+   */
+  const faqHtml = html.slice(html.indexOf('id="faq"') >= 0 ? html.indexOf('id="faq"') : 0,
+    html.indexOf('id="contact"') >= 0 ? html.indexOf('id="contact"') : html.length);
+  const regions = (faqHtml.match(/role="region"/g) || []).length;
+  const controls = (faqHtml.match(/aria-controls="/g) || []).length;
   check("every panel is a labelled region and every trigger owns one",
-    (html.match(/role="region"/g) || []).length === 7
-    && (html.match(/aria-controls="/g) || []).length >= 7,
-    (html.match(/role="region"/g) || []).length + " regions");
+    regions === 7 && controls === 7,
+    regions + " regions and " + controls + " aria-controls inside #faq");
 
   const s = await session();
 
