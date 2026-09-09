@@ -58,6 +58,24 @@ const MODES: GroundMode[] = ["grid", "stretch", "repeat", "anchor"];
  */
 export const GROUND_DEFAULT: GroundMode = "anchor";
 
+/**
+ * WHETHER THE CONTOURS ARE DRAWN AT ALL — and they are not, since §4b.
+ *
+ * This reverses a decision that was made and approved, so it is written down
+ * rather than quietly deleted. The contours were chosen as the treatment of a
+ * PAPER ground: one 16:9 composition anchored over Platform, with the survey
+ * grid over it. That ground no longer exists. What is underneath now is a
+ * video of soft drifting ribbons, and the contours are concentric rings — two
+ * quiet abstract textures occupying the same pixels and competing, which is
+ * the same objection that removed the paper lattice one paragraph up.
+ *
+ * Judged from two captures of Platform at 1440 on the production build, one
+ * with and one without; the ribbons alone are cleaner and the rings read as
+ * an artefact over them. If that call is wrong, this constant is the whole
+ * revert — the component and its CSS are untouched.
+ */
+export const GROUND_CONTOURS = false;
+
 export function PageGround() {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -78,7 +96,7 @@ export function PageGround() {
 
   return (
     <div ref={ref} aria-hidden="true" className="page-ground" data-ground={GROUND_DEFAULT}>
-      <TopoContours />
+      {GROUND_CONTOURS ? <TopoContours /> : null}
     </div>
   );
 }

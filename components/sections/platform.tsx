@@ -57,7 +57,7 @@ export function PlatformGrid() {
       {CAPABILITIES.map((c) => (
         <li
           key={c.title}
-          className="rounded-brand border border-border p-6 transition-[transform,box-shadow] duration-[--dur-state] ease-[--ease-out] hover:-translate-y-0.5 hover:shadow-lg motion-reduce:transform-none motion-reduce:transition-none"
+          className="rounded-brand border border-border bg-card p-6 transition-[transform,box-shadow] duration-[--dur-state] ease-[--ease-out] hover:-translate-y-0.5 hover:shadow-lg motion-reduce:transform-none motion-reduce:transition-none"
         >
           {c.live ? (
             <p

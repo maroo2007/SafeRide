@@ -11,6 +11,7 @@ import { Coverage } from "@/components/sections/coverage";
 import { Testimonials } from "@/components/sections/testimonials";
 import { Pricing } from "@/components/sections/pricing";
 import { PageGround } from "@/components/sections/page-ground";
+import { BackgroundVideo } from "@/components/sections/background-video";
 import { LoadScreen } from "@/components/ui/load-screen";
 
 /**
@@ -35,6 +36,15 @@ export default function Home() {
   return (
     <main id="main">
       <LoadScreen />
+
+      {/*
+        The moving ground (§4b), FIRST and outside the post-hero wrapper.
+        It is position: fixed and full-viewport for the whole page; the hero
+        covers it above the Platform boundary by being opaque, which is the
+        only mechanism deciding where that edge is.
+      */}
+      <BackgroundVideo />
+
       <SterlingGateNavigation />
       <ScrubVideoHero />
 

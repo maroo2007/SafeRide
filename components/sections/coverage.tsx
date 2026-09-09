@@ -56,7 +56,9 @@ export function Coverage() {
                   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
                   on
                     ? "border-transparent bg-primary text-primary-foreground"
-                    : "border-border text-foreground hover:border-foreground",
+                    /* bg-card, not bare: an unselected pill over moving
+                       ribbons is a label with no surface under it. */
+                    : "border-border bg-card text-foreground hover:border-foreground",
                 ].join(" ")}
               >
                 {city}

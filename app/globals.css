@@ -88,7 +88,14 @@
      was a border doing the job.
      ELEVATION ON PAPER IS BORDER + SHADOW, NOT FILL. Guarded in
      __tests__/tokens.contrast.test.ts so this cannot drift back into a value
-     that pretends. */
+     that pretends.
+
+     AMENDED by build spec 4b, and the token is unchanged: the ground is no
+     longer paper, it is a moving video, so this same value is now doing real
+     work. A card that declares --card is opaque and stationary against
+     drifting ribbons; on paper it was invisible and the rule above said so
+     correctly. The rule was about the GROUND, not about the token, which is
+     why nothing here needs a new hex. */
   --card: var(--paper);
   --card-foreground: var(--ink);
   /* Same arithmetic as --card, one line below it: #ffffff is 1.057:1 from
@@ -355,7 +362,19 @@
   z-index: -10;
   pointer-events: none;
   overflow: hidden; /* the repeat option overruns the layer on purpose */
-  background-color: var(--background);
+
+  /*
+   * NO background-color, and no ::after lattice — build spec §4b.
+   *
+   * Both are gone because the ground is now the video layer beneath this one,
+   * and an opaque paper fill here would hide it completely. This element
+   * survives as the host for the contours and as the thing dark sections
+   * paint over; it no longer paints anything itself.
+   *
+   * The dark sections keep their own ground, their grid and their glow. Only
+   * the PAPER grid goes, and it goes because a hairline lattice ruled over
+   * moving ribbons is two competing textures in the same pixels.
+   */
 }
 
 /*
@@ -371,16 +390,8 @@
  * The lattice is anchored to the layer's own top-left, which is the end of
  * the hero. One origin for the whole run, so the rhythm never restarts.
  */
-.page-ground::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(to right, color-mix(in srgb, var(--border) var(--grid-ink), transparent) 1px, transparent 1px),
-    linear-gradient(to bottom, color-mix(in srgb, var(--border) var(--grid-ink), transparent) 1px, transparent 1px);
-  background-size: var(--grid-w) var(--grid-h);
-  background-position: 0 0;
-}
+/* The paper lattice was here. See the note in .page-ground: it is gone,
+   not disabled, because the video is the ground now. */
 
 /* ---- the contour candidate ---------------------------------------------
  *
@@ -456,6 +467,22 @@
 .dark-ground {
   --grid-ink: 100%; /* dark --border is already #ffffff24 */
   --glow-strength: 14%;
+  /*
+   * NARROWER SCREEN, WEAKER GLOW — and it is a contrast fix, not taste.
+   *
+   * The glow is anchored at 88% 12%, which at 1440 puts its peak clear of the
+   * copy: Intelligence Layer measures 4.99:1 there. At 390 the column is the
+   * whole viewport, so the same anchor lands the bright part of the glow
+   * directly under the section's lead, and --muted-foreground (#b0aa9e) over
+   * it measured 4.48:1 against the 4.5 that 18px needs.
+   *
+   * Confirmed pre-existing and NOT caused by the video: the control run with
+   * the ground layer hidden reports the same 4.48. Everything else on the
+   * page moves when the video is hidden; this did not.
+   */
+  @media (width < 768px) {
+    --glow-strength: 9%;
+  }
   --glow-size: 900px;
   /* Off-centre on purpose, and a knob so the guard can be proved by moving
      the glow ONTO the copy rather than only turning it up — at the anchored
@@ -772,4 +799,103 @@
   .loader-hive { display: none; }
   .loader-plate { display: none; }
   .loader-cell { animation: none; }
+}
+
+/* ==========================================================================
+   THE MOVING GROUND — build spec §4b
+
+   A fixed, full-viewport layer that is never bounded to a section, and has no
+   scroll listener, no gradient mask and no scroll-driven opacity anywhere.
+   The boundary above Platform is drawn by the HERO, which declares an opaque
+   ground and covers this one. One mechanism decides where the edge is, so
+   there is no second mechanism to disagree with it.
+
+   z-index -20 puts it below .page-ground (-10) and below every dark section,
+   which paint over it. It is above the root background, which is where the
+   paper still lives if the image itself never arrives.
+   ========================================================================== */
+
+.bg-video {
+  /*
+   * HOW STRONGLY THE RIBBONS READ, as one number.
+   *
+   * The layer is composited over the canvas, which is paper, so this is a
+   * blend toward paper rather than a dimmer: at 0.5 the darkest ribbon meets
+   * body copy half way between its own value and the page it replaced. It
+   * exists because at full strength the video's dark bands take lead copy on
+   * Platform to 4.26:1 and the tour's captions to 2.55:1 — measured, not
+   * guessed, by build/verify-background.js sweeping the whole clip.
+   *
+   * This is a CONSTANT opacity and not a fade: nothing reads scroll, nothing
+   * animates it, and it is the same value at every point on the page.
+   *
+   * 0.35 is the first value at which EVERY section clears WCAG AA against the
+   * worst frame of the whole clip. Worst text contrast per section, swept by
+   * build/verify-background.js at twelve points across the video:
+   *
+   *              s=1    s=0.7   s=0.55   s=0.4   s=0.35   s=0.3   needs
+   *   features   4.27   4.98    5.43     6.24    6.49     6.80    4.5
+   *   tour       2.87   3.70    4.11     4.47    4.66     4.85    4.5
+   *   journey    2.84   4.14    4.91     5.65    6.00     6.31    4.5
+   *   coverage   3.20   4.48    5.18     6.01    6.31     6.61    4.5
+   *
+   * THE TOUR SETS THIS NUMBER and nothing else comes close. Its captions are
+   * 14px over a canvas that is deliberately alpha:true so the ground shows
+   * through, and they are the smallest copy on the page with no surface of
+   * its own. At 0.35 they clear by 3.5%, which is not generous: if the tour's
+   * captions ever get smaller or lighter, this value has to move with them.
+   *
+   * 0.4 was chosen first, from a coarser six-point sweep that reported the
+   * tour at 4.63. The twelve-point run found a worse moment in the same clip
+   * and the same section, at 4.47 — a sweep that samples more coarsely than
+   * the check it feeds will keep choosing values that fail the check, so both
+   * now use twelve.
+   */
+  --ground-strength: 0.35;
+
+  position: fixed;
+  inset: 0;
+  z-index: -20;
+  pointer-events: none;
+  overflow: hidden;
+  opacity: var(--ground-strength);
+  /* Under the still, not instead of it: a failed image request leaves paper,
+     which is the ground this site had before any of this. */
+  background-color: var(--background);
+}
+
+.bg-video-still,
+.bg-video-film {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* The composition is centred; cover crops the sides on tall viewports and
+     the top and bottom on wide ones, and the ribbons run edge to edge either
+     way. */
+  object-position: center;
+}
+
+/*
+ * The video arrives ON TOP of the still and fades in. Both are the same
+ * frame family, so the fade is between two pictures of the same thing rather
+ * than between a picture and a blank.
+ */
+.bg-video-film {
+  opacity: 0;
+  transition: opacity 400ms linear;
+}
+
+.bg-video-film[data-on] {
+  opacity: 1;
+}
+
+/*
+ * REDUCED MOTION: the video is never created, so this rule is a belt on top
+ * of a brace — it is here so that a video attached by any future path is
+ * still not shown, rather than relying on one effect's early return.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .bg-video-film { display: none; }
 }

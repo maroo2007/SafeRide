@@ -36,7 +36,15 @@ export function Difference() {
         this project settled on is that wide content scrolls inside its own
         box rather than making the document scroll sideways.
       */}
-      <div className="overflow-x-auto">
+      {/*
+        The table carries its own opaque surface (§4b). Two columns of body
+        copy read against ribbons drifting underneath the words is the exact
+        thing the moving ground must not be allowed to do, and a border alone
+        does not stop it — only a fill does. rounded-brand and the padding are
+        so the fill reads as a panel rather than as a rectangle someone forgot
+        to style.
+      */}
+      <div className="overflow-x-auto rounded-brand border border-border bg-card p-6 sm:p-8">
         <table className="w-full min-w-[34rem] border-collapse text-left">
           <caption className="sr-only">
             SafeRide compared with traditional school transportation
