@@ -938,3 +938,184 @@
   transform-origin: 50% 0%;
   backface-visibility: hidden;
 }
+
+/* ==========================================================================
+   THE JOURNEY — vertical below 900px, horizontal above it
+
+   Two real layouts, not one squeezed. Eight steps side by side on a phone is
+   unreadable, so the narrow case keeps the timeline this section has always
+   had; the wide case is the horizontal rule the sequence deserves.
+
+   The orange line and every lit node are driven by ONE value, `--p`, written
+   to the list by a single ticker callback. The line is that value as a
+   scaleX; a node is lit when the value has passed its own centre.
+   ========================================================================== */
+
+.journey {
+  --j-node: 2.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* ---- vertical: the default, and everything below 900px ------------------ */
+
+.j-step {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--j-node) minmax(0, 1fr);
+  column-gap: 1.5rem;
+  padding-bottom: 2.5rem;
+}
+
+.j-step:last-child { padding-bottom: 0; }
+
+/* The line runs BETWEEN markers, so it stops at the last one rather than
+   trailing off the end of the journey. */
+.j-step:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  left: calc(var(--j-node) / 2 - 0.5px);
+  top: var(--j-node);
+  height: calc(100% - var(--j-node));
+  width: 1px;
+  background: var(--border);
+}
+
+.j-title {
+  grid-column: 2;
+  grid-row: 1;
+  margin: 0;
+  padding-top: 0.4rem;
+  font-size: var(--text-h3);
+}
+
+.j-body {
+  grid-column: 2;
+  grid-row: 2;
+  margin: 0.5rem 0 0;
+  max-width: 52ch;
+  font-size: 0.875rem;
+  line-height: var(--leading-body);
+  color: var(--muted-foreground);
+}
+
+.j-short { display: none; }
+
+.j-node {
+  grid-column: 1;
+  grid-row: 1;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--j-node);
+  height: var(--j-node);
+  border-radius: 9999px;
+  border: 1px solid var(--border);
+  background: var(--background);
+  color: var(--muted-foreground);
+  /* 200ms: short enough that a node reads as being HIT by the line rather
+     than fading up behind it. */
+  transition:
+    background-color 200ms var(--ease-out),
+    border-color 200ms var(--ease-out),
+    color 200ms var(--ease-out);
+}
+
+.j-node[data-active] {
+  background: var(--accent);
+  border-color: var(--accent-edge);
+  color: var(--accent-foreground);
+}
+
+/* ---- horizontal, from 900px --------------------------------------------- */
+
+@media (width >= 900px) {
+  .journey {
+    display: grid;
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+    /* Three rows: titles, the rule, bodies. Every step subgrids onto them, so
+       the eight columns share one baseline for each row no matter how tall a
+       title or body happens to be. Without that the rule is not a rule. */
+    grid-template-rows: auto var(--j-node) auto;
+    column-gap: 0.75rem;
+  }
+
+  /* The rule, and the orange line over it. Both are pseudo-elements so the
+     <ol> keeps only <li> children and stays valid. */
+  .journey::before,
+  .journey::after {
+    content: "";
+    grid-row: 2;
+    grid-column: 1 / -1;
+    align-self: center;
+    height: 1px;
+    z-index: 0;
+  }
+
+  .journey::before { background: var(--border); }
+
+  .journey::after {
+    background: var(--accent);
+    transform: scaleX(var(--p, 0));
+    transform-origin: left center;
+  }
+
+  .j-step {
+    grid-row: 1 / -1;
+    grid-template-rows: subgrid;
+    grid-template-columns: minmax(0, 1fr);
+    padding-bottom: 0;
+    text-align: center;
+  }
+
+  /*
+   * EXPLICIT COLUMNS, and this is not belt-and-braces.
+   *
+   * The two pseudo-elements are placed first and span row 2 across every
+   * column. Auto-placement then cannot fit a step — which needs all three
+   * rows of one column — anywhere in the explicit grid, so it invents eight
+   * more columns to the right. The computed template came back as eight 0px
+   * columns followed by eight real ones, and the rule, spanning 1/-1, ran
+   * 134px past the first node on the left and 77px past the last on the
+   * right. Naming each step's column removes the ambiguity entirely.
+   */
+  .j-step:nth-child(1) { grid-column: 1; }
+  .j-step:nth-child(2) { grid-column: 2; }
+  .j-step:nth-child(3) { grid-column: 3; }
+  .j-step:nth-child(4) { grid-column: 4; }
+  .j-step:nth-child(5) { grid-column: 5; }
+  .j-step:nth-child(6) { grid-column: 6; }
+  .j-step:nth-child(7) { grid-column: 7; }
+  .j-step:nth-child(8) { grid-column: 8; }
+
+  /* The vertical connector belongs to the other layout entirely. */
+  .j-step::before { content: none; }
+
+  .j-title {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: end;
+    padding: 0 0 0.9rem;
+    font-size: 1rem;
+    line-height: 1.25;
+  }
+
+  .j-node {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: center;
+  }
+
+  .j-body {
+    grid-column: 1;
+    grid-row: 3;
+    margin: 0.9rem 0 0;
+    max-width: none;
+    font-size: 0.8125rem;
+  }
+
+  .j-long { display: none; }
+  .j-short { display: block; }
+}
