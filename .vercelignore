@@ -1,0 +1,30 @@
+# WITHOUT THIS FILE THE DEPLOYED SITE HAS NO HERO.
+#
+# Vercel falls back to .gitignore when there is no .vercelignore, and this
+# repo gitignores *.mp4 deliberately — the videos are large binaries that are
+# kept on disk rather than in git history. That is right for the repository
+# and wrong for a deployment: saferide-hero-av1.mp4 and saferide-hero-idle.mp4
+# are what the hero plays, and without them the first screen is a poster
+# frame and nothing else.
+#
+# So this file exists to say what the DEPLOYMENT excludes, which is a
+# different question from what git tracks. Everything under public/ ships.
+
+node_modules
+.next
+out
+.git
+.env*.local
+
+# Build tooling and diagnostics. None of it is served.
+build
+__tests__
+*.test.ts
+*.test.tsx
+
+# The untrimmed masters. Only the encoded variants are referenced by the site,
+# and public/ is deployed wholesale, so these would otherwise ship 22 MB and
+# 6.6 MB of source nobody fetches.
+public/video/saferide-hero.mp4
+public/gemini-background
+public/screenshots
