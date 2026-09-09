@@ -44,9 +44,33 @@ export function Difference() {
         so the fill reads as a panel rather than as a rectangle someone forgot
         to style.
       */}
-      <div className="overflow-x-auto rounded-brand border border-border bg-card p-6 sm:p-8">
+      <div
+        /*
+         * FOCUSABLE, because it scrolls. Below about 640px the table is wider
+         * than the viewport and this box scrolls sideways; a scroll container
+         * that cannot take focus is one a keyboard user cannot scroll, and
+         * the content past the edge is simply unreachable for them. axe flags
+         * it as scrollable-region-focusable, and it only appears at 390 —
+         * at 1440 and 800 the table fits and the box never scrolls.
+         *
+         * role="region" with a name, so the stop announces what it is rather
+         * than arriving as an unlabelled group in the tab order.
+         */
+        tabIndex={0}
+        role="region"
+        /*
+         * Named by the TABLE'S OWN caption, not by the section heading. The
+         * section is already a region landmark carrying that heading as its
+         * name, and two landmarks with the same name is what axe reports as
+         * landmark-unique — the fix for one violation produced another. The
+         * caption is the honest name for this box anyway: it says what is
+         * inside it rather than what the section is called.
+         */
+        aria-labelledby="difference-table-caption"
+        className="overflow-x-auto rounded-brand border border-border bg-card p-6 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring sm:p-8"
+      >
         <table className="w-full min-w-[34rem] border-collapse text-left">
-          <caption className="sr-only">
+          <caption id="difference-table-caption" className="sr-only">
             SafeRide compared with traditional school transportation
           </caption>
           <thead>

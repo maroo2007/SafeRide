@@ -126,6 +126,18 @@ export default function RootLayout({
           as="video"
           href="/video/saferide-hero-idle.mp4"
           type="video/mp4"
+          /*
+           * NOT UNDER REDUCED MOTION. A preload link honours `media`, and
+           * without it this fetches 336 KB of video for a visitor who will
+           * only ever be shown the still — the hero swaps to hero-poster.jpg,
+           * and the download happens anyway because a preload in the head
+           * runs before any of that is decided.
+           *
+           * Caught by the whole-page reduced-motion check in
+           * build/verify-page.js, which counts requests rather than reading
+           * what the hero rendered.
+           */
+          media="(prefers-reduced-motion: no-preference)"
         />
       </head>
       <body className="min-h-dvh bg-background text-foreground antialiased">

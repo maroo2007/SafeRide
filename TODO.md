@@ -41,10 +41,22 @@ right and are not solved by having removed the links to them.
 
 ## Engineering follow-ups
 
-### 3. Contact form email delivery
-Form posts to `/api/contact` with React Hook Form + Zod validation (§4.11).
-Route logs the payload only — no real email service wired.
-Needs a provider (Resend / SendGrid / SES) plus `CONTACT_TO_EMAIL` env var.
+### 3. Contact form email delivery — STILL OPEN, and the form is now live
+
+Built 2026-09-09. React Hook Form + Zod, one schema in `lib/contact-schema.ts`
+validated on the client and again in the server action at
+`app/api/contact/submit.ts`. Seven vitest cases call the action directly.
+
+**Nothing is sent anywhere.** A valid submission is validated, logged, and the
+sender is told it was received. That gap is now visible to the public: a school
+that fills the form in gets a success message and nobody gets an email. It was
+theoretical while the form did not exist; it is not any more.
+
+Wiring is a single marked block in `submit.ts`. Needs a provider (Resend /
+SendGrid / SES) plus a `CONTACT_TO_EMAIL` env var. Whatever is chosen must be
+able to FAIL loudly — a transport error has to come back as
+`{ ok: false, formError }` so the form says so, rather than being swallowed
+into a success the sender believes.
 
 ### 4. Safari AND Firefox scrub behaviour — UNVERIFIED
 
@@ -101,11 +113,10 @@ This project is isolated from it by its own `.git` at `C:\projects\saferide`
 Needs cleanup, **unrelated to this project.** Not investigated per instruction.
 
 
-### 9. Remove the "Interaction states" scaffolding before launch
+### 9. ~~Remove the "Interaction states" scaffolding~~ — DONE 2026-09-09
 
-`app/page.tsx` still renders a Phase 1 design-system block — button variants
-and token swatches. It keeps the token system visible while sections are built
-on top of it and it must not ship. Delete it once §4's sections are in.
+Removed with §4.10-§4.13. It would otherwise have sat between Pricing and the
+FAQ, which is where the page stopped being a scaffold and became a page.
 
 ### 8. Privacy Policy and Terms of Service — LAUNCH-BLOCKING
 
@@ -120,6 +131,80 @@ pages; it does not make the documents unnecessary.
 **Blocks public launch. Does not block any build phase.**
 
 **Owner: client.**
+
+### 10. The camera-feed imagery is yellow American school buses
+
+The Intelligence Layer's live-example panel and the tour's camera-feed frames
+show yellow US-style school buses. SafeRide's fleet is not that, and the film
+this whole palette was sampled from is not that either — the hero's bus is the
+warm neutral `#c5bfab` the tokens are built on.
+
+It reads as stock imagery on a page whose entire argument is that this is YOUR
+fleet, on YOUR routes, in Egypt. Needs real frames from a SafeRide vehicle, or
+at minimum frames of a bus that could plausibly be one.
+
+Not blocking a preview. Blocking a sales conversation.
+
+### 11. "Our Story" has no story
+
+`lib/hero-captions.ts` — the hero's secondary CTA is labelled "Our Story" and
+pointed at `#story`, a section that has never existed on this page. It scrolled
+nowhere, which is the same defect as an `href="#"` with an extra step, and it
+is what removed six links from the footer.
+
+Retargeted 2026-09-09 to `#difference` ("Why Choose SafeRide"), which is the
+nearest thing on the page to what the label promises. That is a compromise, not
+a resolution. Either build a story section or change the label — both are
+content decisions.
+
+Found by the in-page link check in `build/verify-faq-contact.js`, which
+resolves every hash against the DOM rather than only rejecting `"#"`.
+
+### 12. "Log In" points at the old site
+
+`components/sections/final-cta.tsx` and the footer both send "Log In" to
+`https://safe-ridee.vercel.app/login`, because that is the only login that
+exists. It is deliberately NOT `"#"`. When the product's real URL is settled,
+it is one constant (`LOGIN_HREF`) and one line in the footer's `COLUMNS`.
+
+### 13. The background video's 22.75 MB source ships to production
+
+`public/gemini-background/ground.mp4` is the untrimmed H.264 master. It is
+gitignored, so it is not in the repo — but `public/` is deployed wholesale, so
+it would be served. The same is true of `public/video/saferide-hero.mp4` (22 MB),
+which has been there longer.
+
+Only the AV1 encodes are referenced: `ground-av1.mp4` (0.377 MB) and
+`saferide-hero-av1.mp4`. Either move the masters out of `public/` or exclude
+them at build time. A backup of the ground master is at
+`C:/Users/Marwan/saferide-asset-backup/`.
+
+### 14. Performance: 53 mobile / 58 desktop, and the causes are different
+
+Lighthouse on the production build, 2026-09-09:
+
+| | mobile | desktop |
+|---|---|---|
+| Performance | 53 | 58 |
+| Accessibility | 100 | 100 |
+| Best Practices | 100 | 100 |
+| SEO | 100 | 100 |
+| LCP | 7.1s | 1.2s |
+| TBT | 740ms | 2,650ms |
+| CLS | 0 | 0 |
+
+**Mobile is the hero film.** 4 MB of `saferide-hero-av1.mp4` transfers inside
+the measurement window on simulated slow 4G, and the loader holds the page
+until it plays. **Desktop is the tour.** 2,650ms of total blocking time is the
+GLB parse, texture upload and shader compile — it happens behind the loader, so
+nobody watches it, but the main thread is unresponsive for those seconds.
+
+Both are consequences of decisions that were made deliberately, so neither is a
+bug. If the number has to move: the tour's model work is the desktop lever (a
+worker, or a smaller GLB), and a shorter or lower-bitrate hero is the mobile
+one. Accessibility, best practices and SEO are already at 100 and should be
+guarded there.
+
 ---
 
 ## Video pipeline — resolved, recorded for provenance

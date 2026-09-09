@@ -419,7 +419,23 @@ const check = (name, ok, detail = "") => {
       if (d > drop) { drop = d; darkest = p[0]; }
     }
   }
-  if (ground.mode !== "grid") {
+  /*
+   * THE CONTOUR LAYER IS SWITCHED OFF (GROUND_CONTOURS = false, since 4b).
+   *
+   * These two checks measure a layer that is deliberately no longer rendered:
+   * the ground under the page is now a video, and concentric contour rings
+   * over drifting ribbons were two textures competing in the same pixels.
+   *
+   * They are SKIPPED and said to be skipped, rather than deleted or quietly
+   * passed. Deleting them would lose the measurement if the constant is ever
+   * flipped back; passing them would be a guard reporting success about
+   * something that is not on the page. If the layer returns, so do they —
+   * the condition is whether it is in the DOM, not a flag in this file.
+   */
+  const contourLayer = await ev("!!document.querySelector('.page-ground svg, .topo, [data-topo]')");
+  if (!contourLayer) {
+    console.log("   SKIP  the contour layer is not rendered (GROUND_CONTOURS is off) — its two checks do not apply");
+  } else if (ground.mode !== "grid") {
     /*
      * 32, and both populations were measured rather than assumed.
      *

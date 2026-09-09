@@ -204,7 +204,23 @@ export function ScrubVideoHero() {
           --accent-lift to the smaller dark-ground shadow. Guarded in
           __tests__/hero-autoplay.test.tsx. */}
       {reducedMotion ? (
-        /* Reduced motion means NO motion — a still, never a paused video. */
+        /*
+         * Reduced motion means NO motion — a still, never a paused video.
+         *
+         * This branch is correct and was NOT enough on its own. useMediaQuery
+         * returns the SERVER snapshot on the first commit, so there is exactly
+         * one render in which `reducedMotion` is false, the two <video>
+         * elements mount with preload="auto", and the browser starts fetching.
+         * By the time this branch swaps them for the still, the requests are
+         * already out — measured on the production build: hero-idle.mp4 and
+         * hero-av1.mp4 both downloaded by a visitor who never saw a frame of
+         * either.
+         *
+         * The fix is on the <source> elements below, which carry a `media`
+         * attribute so the resource selection algorithm matches nothing at all
+         * under reduced motion. It is markup rather than state, so it is true
+         * on the very first render and on the server.
+         */
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src="/images/hero-poster.jpg"
@@ -226,7 +242,7 @@ export function ScrubVideoHero() {
             className="absolute inset-0 h-full w-full object-cover"
             style={{ opacity: handedOver ? 0 : 1, transition: "opacity 200ms linear" }}
           >
-            <source src="/video/saferide-hero-idle.mp4" type="video/mp4" />
+            <source src="/video/saferide-hero-idle.mp4" type="video/mp4" media="(prefers-reduced-motion: no-preference)" />
           </video>
 
           {/* THE FILM. No `loop`: it holds on the last frame. */}
@@ -280,8 +296,8 @@ export function ScrubVideoHero() {
                 ffmpeg -i saferide-hero.mp4 -an -c:v libsvtav1 -crf 34 \
                        -preset 6 -pix_fmt yuv420p -g 240 saferide-hero-av1.mp4
             */}
-            <source src="/video/saferide-hero-av1.mp4" type='video/mp4; codecs="av01.0.09M.08"' />
-            <source src="/video/saferide-hero.mp4" type='video/mp4; codecs="avc1.640032"' />
+            <source src="/video/saferide-hero-av1.mp4" type='video/mp4; codecs="av01.0.09M.08"' media="(prefers-reduced-motion: no-preference)" />
+            <source src="/video/saferide-hero.mp4" type='video/mp4; codecs="avc1.640032"' media="(prefers-reduced-motion: no-preference)" />
           </video>
         </>
       )}
