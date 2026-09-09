@@ -128,7 +128,9 @@ export function ScrollStack() {
       }
     };
 
-    let running = false;
+    /* null, not false: the first call must always act, whichever way it
+       decides. See the same note in journey.tsx. */
+    let running: boolean | null = null;
     const clear = () => {
       for (const el of cards) { el.style.transform = ""; el.style.opacity = ""; el.style.zIndex = ""; }
     };
@@ -141,6 +143,7 @@ export function ScrollStack() {
         host.dataset.pinned = "";
         /* The page already runs this loop for the hero and the tour. Adding a
            callback to it is free; starting a second rAF would not be. */
+        gsap.ticker.wake();
         gsap.ticker.add(tick);
         tick();
       } else {
@@ -149,6 +152,9 @@ export function ScrollStack() {
         /* Give the cards back to normal flow rather than leaving stale
            transforms on them. */
         clear();
+        /* Nothing here needs a frame loop under reduced motion, and importing
+           gsap starts one regardless. */
+        if (reduced.matches) gsap.ticker.sleep();
       }
     };
 

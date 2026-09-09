@@ -92,7 +92,21 @@ async function session({ reduced } = {}) {
     if (await ev("!document.querySelector('[data-load-screen]')")) break;
     await sleep(500);
   }
-  await sleep(800);
+  /*
+   * PUT THE FAQ ON SCREEN AND WAIT FOR IT TO RESPOND.
+   *
+   * The page grew by a 2700px scroll stack, so the accordion is a long way
+   * down and is not interactive the moment the loader lifts. Clicking it then
+   * reported all seven questions refusing to open, on a build where the live
+   * browser opens them immediately. Scrolling to it is also what a visitor
+   * does before clicking one.
+   */
+  await ev("document.getElementById('faq')?.scrollIntoView({ block: 'center' }); 1");
+  for (let i = 0; i < 40; i++) {
+    if (await ev("document.querySelectorAll('#faq button[aria-expanded]').length === 7")) break;
+    await sleep(250);
+  }
+  await sleep(1200);
   return { ev, send, key, close: () => { ws.close(); ch.kill(); } };
 }
 

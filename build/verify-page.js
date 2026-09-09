@@ -216,6 +216,16 @@ async function session({ reduced } = {}) {
     webglCtx.length ? webglCtx.join(", ") : "canvas contexts asked for: " + (webgl.join(", ") || "none"));
   check("no video is fetched at all", videoReqs.length === 0,
     videoReqs.map((u) => u.split("/").pop()).join(", ") || "none");
+  /* §4.4: reduced motion renders no BlurReveal component at all, so there is
+     nothing to animate rather than something animating quickly. */
+  const chars = await rm.ev("document.querySelectorAll('[data-blur-char]').length");
+  check("no per-character reveal spans exist", chars === 0, chars + " found");
+  /* §5.3: the finished state, not a half-drawn line. */
+  const lit = await rm.ev("document.querySelectorAll('[data-j-node][data-active]').length");
+  const tot = await rm.ev("document.querySelectorAll('[data-j-node]').length");
+  check("the journey line is fully drawn and every node lit", tot > 0 && lit === tot, lit + " of " + tot);
+  check("the scroll stack is not pinned",
+    (await rm.ev("document.querySelector('.stack')?.dataset.pinned === undefined")) === true);
   /* rAF is not zero on any real page — React and Lenis both schedule one.
      What must not happen is a page still animating every frame. */
   await rm.ev("window.__rafBase = window.__rafCalls; 1");
@@ -224,6 +234,22 @@ async function session({ reduced } = {}) {
   check("nothing is still animating three seconds later", growth < 12,
     growth + " new requestAnimationFrame calls in 3s (total " + rafCalls + ")");
   rm.close();
+
+  /* ---- below 768 ------------------------------------------------------- */
+  if (VW < 768) {
+    console.log("\n   BELOW 768");
+    const m = await session();
+    check("the tour's 3D model is never fetched",
+      !m.requests.some((u) => /\.glb(\?|$)/.test(u)),
+      m.requests.filter((u) => /\.glb/.test(u)).length + " GLB requests");
+    check("the scroll stack is not pinned",
+      (await m.ev("document.querySelector('.stack')?.dataset.pinned === undefined")) === true);
+    check("the stack is a plain vertical list",
+      (await m.ev("getComputedStyle(document.querySelector('.stack-viewport')).flexDirection")) === "column");
+    const jd = await m.ev("getComputedStyle(document.querySelector('.journey')).display");
+    check("the journey timeline is vertical", jd !== "grid", "display: " + jd);
+    m.close();
+  }
 
   console.log("\n  " + (fails.length ? "FAILED: " + fails.join(" | ") : "all checks pass") + "\n");
   process.exit(fails.length ? 1 : 0);

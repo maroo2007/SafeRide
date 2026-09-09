@@ -102,18 +102,36 @@ export function JourneySteps() {
       write(clamp((start - r.top) / span));
     };
 
-    let running = false;
+    /*
+     * null, not false — the first call must always act.
+     *
+     * It was `false`, so on a reduced-motion or narrow load the very first
+     * apply() saw want === running and returned before writing anything. The
+     * rule stayed at 0 and not one node lit: measured as "0 of 8" at all three
+     * widths, on the state that is supposed to be the FINISHED one.
+     */
+    let running: boolean | null = null;
     const apply = () => {
       const want = wide.matches && !reduced.matches;
       if (want === running) return;
       running = want;
-      if (want) { gsap.ticker.add(tick); tick(); }
-      else {
+      if (want) {
+        /* gsap sleeps its ticker when nothing needs it; adding a callback
+           to a sleeping ticker would never run. */
+        gsap.ticker.wake();
+        gsap.ticker.add(tick);
+        tick();
+      } else {
         gsap.ticker.remove(tick);
         /* Reduced motion and the vertical layout both want the finished
            state, not a half-drawn one: the rule full, every node lit. */
         last = -1;
         write(1);
+        /* And nothing on this page needs a frame loop in that state. Importing
+           gsap starts its ticker whether or not anything is animating — 102
+           requestAnimationFrame calls in three seconds with every animation on
+           the page already disabled. */
+        if (reduced.matches) gsap.ticker.sleep();
       }
     };
 

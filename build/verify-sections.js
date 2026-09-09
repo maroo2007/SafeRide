@@ -101,7 +101,19 @@ const check = (name, ok, detail = "") => {
       const bg = painted(s);
       const b = s.getBoundingClientRect();
       const h2 = s.querySelector('h2');
-      const eyebrow = s.querySelector('.label-mono');
+      /*
+       * The section's OWN eyebrow, not any .label-mono inside it.
+       *
+       * The Scroll Stack has no eyebrow — the brief removed Platform's with
+       * the grid — but each of its cards carries a .label-mono counter, and
+       * this picked the first of those and measured it against the SECTION's
+       * paper ground. It sits on a photograph behind a scrim, so it came back
+       * as 1:1 and failed a section that is correct. Its real ground is
+       * measured by verify-stack, which hides the copy and photographs what
+       * is under it.
+       */
+      const eyebrow = [...s.querySelectorAll('.label-mono')]
+        .find((e) => !e.closest('[data-stack-card]')) || null;
       const inner = s.firstElementChild;
       const ics = inner ? getComputedStyle(inner) : null;
       const txt = (el) => {
