@@ -205,7 +205,7 @@ export function ScrubVideoHero() {
             {/*
               AV1 first, H.264 behind it — and the AV1 source carries a FULL
               codecs string, not a bare video/mp4.
-              
+
               Without it, a browser that can play MP4 but has no AV1 decoder
               (older Safari, plenty of mid-range Android) matches on the
               container alone, picks the AV1 file and fails, instead of
@@ -216,8 +216,35 @@ export function ScrubVideoHero() {
               AV1 was rejected earlier in this project for slow seeking. That
               rejection is REVERSED and the reason is recorded in the spec:
               it applied to a scrub hero, and nothing seeks any more.
+
+              ── 8-BIT, AND THE TRAILING .08 IS THE WHOLE FIX ──────────────
+
+              This read `.10` for weeks while the comment above it said 8-bit,
+              and the file WAS 10-bit — so the comment was the only thing that
+              was wrong, and it was wrong in the direction that hid a defect.
+              1080p48 10-bit AV1 has no hardware decode on a large share of
+              machines, including the one this project is built on (Vega 8,
+              no AV1 decode block at all), so it fell to software.
+
+              Measured on that machine, headed, over the first five seconds a
+              visitor actually sees — dropped frames and presented rate:
+
+                AV1 10-bit   22 dropped   39.5/s   11.33 MB
+                AV1  8-bit    0 dropped   48.1/s   10.65 MB
+                H.264         2 dropped   46.6/s   23.02 MB
+
+              Six reports of "the hero still lags" were this. Not the page —
+              rAF measured a clean 58.2/s throughout — the PICTURE, stalling
+              with currentTime frozen while the decoder shed frames.
+
+              8-bit matches H.264's behaviour at less than half the bytes, so
+              the H.264 fallback stays a fallback and no runtime source
+              switching is needed. Re-encoded from the H.264 master with:
+
+                ffmpeg -i saferide-hero.mp4 -an -c:v libsvtav1 -crf 34 \
+                       -preset 6 -pix_fmt yuv420p -g 240 saferide-hero-av1.mp4
             */}
-            <source src="/video/saferide-hero-av1.mp4" type='video/mp4; codecs="av01.0.09M.10"' />
+            <source src="/video/saferide-hero-av1.mp4" type='video/mp4; codecs="av01.0.09M.08"' />
             <source src="/video/saferide-hero.mp4" type='video/mp4; codecs="avc1.640032"' />
           </video>
         </>
