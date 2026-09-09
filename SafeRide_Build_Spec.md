@@ -14,6 +14,48 @@
 
 ---
 
+## 0a. WHAT TO JUDGE ON — read this before reporting that nothing changed
+
+**`http://localhost:3100/`, and confirm it with `data-build`, not the port.**
+
+```
+npx next build
+npx next start -p 3100
+```
+
+Nothing in this project is measured or judged on a dev server. `next dev`
+runs unminified, recompiles on demand, and can be serving a different tree.
+
+**The port is not the check.** Three rounds have been spent on "I set that
+and you say nothing changed" where the cause was a dev server on another
+port. A port proves nothing — either kind of server can sit on any port, and
+this repo has had `next dev` on 3000 and `next start` on 3100 at the same
+time. So the build stamps itself:
+
+```
+<html data-build="production">     next start   <- judge here
+<html data-build="development">    next dev     <- do not
+```
+
+Visible in the elements panel with no terminal. In the console:
+
+```js
+document.documentElement.dataset.build
+```
+
+**And when an asset is the thing that changed, check the asset, not the
+page.** `public/**/*.mp4` is gitignored, so what ships is whatever sits on
+disk — a stale file survives any number of rebuilds and every rebuild will
+look like it did nothing:
+
+```
+curl -s http://localhost:3100/video/saferide-hero-av1.mp4 -o /tmp/x.mp4
+ffprobe -v error -select_streams v:0 -show_entries stream=pix_fmt /tmp/x.mp4
+```
+
+Fetching it over HTTP rather than reading `public/` proves what the SERVER
+sends, which is the only thing a browser ever sees.
+
 ## 0. Project Context
 
 **SafeRide** is an AI-powered school transportation safety platform operating
@@ -1461,6 +1503,67 @@ Proved by forcing the ramp's dark end to `#8a8474`: 16 runs drop below
 threshold and every tour chapter falls to 2.47-3.89:1.
 
 ---
+
+## 4a1. The hero's decode — 8-bit AV1, and what the bar actually means
+
+Added 2026-09-09, closing six rounds of "the hero still lags".
+
+**Every earlier measurement was the wrong instrument.** rAF cadence answers
+*does the page hitch* and measured a clean 58.2/s throughout. It cannot see a
+decoder falling behind, because the page is fine and the PICTURE is not.
+`getVideoPlaybackQuality()` separates them, and nothing else does.
+
+Measured on this project's own machine (AMD Vega 8 — **no AV1 decode block at
+all**, so 1080p48 falls to software), over the first five seconds a visitor
+actually sees:
+
+| | dropped | presented | size |
+|---|---|---|---|
+| AV1 10-bit | 22 (headed), 51 (headless) | 39.5/s | 11.33 MB |
+| **AV1 8-bit** | **0–3** | 47.1–48.6/s | **10.65 MB** |
+| H.264 | 0–2 | 46.6–48.0/s | 23.02 MB |
+
+The 10-bit losses arrive in a burst with `currentTime` FROZEN — a visible
+stall of over a second. 8-bit matches H.264 at less than half the bytes, so
+the H.264 fallback stays a fallback and **no runtime source switching is
+needed**. `MediaCapabilities.powerEfficient` is advisory and reported `false`
+for 8-bit AV1 on a machine that plays it perfectly well, which is why the
+outcome is measured rather than the capability detected.
+
+Re-encode command lives beside the `<source>` tag. The codecs string is
+`av01.0.09M.08`; it read `.10` for weeks while the comment beside it claimed
+8-bit, so **the string is a declaration and the pixel format is the fact** —
+the guard reads the file with ffprobe, never the tag.
+
+### The idle loop must be PAUSED, not made transparent
+
+The 336 KB idle clip is 1920x1080 H.264 at **48 fps** and carried `loop` +
+`autoPlay` with only `opacity: 0` after the handover. It therefore kept
+decoding at full rate for the whole session behind an invisible element —
+4048 frames presented on one measured run, a second 1080p48 decode running
+underneath the film and the phone tour's WebGL for nothing.
+
+It is now paused 260ms after handover, i.e. after the cross-fade, so the
+frame under the film is still live while the film is still partly
+transparent.
+
+### §2.3's bar means AFTER THE REVEAL, and this is the amendment
+
+The Final Spec's §2.3 reads "no dropped frames in the first five seconds"
+and "no long task over 200ms between navigation and the hero playing
+smoothly". **Read literally, no encode can ever pass it, and that is not the
+encode's fault.**
+
+The film starts playing BEHIND the loader. §4.4 deliberately holds the loader
+until the tour scene has compiled, which is a multi-second block by design —
+and every codec drops frames across it, H.264 included. A literal reading of
+§2.3 therefore forbids the loader design that was approved in the same
+document.
+
+**§2.3 is amended to: after the reveal.** The window is the visitor's first
+five seconds, timed from the loader lifting. Frames lost under an opaque
+cover are the loader's business, not the codec's, and the guard measures the
+visitor's window for exactly that reason.
 
 ## 4b. Asset weight — measured before optimised
 

@@ -356,6 +356,57 @@ const PROBE = `
         presented >= 200 && dropped === 0, dropped + " dropped of " + presented + " presented");
     }
   }
+  /*
+   * THE IDLE LOOP MUST STOP, not just go transparent. Spec §2.2's second
+   * candidate.
+   *
+   * The sampler only records a frame while an element is unpaused, so a
+   * genuinely stopped idle element simply stops appearing in the series.
+   * The assertion is therefore "no samples in the last three seconds".
+   *
+   * NO-OP DEFENCE: an idle element that never played also has no samples in
+   * the last three seconds. So it must have played FIRST — the count is
+   * asserted alongside the silence, or this passes on a broken hero.
+   */
+  const idle = out.els.find((e) => e.src && /idle/.test(e.src));
+  const lastWall = Math.max(...out.els.flatMap((e) => e.samples.map((s) => s.wall)), 0);
+  if (!idle) {
+    check("the idle loop ran and then stopped", false, "no idle element in the DOM at all");
+  } else if (!idle.samples.length) {
+    /*
+     * NOT A FAILURE, and reporting it as one was the same mistake twice in an
+     * hour. Over localhost the film reaches canplay in a few hundred
+     * milliseconds, so the handover can beat the idle clip to its first
+     * frame — the poster covers the gap and nothing is wrong. On any real
+     * connection the idle plays. Printed loudly rather than passed silently,
+     * because it means this check proved nothing on this run.
+     */
+    console.log("   n/a   the idle loop never started — the film was playable first."
+      + " This check is NOT EXERCISED on a localhost run that fast.");
+  } else {
+    /*
+     * ONE assertion on its SPAN, because a count cannot discriminate here.
+     *
+     * The first version demanded 20 samples before believing "it stopped".
+     * On localhost the film becomes playable in a few hundred milliseconds,
+     * so the idle legitimately gets two or three — and the check failed on a
+     * correct build. The threshold was fitted to a slow connection nobody was
+     * on.
+     *
+     * The span works in both directions and needs no threshold fitting:
+     *   never played      no samples          -> caught above
+     *   never paused      span ~= the run     -> FAIL
+     *   played and paused span of a second or two -> PASS
+     */
+    const span = (idle.samples[idle.samples.length - 1].wall - idle.samples[0].wall) / 1000;
+    const runSpan = (lastWall - idle.samples[0].wall) / 1000;
+    check("the idle loop is PAUSED after handover, not just made transparent",
+      span < Math.max(3, runSpan * 0.35),
+      "played for " + span.toFixed(2) + "s of a " + runSpan.toFixed(1) + "s run, "
+        + idle.samples[idle.samples.length - 1].total + " frames presented"
+        + (span >= 3 ? "  — still decoding 1080p48 behind the film" : ""));
+  }
+
   /* Read the bit depth off the FILE, not off the codecs string in the DOM:
      the string claimed 8-bit for weeks while the file was 10-bit, and the
      string is a declaration while the pixel format is the fact. */

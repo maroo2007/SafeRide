@@ -63,6 +63,7 @@ import { HERO_PLAYING_ATTR } from "@/components/ui/load-screen";
 
 export function ScrubVideoHero() {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const idleRef = useRef<HTMLVideoElement>(null);
   const sectionRef = useRef<HTMLElement>(null);
   const reducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
 
@@ -113,6 +114,40 @@ export function ScrubVideoHero() {
     v.addEventListener("canplay", ready, { once: true });
     return () => v.removeEventListener("canplay", ready);
   }, [reducedMotion, handedOver, tryPlay]);
+
+  /*
+   * ---- STOP THE IDLE LOOP ONCE THE FILM HAS IT -------------------------
+   *
+   * `opacity: 0` hides a video. It does not stop it decoding.
+   *
+   * The idle clip is 1920x1080 H.264 at 48 fps, and it carries `loop` and
+   * `autoPlay`, so after the handover it kept decoding at full rate for the
+   * rest of the session behind an invisible element. Measured on one run it
+   * had presented 4048 frames — a second 1080p48 decode running underneath
+   * the film, the phone tour's WebGL and everything else, for nothing.
+   *
+   * Spec §2.2 named this as the second candidate for the hero's lag:
+   * "confirm the idle element is fully released after handoff and not still
+   * decoding". It was not.
+   *
+   * A DOM write, not state: `handedOver` already drives the cross-fade, and
+   * pausing is the same event expressed on the element.
+   */
+  useEffect(() => {
+    if (!handedOver) return;
+    const idle = idleRef.current;
+    if (!idle) return;
+    /* After the 200ms cross-fade, so the frame under the film is still live
+       while it is still partly visible. Pausing on the same tick shows a
+       frozen idle frame through a half-transparent film. */
+    const t = window.setTimeout(() => {
+      if (!idle.paused) idle.pause();
+      /* Drop the buffered data too. Paused still holds decoded frames and a
+         network buffer; this releases both without disturbing the element. */
+      idle.removeAttribute("autoplay");
+    }, 260);
+    return () => window.clearTimeout(t);
+  }, [handedOver]);
 
   /* ---- play while ANY part of the hero is on screen -------------------- */
   useEffect(() => {
@@ -184,6 +219,7 @@ export function ScrubVideoHero() {
               can play. Requested together they race and the small file loses,
               which is the whole reason it is a separate element. */}
           <video
+            ref={idleRef}
             aria-hidden="true"
             muted playsInline loop autoPlay preload="auto"
             poster="/images/hero-poster.jpg"

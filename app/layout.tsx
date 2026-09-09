@@ -100,6 +100,19 @@ export default function RootLayout({
       lang="en"
       dir="ltr"
       suppressHydrationWarning
+      /*
+       * WHICH BUILD IS THIS? Baked at build time, visible in the elements
+       * panel without opening a terminal.
+       *
+       * Three rounds of this project have been spent on "I set that and you
+       * say nothing changed" where the answer was a dev server on another
+       * port serving an older tree. Port numbers do not answer the question —
+       * both a dev and a production server can sit on any port, and this repo
+       * has had them on 3000 and 3100 simultaneously. The build mode does.
+       *
+       * Judge on data-build="production". `next dev` stamps "development".
+       */
+      data-build={process.env.NODE_ENV}
       className={`${fraunces.variable} ${jetbrains.variable} ${amiri.variable} ${notoNaskh.variable}`}
     >
       <head>
