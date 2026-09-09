@@ -85,6 +85,29 @@ export const GROUND_ATTR = "data-bg-video";
  */
 export const ATTACH_CAP_MS = 10000;
 
+/**
+ * How long after the page is ready before the video is attached.
+ *
+ * "After the tour is ready" was not late enough. The tour raises its flag when
+ * its scene has settled, and the frames immediately after that are its most
+ * expensive — the last texture uploads, the first real renders, and on the
+ * default path the loader's own reveal. Starting a second video decode into
+ * that measured, on the production build:
+ *
+ *                        scene settled    worst frame after the lift
+ *   video attached at ready   14691ms      100ms
+ *   video not attached        10582ms       67ms
+ *
+ * Four seconds of extra settling and a dropped frame on the first thing the
+ * visitor sees, for a background that nobody is looking at yet.
+ *
+ * This is the same lever as the loader's REVEAL_DELAY_MS and for the same
+ * reason: the moment something declares itself ready is the moment the GPU is
+ * busiest, and the cheapest fix is to not be there. It costs nothing — the
+ * still is already the ground and stays it.
+ */
+export const ATTACH_DELAY_MS = 900;
+
 export function BackgroundVideo() {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -198,10 +221,16 @@ export function BackgroundVideo() {
       root.hasAttribute(HERO_PLAYING_ATTR) &&
       (!waitsForTour || root.hasAttribute(TOUR_READY_ATTR));
 
-    if (ready()) attach();
+    /* Ready, THEN a beat. See ATTACH_DELAY_MS. */
+    const attachSoon = () => {
+      if (timer) window.clearTimeout(timer);
+      timer = window.setTimeout(attach, ATTACH_DELAY_MS);
+    };
+
+    if (ready()) attachSoon();
     else {
       obs = new MutationObserver(() => {
-        if (ready()) { obs?.disconnect(); attach(); }
+        if (ready()) { obs?.disconnect(); attachSoon(); }
       });
       obs.observe(root, { attributes: true, attributeFilter: [HERO_PLAYING_ATTR, TOUR_READY_ATTR] });
       /*
@@ -211,6 +240,9 @@ export function BackgroundVideo() {
        * already on screen either way, so the cost of being late is nothing.
        */
       timer = window.setTimeout(() => { obs?.disconnect(); attach(); }, ATTACH_CAP_MS);
+      /* attachSoon() reuses `timer`, so the cap and the delay cannot both be
+         pending — whichever is set last is the one that fires, and the cap is
+         only ever replaced by a delay that means the page IS ready. */
     }
 
     return () => {
