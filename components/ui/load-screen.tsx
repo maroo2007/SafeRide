@@ -36,8 +36,9 @@ import { MOBILE_BREAKPOINT } from "@/components/sections/phone-tour/constants";
  * because the SEVENTH hexagon sits exactly on the group's origin: it grows
  * about its own centre while the other six fly outward off screen. Once its
  * inscribed circle passes the viewport's half-diagonal the whole screen is
- * inside one hexagon. That scale is computed from the viewport at reveal
- * time rather than guessed.
+ * inside one hexagon. That scale is computed from the viewport at reveal time
+ * rather than guessed — and from HEX_INRADIUS rather than from the hexagon's
+ * vertex distance, which is a different number and left the corners dark.
  *
  * ── What it waits for (§4.4) ──────────────────────────────────────────────
  *
@@ -91,14 +92,82 @@ export const HERO_PLAYING_ATTR = "data-hero-playing";
  */
 export const TOUR_READY_ATTR = "data-tour-ready";
 
-/** §4.3: the reveal begins a beat after the wait ends, so the freeze reads
- *  as a deliberate pause rather than a stutter. */
-export const REVEAL_DELAY_MS = 200;
+/**
+ * How long the frozen honeycomb is held before the reveal starts.
+ *
+ * 500, and 300 of that is not a design beat — it is waiting for the GPU.
+ *
+ * The loader lifts at the moment the tour scene becomes ready, which is the
+ * moment the GPU is busiest: shaders have just compiled, three 1080x2314
+ * textures have just uploaded, the first frame has just rendered. Traced on
+ * the production build, a 240.9ms GPUTask sat directly across the start of
+ * the reveal, and the reveal presented 17 frames while dropping 23 — 20.8fps
+ * with a 215.9ms gap. rAF had reported the same animation as 47.7fps with a
+ * 34ms worst frame, which is the second time in this project that rAF has
+ * described a stall as smooth.
+ *
+ * So the reveal waits for that work to drain. It costs a third of a second of
+ * loading, which the visitor is already spending, and it buys the animation
+ * an idle GPU.
+ *
+ * ?hold= overrides it, so the two can be compared on one build.
+ */
+export const REVEAL_DELAY_MS = 500;
 /** The honeycomb becoming a window: the plate behind the holes fading out. */
 export const PLATE_FADE_MS = 160;
 /** §4.3's ~0.9s. Query-tunable (?reveal=) so durations can be compared on a
  *  production build without a rebuild. */
 export const REVEAL_MS = 900;
+/** Must match --hive-scale in globals.css: the clip path is generated in JS
+ *  and has to start at exactly the size the mask is already showing. */
+export const HIVE_SCALE = 3.2;
+
+/**
+ * HOW THE WINDOW OPENS — three implementations of one visual.
+ *
+ * They differ only in what the compositor has to redo each frame:
+ *
+ *   mask    scales the hive INSIDE the SVG mask. The mask is an input to the
+ *           masked rect's paint, so moving its contents re-rasterises the
+ *           cover every frame.
+ *   clip    a plain dark div under an animated clip-path(evenodd) of the same
+ *           seven cells. Path clipping is CPU raster work, per frame.
+ *   layer   the mask never moves. The masked ELEMENT is scaled instead, so
+ *           the cover is rasterised once and the growth is a transform the
+ *           compositor can run on its own.
+ *
+ * Same geometry in all three: the middle cell is centred on the viewport, so
+ * scaling the hive about its origin and scaling the cover about its centre
+ * describe the same hexagon.
+ */
+export const REVEAL_MODES = ["mask", "clip", "layer"];
+export const REVEAL_MODE = "mask";
+
+/**
+ * THE EASING, AND WHY IT IS NOT easeOutQuint ANY MORE.
+ *
+ * The reveal used cubic-bezier(0.22, 1, 0.36, 1). Measured on the production
+ * build, that put the hexagon past the edge of the viewport 366ms into a
+ * 898ms scale — 41% of it. The other 532ms was a full-viewport masked overlay
+ * that covered nothing, still composited, still re-rastering, sitting on top
+ * of a page whose hero video had just started. The three worst frame stalls
+ * in that run (179ms, 132ms, 117ms) were all inside that invisible tail.
+ *
+ * So the reveal was not a slow animation. It was a fast one followed by half
+ * a second of the loader getting in the way after it had stopped being
+ * visible — which is felt as the PAGE stuttering on arrival, not as the
+ * loader being slow, and is why "make the animation faster" was never going
+ * to fix it.
+ *
+ * This curve is 3s^2 - 2s^3 on the value axis — smoothstep — so the aperture
+ * accelerates out of the spinner instead of snapping, and it reaches the edge
+ * of the viewport at about 90% of the duration rather than 41% of it. The
+ * overlay is then removed on the frame that proves coverage (see the watcher
+ * in the reveal), so the little that is left of the tail is not composited
+ * either.
+ */
+export const REVEAL_EASE: readonly [number, number, number, number] = [0.45, 0, 0.55, 1];
+
 
 /*
  * The seven cells, as offsets from the centre one — which is the last entry,
@@ -124,7 +193,67 @@ const CELLS: [number, number][] = [
  * needing `transform-box: fill-box`. See the note on centring below: neither
  * transform-box value can be relied on inside a <mask> in <defs>.
  */
-const HEX = "0,-12 12,-6 12,6 0,12 -12,6 -12,-6";
+const HEX_POINTS: [number, number][] = [
+  [0, -12], [12, -6], [12, 6], [0, 12], [-12, 6], [-12, -6],
+];
+const HEX = HEX_POINTS.map(([x, y]) => `${x},${y}`).join(" ");
+
+/**
+ * THE DISTANCE FROM THE CENTRE TO THE NEAREST POINT ON THE EDGE — 10.82,
+ * NOT 12, and the difference was visible in every reveal this build ever ran.
+ *
+ * The reveal is finished when the middle hexagon contains the whole viewport,
+ * and the code decided that by comparing the half-diagonal against 12 units
+ * of scale. 12 is the distance to the VERTEX at (0,12). The nearest point on
+ * the boundary is the midpoint of a slanted edge, at (6,9) — hypot(6,9), or
+ * about 10.82. Sizing the reveal by the vertex therefore stops it about 10%
+ * short of covering the corners.
+ *
+ * At 1440x900 that put the final scale at 77 where 79 was needed: the
+ * aperture's apothem reached 833px against a half-diagonal of 849, leaving a
+ * dark wedge in each of the four corners for the whole back half of the
+ * reveal. Caught by looking at a captured frame, 12ms after the arithmetic
+ * said the screen was covered, and finding the corners still dark.
+ *
+ * Derived from the points rather than written down, so a change to the
+ * hexagon cannot leave this behind.
+ */
+export const HEX_INRADIUS = (() => {
+  let min = Infinity;
+  for (let i = 0; i < HEX_POINTS.length; i++) {
+    const [x1, y1] = HEX_POINTS[i];
+    const [x2, y2] = HEX_POINTS[(i + 1) % HEX_POINTS.length];
+    const dx = x2 - x1, dy = y2 - y1;
+    /* Clamped projection of the origin onto the edge, so the nearest point is
+       found whether it falls inside the segment or at one of its ends. */
+    const t = Math.max(0, Math.min(1, -(x1 * dx + y1 * dy) / (dx * dx + dy * dy)));
+    min = Math.min(min, Math.hypot(x1 + t * dx, y1 + t * dy));
+  }
+  return min;
+})();
+
+/**
+ * The same seven cells as an SVG path string, for the clip-path reveal.
+ *
+ * An outer rectangle plus seven hexagons under `evenodd`, so the hexagons are
+ * holes in it. Written with explicit L commands and never H/V, because CSS
+ * only interpolates two path() values when their command sequences match
+ * exactly — the transition is between this at the spinner's scale and this at
+ * the reveal's, and a shorthand in one would stop it animating at all.
+ *
+ * The rectangle is 40000 units so that at any scale it still covers a
+ * viewport; it is clip geometry, not a painted surface, so its size costs
+ * nothing.
+ */
+function clipPath(scale: number): string {
+  const R = 20000;
+  const rect = `M${-R},${-R} L${R},${-R} L${R},${R} L${-R},${R} Z`;
+  const cells = CELLS.map(([cx, cy]) => {
+    const pts = HEX_POINTS.map(([x, y]) => [(cx + x) * scale, (cy + y) * scale]);
+    return "M" + pts.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(" L") + " Z";
+  }).join(" ");
+  return `path(evenodd, "${rect} ${cells}")`;
+}
 
 export function LoadScreen() {
   const ref = useRef<HTMLDivElement>(null);
@@ -144,11 +273,18 @@ export function LoadScreen() {
 
     let timer = 0;
     let done = false;
+    let removed = false;
     const timeouts: number[] = [];
+    const rafs: number[] = [];
     const after = (ms: number, fn: () => void) => { timeouts.push(window.setTimeout(fn, ms)); };
 
     /* Every exit runs through here, including the ones that throw. */
     const remove = () => {
+      /* The coverage watcher and the backstop timer both call this, and
+         whichever loses has to stop the other: an orphan rAF reading styles
+         off a detached node would run for the rest of the session. */
+      removed = true;
+      rafs.forEach(window.cancelAnimationFrame);
       try { el.remove(); } catch { /* already gone */ }
       document.documentElement.removeAttribute("data-loading");
     };
@@ -180,6 +316,7 @@ export function LoadScreen() {
         return Number.isFinite(v) && v >= 0 ? v : d;
       };
       const revealMs = nq("reveal", REVEAL_MS);
+      const holdMs = nq("hold", REVEAL_DELAY_MS);
 
       const lift = () => {
         if (done) return;
@@ -208,19 +345,98 @@ export function LoadScreen() {
          */
         el.dataset.phase = "frozen";
 
-        after(REVEAL_DELAY_MS, () => {
-          /* The scale that puts the whole viewport inside the middle cell.
-             Its inscribed radius is 12 units, so this is the half-diagonal
-             over 12, with a margin, computed from the actual viewport rather
-             than assumed. */
+        after(holdMs, () => {
+          /* The scale that puts the whole viewport inside the middle cell:
+             the half-diagonal over the hexagon's inscribed radius, plus a
+             margin, computed from the actual viewport rather than assumed.
+             HEX_INRADIUS and not 12 — see the note on it. */
           const half = Math.hypot(window.innerWidth, window.innerHeight) / 2;
-          el.style.setProperty("--reveal-scale", String(Math.ceil(half / 12) + 6));
+          const k = Math.ceil(half / HEX_INRADIUS) + 6;
+          el.style.setProperty("--reveal-scale", String(k));
           el.style.setProperty("--reveal-ms", `${revealMs}ms`);
+          el.style.setProperty("--reveal-ease", `cubic-bezier(${REVEAL_EASE.join(",")})`);
+          /* Both clip paths, at the spinner's scale and the reveal's. Set
+             here rather than in CSS because the end scale depends on the
+             viewport, and set BEFORE the phase flips so the starting value is
+             already in place when the transition begins. */
+          el.style.setProperty("--clip-from", clipPath(HIVE_SCALE));
+          el.style.setProperty("--clip-to", clipPath(k));
+          /* mask | clip | layer — see the three blocks in globals.css. The
+             default is whichever one measured fastest; the others stay
+             reachable so the comparison can be re-run rather than believed. */
+          const rm = q.get("revealMode") || "";
+          el.dataset.reveal = REVEAL_MODES.includes(rm) ? rm : REVEAL_MODE;
           el.dataset.phase = "opening";
           /* PHASE 3 starts once the plate has gone, so the honeycomb is a
              window before it is a growing window. */
-          after(PLATE_FADE_MS, () => { el.dataset.phase = "open"; });
-          after(PLATE_FADE_MS + revealMs, remove);
+          /*
+           * The removal is scheduled from INSIDE this callback, so it is
+           * measured from the moment the transition actually started rather
+           * than from the moment it was supposed to.
+           *
+           * Anchoring both timers to the same origin looked equivalent and is
+           * not: the plate-fade timer drifted to 189ms against its 160, the
+           * removal timer did not, and the transition therefore got 29ms less
+           * than it was given. Measured, the aperture was still at scale 65.9
+           * when the overlay was removed against the 70.8 it needed to cover
+           * the viewport — a flash of the dark corners at the very end.
+           */
+          after(PLATE_FADE_MS, () => {
+            el.dataset.phase = "open";
+
+            /*
+             * GO WHEN YOU STOP COVERING ANYTHING — measured, not predicted.
+             *
+             * The overlay is invisible once the rendered scale puts the
+             * hexagon's inscribed radius past the viewport's half-diagonal.
+             * Everything after that instant is a
+             * full-viewport masked layer showing nothing, still composited,
+             * competing with a hero video that has just become visible — and
+             * on the previous build that was 532ms of the 898ms reveal, with
+             * the three worst frame stalls of the run inside it.
+             *
+             * This reads the rendered scale each frame and goes on the first
+             * frame that proves coverage. Two timer-based versions were tried
+             * first and both were wrong by a visible margin: solving the
+             * easing curve for the crossing time is exact in principle and in
+             * practice raced the transition's own start, leaving the aperture
+             * at 65.9 and then 68.8 against the 70.8 it needed — a flash of
+             * the dark corners. A predicted time cannot be made safe by
+             * padding without giving back the dead time it was removing.
+             * Reading the value has neither problem.
+             *
+             * One getComputedStyle per frame, for about 700ms, against a
+             * full-viewport mask re-raster per frame. It is not the expensive
+             * thing here.
+             */
+            const covers = () => {
+              const hive = el.querySelector<SVGGElement>(".loader-hive");
+              if (!hive) return true;
+              /* Both, multiplied: the mask variant scales the hive and the
+                 layer variant scales the cover the hive is inside. */
+              const cover = el.querySelector<SVGSVGElement>(".loader-cover");
+              const a = new DOMMatrixReadOnly(getComputedStyle(hive).transform).a;
+              const b = cover
+                ? new DOMMatrixReadOnly(getComputedStyle(cover).transform).a
+                : 1;
+              return a * b * HEX_INRADIUS >= half;
+            };
+
+            const watch = () => {
+              if (removed) return;
+              if (covers()) { remove(); return; }
+              rafs.push(window.requestAnimationFrame(watch));
+            };
+            rafs.push(window.requestAnimationFrame(watch));
+
+            /*
+             * The backstop, and it is not decoration: the clip variant does
+             * not move the hive at all, so `covers` is false for its whole
+             * run and this is what ends it. It is also the answer if a
+             * computed transform ever reads back as none.
+             */
+            after(revealMs + 60, remove);
+          });
         });
       };
 
@@ -313,6 +529,14 @@ export function LoadScreen() {
         </defs>
         <rect width="100%" height="100%" fill="var(--surface-dark)" mask="url(#loader-honeycomb)" />
       </svg>
+
+      {/*
+        The clip-path alternative (§4.3), reachable with ?revealMode=clip.
+        Identical geometry to the mask, generated from the same CELLS, so the
+        swap at `opening` is invisible — and the handoff guard measures
+        exactly that. Inert unless selected.
+      */}
+      <div className="loader-clip" aria-hidden="true" />
 
       {/* Announced, not drawn. The honeycomb is decorative; this is the only
           thing a screen reader has to go on, and the element leaves the tree

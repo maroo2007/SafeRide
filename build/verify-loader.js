@@ -164,6 +164,18 @@ const isCover = (img, x, y) => {
     if (cur === "gone") break;
     await sleep(40);
   }
+  /*
+   * Let the in-page probe see the removal before reading its log.
+   *
+   * This poll and the probe are two different observers. The overlay is now
+   * removed from inside a requestAnimationFrame callback (it goes on the
+   * frame that proves the aperture covers the viewport), and the probe's own
+   * tick for that frame may already have run, so the probe does not record
+   * "gone" until the NEXT frame — while this poll, which asks the DOM
+   * directly, can see it immediately. Reading the log at that instant
+   * reported the phase order as ending at "open" and failed a passing build.
+   */
+  await sleep(150);
   const raf = JSON.parse(await s.ev("JSON.stringify(window.__raf || [])"));
   const ph = JSON.parse(await s.ev("JSON.stringify(window.__ph || [])"));
   s.ws.close(); s.ch.kill();
@@ -239,8 +251,21 @@ const isCover = (img, x, y) => {
     check("the cover's silhouette does not move across the handoff", false, "could not capture both sides");
   }
 
-  /* Frame cadence through the reveal — §4.3 asks whether the mask is cheap
-     enough or whether clip-path is needed. */
+  /*
+   * rAF CADENCE — AND IT IS NOT A SMOOTHNESS TEST.
+   *
+   * This counts how often the page RAN a callback, which is not how often the
+   * compositor PRESENTED a frame. It has now described a stall as smooth
+   * twice in this project: the hero read 58.2fps on rAF while the picture was
+   * frozen, and this reveal read 47.7fps with a 34ms worst frame in the run
+   * whose trace showed 17 presented against 23 dropped and a 215.9ms gap.
+   *
+   * It is kept because a collapse here still means something is badly wrong,
+   * and it costs nothing. It is labelled for what it measures so that a pass
+   * is never read as evidence of smoothness. The real instrument is
+   * build/measure-reveal.js, which reads DrawFrame and DroppedFrame out of a
+   * trace and compares the reveal against the same page with no loader on it.
+   */
   const openAt = at("open"), goneAt = at("gone");
   if (openAt && goneAt) {
     const f = raf.filter((x) => x >= openAt && x <= goneAt);
@@ -250,7 +275,7 @@ const isCover = (img, x, y) => {
       if (g > worst) worst = g;
       if (g > 32) over32++;
     }
-    check("the reveal animates smoothly (the mask is cheap enough)",
+    check("the reveal ran callbacks throughout (rAF only — cannot see a dropped frame)",
       f.length > 20 && worst < 50,
       `${f.length} frames over ${Math.round(goneAt - openAt)}ms, ${(f.length / ((goneAt - openAt) / 1000)).toFixed(1)}/s, worst ${Math.round(worst)}ms, ${over32} over 32ms`);
   }

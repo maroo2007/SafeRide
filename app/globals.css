@@ -654,11 +654,108 @@
   opacity: 0;
 }
 
-/* PHASE 3. Only the mask group moves; the cover stays the viewport, so the
-   growing hexagon eats the screen rather than the layer shrinking away. */
+/*
+ * PHASE 3. Only the mask group moves; the cover stays the viewport, so the
+ * growing hexagon eats the screen rather than the layer shrinking away.
+ *
+ * will-change is declared on the phase BEFORE the one that animates, not on
+ * the element permanently. Announcing it permanently keeps a compositor layer
+ * alive for the whole load for no reason; announcing it on the same frame the
+ * transition starts is too late to help. `opening` is the 160ms plate fade,
+ * which is exactly the warning the compositor needs.
+ */
+.loader[data-phase="opening"] .loader-hive,
+.loader[data-phase="open"] .loader-hive {
+  will-change: transform;
+}
+
 .loader[data-phase="open"] .loader-hive {
   transform: scale(var(--reveal-scale));
-  transition: transform var(--reveal-ms) cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform var(--reveal-ms) var(--reveal-ease, cubic-bezier(0.45, 0, 0.55, 1));
+}
+
+/* ---- the clip-path reveal (§4.3's alternative) --------------------------
+ *
+ * Same seven cells, same scales, generated from the same CELLS array in
+ * load-screen.tsx. Inert unless ?revealMode=clip selects it, and it only ever
+ * takes over at `opening` — the spinner needs per-cell opacity, which a
+ * clip-path cannot express, so phases 1 and 2 stay on the mask either way.
+ * ---------------------------------------------------------------------- */
+
+.loader-clip {
+  display: none;
+  position: absolute;
+  inset: 0;
+  background: var(--surface-dark);
+  clip-path: var(--clip-from);
+}
+
+.loader[data-reveal="clip"][data-phase="opening"] .loader-clip,
+.loader[data-reveal="clip"][data-phase="open"] .loader-clip {
+  display: block;
+  will-change: clip-path;
+}
+
+/* The mask cover steps aside so the two are never both painting. */
+.loader[data-reveal="clip"][data-phase="opening"] .loader-cover,
+.loader[data-reveal="clip"][data-phase="open"] .loader-cover {
+  display: none;
+}
+
+.loader[data-reveal="clip"][data-phase="open"] .loader-clip {
+  clip-path: var(--clip-to);
+  transition: clip-path var(--reveal-ms) var(--reveal-ease, cubic-bezier(0.45, 0, 0.55, 1));
+}
+
+/* ---- the layer reveal ---------------------------------------------------
+ *
+ * The other two both make the compositor redo work every frame: the mask
+ * variant moves the mask's contents, which re-rasterises the rect the mask
+ * applies to; the clip variant animates a path, which is CPU raster by
+ * definition. Measured on the production build, four runs each, clip was
+ * about three times worse — 12/s presented against 34/s, with 100-155ms
+ * worst frames against 39-48ms.
+ *
+ * So this one holds the mask STILL and scales the masked element. The cover
+ * is rasterised once at the spinner's scale and the growth is a transform,
+ * which is the only version of this effect the compositor can run without
+ * re-rastering.
+ *
+ * The geometry is unchanged. The hive is centred on the viewport by the
+ * nested <svg x="50%" y="50%">, so the middle cell's hole sits exactly at
+ * the cover's own centre, and scaling the cover about 50% 50% grows that
+ * hole about the same point the hive scale did.
+ *
+ * These rules come AFTER the mask block deliberately: the phase-open hive
+ * rule has identical specificity, so order is what settles it. The hive is
+ * pinned back to the spinner's scale with its transition removed, or the two
+ * scales would multiply.
+ */
+.loader[data-reveal="layer"][data-phase="open"] .loader-hive {
+  transform: scale(var(--hive-scale));
+  transition: none;
+}
+
+.loader[data-reveal="layer"][data-phase="opening"] .loader-cover,
+.loader[data-reveal="layer"][data-phase="open"] .loader-cover {
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+
+.loader[data-reveal="layer"][data-phase="open"] .loader-cover {
+  /*
+   * DIVIDED BY THE HIVE SCALE, and the comparison is meaningless without it.
+   *
+   * --reveal-scale is the scale the HIVE needs, starting from 1. The cover
+   * starts with the hive already at --hive-scale inside it, so scaling the
+   * cover by the same number makes the aperture 3.2x larger than the mask
+   * variant's and gets there far sooner. Measured before this line existed:
+   * the layer reveal finished so early that its window held a single
+   * presented frame, and it was being reported as a variant that dropped
+   * almost nothing — a comparison of two different animations.
+   */
+  transform: scale(calc(var(--reveal-scale) / var(--hive-scale)));
+  transition: transform var(--reveal-ms) var(--reveal-ease, cubic-bezier(0.45, 0, 0.55, 1));
 }
 
 .loader[data-phase="out"] {
