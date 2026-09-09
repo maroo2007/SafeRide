@@ -37,7 +37,6 @@ type NavLink = { shape: number; label: string; href: string };
 /** §2.2 A. Six, not the shipped five. */
 const LINKS: NavLink[] = [
   { shape: 1, label: "Features", href: "#features" },
-  { shape: 2, label: "AI Platform", href: "#ai" },
   { shape: 3, label: "Coverage", href: "#coverage" },
   { shape: 4, label: "Pricing", href: "#pricing" },
   { shape: 5, label: "FAQ", href: "#faq" },

@@ -123,7 +123,6 @@ const get = (u) => new Promise((res, rej) =>
       out.push({ label: 'tour-ch3', y: top + span });
     }
     out.push({ label: 'journey', y: y('#journey') });
-    out.push({ label: 'ai', y: y('#ai') });
     /* Added with the 4.6-4.9 sections. No backticks in this comment: it lives
        inside a template literal and one ends the string. */
     for (const id of ['difference', 'coverage', 'testimonials', 'pricing']) {

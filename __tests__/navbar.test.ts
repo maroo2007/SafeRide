@@ -34,9 +34,20 @@ describe("navbar port (spec 2.2)", () => {
     expect(code).toMatch(/from "@\/lib\/gsap"/);
   });
 
-  it("carries six links with matching shapes, not the shipped five", () => {
+  /*
+   * FIVE links now, not six. The Intelligence Layer section was deleted, and
+   * "AI Platform" pointed at its #ai anchor — so the link went with it rather
+   * than being left to scroll nowhere, which is the defect that removed six
+   * links from the footer.
+   *
+   * The six ambient background shapes stay. They are the panel's decoration
+   * and shape 2 is simply no longer triggered by a link; renumbering working
+   * animation code to close a gap nobody can see is not worth the risk.
+   */
+  it("carries a link per section, every one pointing at a real anchor", () => {
     const hrefs = [...code.matchAll(/href: "(#[a-z]+)"/g)].map((m) => m[1]);
-    expect(hrefs).toEqual(["#features", "#ai", "#coverage", "#pricing", "#faq", "#contact"]);
+    expect(hrefs).toEqual(["#features", "#coverage", "#pricing", "#faq", "#contact"]);
+    expect(hrefs, "a deleted section must not keep its nav link").not.toContain("#ai");
     const shapes = [...code.matchAll(/data-bg-shape="(\d)"/g)].map((m) => +m[1]);
     expect(shapes.sort()).toEqual([1, 2, 3, 4, 5, 6]);
   });

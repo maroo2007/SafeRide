@@ -3,11 +3,10 @@ import { DarkGround } from "./page-ground";
 /**
  * §4.13 Footer — dark, and keeping its own ground, grid and glow.
  *
- * It paints `--surface-dark` and carries DarkGround exactly as the
- * Intelligence Layer does. §4b removed the PAPER lattice because a hairline
- * grid over drifting ribbons is two textures in the same pixels; a dark
- * section is opaque, the video is not behind it, and its grid has nothing to
- * compete with. So the rule that removed one grid does not touch this one.
+ * It paints `--surface-dark` and carries DarkGround. Since the Intelligence
+ * Layer was deleted this is the only dark ground on the page, and it keeps
+ * its grid and its glow — the rule that removed the paper lattice was about
+ * two textures competing in the same pixels, and a dark section is opaque.
  *
  * ── Six links are missing on purpose ──────────────────────────────────────
  *
@@ -30,7 +29,6 @@ import { DarkGround } from "./page-ground";
 const COLUMNS: [string, [string, string][]][] = [
   ["Product", [
     ["Features", "#features"],
-    ["AI Platform", "#ai"],
     ["Coverage", "#coverage"],
     ["Pricing", "#pricing"],
   ]],

@@ -4,7 +4,6 @@ import { Section } from "@/components/sections/section";
 import { ScrollStack } from "@/components/sections/scroll-stack";
 import { PhoneTour } from "@/components/sections/phone-tour/phone-tour";
 import { JourneySteps } from "@/components/sections/journey";
-import { IntelligenceLayer } from "@/components/sections/intelligence";
 import { Difference } from "@/components/sections/difference";
 import { Coverage } from "@/components/sections/coverage";
 import { Testimonials } from "@/components/sections/testimonials";
@@ -28,8 +27,7 @@ import { Footer } from "@/components/sections/footer";
  *
  * The three sections deliberately do not share a shape: Platform is an
  * inventory and reads as a grid, The Journey is a sequence and reads as an
- * ordered path, Intelligence Layer is an argument and has a focal point with
- * quieter supporting material.
+ * ordered path.
  *
  * All copy is verbatim from https://safe-ridee.vercel.app/ (spec 12).
  */
@@ -86,22 +84,6 @@ export default function Home() {
         <JourneySteps />
       </Section>
 
-      {/*
-        §4.5. The one dark beat in 5a, and the only mechanism that actually
-        separates a section from its neighbours: paper -> dark is 19.51:1,
-        where paper -> card is 1.06:1. It earns it on content too — this is
-        the AI section, and dark echoes the film it follows.
-      */}
-      <Section
-        id="ai"
-        tone="dark"
-        headingId="intelligence"
-        eyebrow="Intelligence Layer"
-        heading="Artificial intelligence watching every journey"
-        subhead="AI assists, it never overwhelms. Every prediction ships with a confidence score and a plain-language reason, so the people using SafeRide always understand what it's telling them and why."
-      >
-        <IntelligenceLayer />
-      </Section>
 
       {/* §4.6 */}
       <Section

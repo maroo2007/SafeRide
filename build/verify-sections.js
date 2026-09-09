@@ -180,10 +180,44 @@ const check = (name, ok, detail = "") => {
     await ev("document.querySelector('.page-ground') ? getComputedStyle(document.querySelector('.page-ground')).backgroundColor : 'missing'"));
   /* By measured luminance, not by a class list: any section whose ground is
      dark must have painted it itself rather than relying on the page layer. */
+  /*
+   * THE FOOTER IS THE DARK GROUND NOW.
+   *
+   * The Intelligence Layer was deleted, and it was the only dark <section> on
+   * the page — so a check that requires at least one, scanning sections only,
+   * would fail on a page whose one dark ground is a <footer>. It is included
+   * by name, and the requirement that a dark ground be painted by the element
+   * itself rather than inherited from the page layer is unchanged.
+   */
   const darkSecs = data.filter((s) => s.lum !== null && s.lum < 0.05);
-  check("dark sections still paint their OWN ground, they are not tenants",
-    darkSecs.length > 0 && darkSecs.every((s) => s.alpha === 1),
-    darkSecs.map((s) => `${s.id}=${s.alpha === 1 ? "own" : "TENANT"}`).join(" ") || "(no dark section found)");
+  const footRaw = await ev(`(() => {
+    const f = document.querySelector('footer');
+    if (!f) return '';
+    const cs = getComputedStyle(f);
+    return cs.backgroundColor + '|' + cs.getPropertyValue('--ring').trim();
+  })()`);
+  /* Parsed HERE rather than in the page. The in-page version needed a regex
+     inside a template literal inside a JS string, the backslashes did not
+     survive the trip, and it silently reported "no dark ground found" on a
+     page whose footer is #030302. Node has no escaping problem. */
+  const parseRgb = (c) => {
+    const m = /rgba?\(([^)]+)\)/.exec(c || "");
+    if (!m) return null;
+    const n = m[1].split(",").map((x) => parseFloat(x));
+    return { r: n[0], g: n[1], b: n[2], a: n.length > 3 ? n[3] : 1 };
+  };
+  const linOf = (v) => { const t = v / 255; return t <= 0.03928 ? t / 12.92 : Math.pow((t + 0.055) / 1.055, 2.4); };
+  const footBg = parseRgb((footRaw || "").split("|")[0]);
+  const footRing = (footRaw || "").split("|")[1] || "";
+  const footer = footBg
+    ? { id: "footer", alpha: footBg.a,
+        lum: 0.2126 * linOf(footBg.r) + 0.7152 * linOf(footBg.g) + 0.0722 * linOf(footBg.b) }
+    : null;
+  const darks = footer && footer.lum !== null && footer.lum < 0.05
+    ? [...darkSecs, footer] : darkSecs;
+  check("the dark ground is painted by the element itself, not inherited",
+    darks.length > 0 && darks.every((s) => s.alpha === 1),
+    darks.map((s) => `${s.id}=${s.alpha === 1 ? "own" : "TENANT"}`).join(" ") || "(no dark ground found)");
   // NO-OP HALF: a page with no content sections would satisfy "all opaque".
   check("there are content sections to check at all", data.length >= 3, `${data.length} found`);
 
@@ -209,7 +243,10 @@ const check = (name, ok, detail = "") => {
   }
   check("adjacent sections are separable by ground or by space", separable);
 
-  const darkSec = data.find((s) => s.lum !== null && s.lum < 0.05);
+  /* The footer is the page's only dark ground since the Intelligence Layer
+     was deleted, so it is what this reads the dark token scope from. */
+  const darkSec = data.find((s) => s.lum !== null && s.lum < 0.05)
+    || (footer && footer.lum < 0.05 ? { id: "footer", darkScope: footRing } : undefined);
   check("the dark section resolves the dark token scope, not just a dark background",
     !!darkSec && /fae6b7/i.test(darkSec.darkScope),
     darkSec ? `--ring resolves to "${darkSec.darkScope}"` : "no dark section found");
