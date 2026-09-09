@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import type { ElementType } from "react";
+import type { CSSProperties, ElementType } from "react";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
@@ -44,6 +44,19 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
  * The full string is present as an sr-only node, so assistive tech and the
  * clipboard-by-selection case both still have one contiguous run of text.
  */
+
+/** The visually-hidden recipe, inline so nothing can drop it. */
+const SR_ONLY: CSSProperties = {
+  position: "absolute",
+  width: 1,
+  height: 1,
+  padding: 0,
+  margin: -1,
+  overflow: "hidden",
+  clipPath: "inset(50%)",
+  whiteSpace: "nowrap",
+  borderWidth: 0,
+};
 
 export type BlurRevealProps = {
   children: string;
@@ -135,8 +148,18 @@ export function BlurReveal({
 
   return (
     <Tag className={className} id={id}>
-      {/* The whole string, once, for anything that reads rather than looks. */}
-      <span className="sr-only">{children}</span>
+      {/*
+        The whole string, once, for anything that reads rather than looks —
+        crawlers, find-in-page, and a clean copy-and-paste.
+
+        HIDDEN BY INLINE STYLE, not by the sr-only utility. It shipped as
+        className="sr-only" and rendered VISIBLE, so every heading appeared
+        twice: the real string followed by the same words with the spaces
+        stripped out, because the animated copy puts each word in its own
+        inline-block. Whatever swallowed that class, a style attribute cannot
+        be purged, overridden by specificity, or missed by a scanner.
+      */}
+      <span style={SR_ONLY}>{children}</span>
       <motion.span
         aria-hidden="true"
         initial="hidden"
