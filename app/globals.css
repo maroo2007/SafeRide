@@ -558,3 +558,121 @@
   }
 }
 
+
+/* ==========================================================================
+   THE LOADER — build spec §4
+
+   Three phases on ONE geometry. The seven hexagons live in a single SVG mask
+   and are never redrawn, re-parented or swapped, so there is no handoff to
+   misalign: what changes between the phases is what sits behind the holes,
+   not where the holes are.
+
+     [data-phase="loading"]  white plate behind the cover -> the holes read as
+                             white hexagons. The supplied keyframes animate
+                             the MASK cells, so the spinner IS the hole.
+     [data-phase="frozen"]   all seven held at opacity 1, scale 1. A defined
+                             phase, so the window opens square rather than
+                             from wherever the 2.1s cycle happened to be.
+     [data-phase="opening"]  the plate fades: the same holes now show the page.
+     [data-phase="open"]     the mask group scales about its centre.
+     [data-phase="out"]      reduced motion — the ground simply fades.
+
+   §4.2's `#f3f3f3` is --foreground in the `dark` scope on the element, which
+   is the film's wordmark white. No new hex.
+   ========================================================================== */
+
+.loader {
+  /* 3.2, because the supplied spinner is 24px across and §4.2 says to scale
+     the container rather than re-draw it at another size. 24 * 3.2 gives a
+     ~77px cell in a ~256px hive: a loader, not a favicon. */
+  --hive-scale: 3.2;
+  --reveal-scale: 80;
+  --reveal-ms: 900ms;
+
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  pointer-events: none;
+}
+
+.loader-plate,
+.loader-cover {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+
+/* Only ever seen THROUGH the honeycomb. */
+.loader-plate {
+  background: var(--foreground);
+  transition: opacity var(--plate-fade, 160ms) linear;
+}
+
+/*
+ * NO transform-box ANYWHERE IN HERE, and that is the whole reason this
+ * works. Inside a <mask> in <defs> there is no layout box, so both
+ * `view-box` and `fill-box` resolve to nothing at mask-render time: the
+ * transform computes to the correct matrix and paints no hole at all.
+ * Measured — the shipped hive punched 0 pixels while a plain black square
+ * punched 2870.
+ *
+ * Centring is done by a nested <svg x="50%" y="50%"> in the markup, and each
+ * cell is placed by its own <g transform="translate(...)">. Both scales below
+ * are therefore about the origin of whatever contains them, which needs no
+ * reference box.
+ */
+.loader-hive {
+  transform-origin: 0 0;
+  transform: scale(var(--hive-scale));
+}
+
+/* The cell is drawn AROUND its own origin, so scaling about 0 0 scales it
+   about its own centre. */
+.loader-cell {
+  transform-origin: 0 0;
+  animation: loader-honeycomb 2.1s infinite backwards;
+}
+
+/* The supplied keyframes, unchanged in timing or shape. On a mask cell,
+   opacity is how much of the hole is punched — so fading a cell in fades a
+   white hexagon in, which is the spinner the spec asked for. */
+@keyframes loader-honeycomb {
+  0%, 20%, 80%, 100% { opacity: 0; transform: scale(0); }
+  30%, 70%           { opacity: 1; transform: scale(1); }
+}
+
+.loader[data-phase="frozen"] .loader-cell,
+.loader[data-phase="opening"] .loader-cell,
+.loader[data-phase="open"] .loader-cell {
+  animation: none;
+  opacity: 1;
+  transform: none;
+}
+
+.loader[data-phase="opening"] .loader-plate,
+.loader[data-phase="open"] .loader-plate {
+  opacity: 0;
+}
+
+/* PHASE 3. Only the mask group moves; the cover stays the viewport, so the
+   growing hexagon eats the screen rather than the layer shrinking away. */
+.loader[data-phase="open"] .loader-hive {
+  transform: scale(var(--reveal-scale));
+  transition: transform var(--reveal-ms) cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.loader[data-phase="out"] {
+  opacity: 0;
+  transition: opacity 300ms linear;
+}
+
+/*
+ * REDUCED MOTION: no spinner, no zoom. Not a shorter animation — none.
+ * The cover is a plain dark ground that fades when the wait ends, and the
+ * mask is defeated outright so no hexagon is ever drawn or animated.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .loader-hive { display: none; }
+  .loader-plate { display: none; }
+  .loader-cell { animation: none; }
+}
