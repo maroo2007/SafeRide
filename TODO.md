@@ -179,31 +179,57 @@ Only the AV1 encodes are referenced: `ground-av1.mp4` (0.377 MB) and
 them at build time. A backup of the ground master is at
 `C:/Users/Marwan/saferide-asset-backup/`.
 
-### 14. Performance: 53 mobile / 58 desktop, and the causes are different
+### 14. Performance: 46 on mobile, and what moved it
 
-Lighthouse on the production build, 2026-09-09:
+Lighthouse on the production build, 2026-09-10, mobile:
 
-| | mobile | desktop |
-|---|---|---|
-| Performance | 53 | 58 |
-| Accessibility | 100 | 100 |
-| Best Practices | 100 | 100 |
-| SEO | 100 | 100 |
-| LCP | 7.1s | 1.2s |
-| TBT | 740ms | 2,650ms |
-| CLS | 0 | 0 |
+| | before this round | after §2/§4/§5 | after the BlurReveal fix |
+|---|---|---|---|
+| Performance | 53 | 34 | **46** |
+| Accessibility | 100 | 100 | **100** |
+| Best Practices | 100 | 100 | **100** |
+| SEO | 100 | 100 | **100** |
+| FCP | 1.2s | 2.8s | 2.1s |
+| LCP | 7.1s | 8.7s | 8.0s |
+| TBT | 740ms | 2,060ms | 840ms |
+| CLS | 0 | 0 | **0** |
 
-**Mobile is the hero film.** 4 MB of `saferide-hero-av1.mp4` transfers inside
-the measurement window on simulated slow 4G, and the loader holds the page
-until it plays. **Desktop is the tour.** 2,650ms of total blocking time is the
-GLB parse, texture upload and shader compile — it happens behind the loader, so
-nobody watches it, but the main thread is unresponsive for those seconds.
+**BlurReveal was 1,400ms of that.** The server rendered every character of
+every heading as its own motion component — 311 of them — and the browser
+hydrated all 311 during load. Isolated by running the same audit against
+`?blur=off`: 660ms against 2,060ms. Fixed by rendering the heading as plain
+text and upgrading it only when it comes within 200px of the viewport, so one
+or two headings are ever animated at a time instead of eleven at once. The
+effect keeps its full scope; §7.3's reductions were not needed.
 
-Both are consequences of decisions that were made deliberately, so neither is a
-bug. If the number has to move: the tour's model work is the desktop lever (a
-worker, or a smaller GLB), and a shorter or lower-bitrate hero is the mobile
-one. Accessibility, best practices and SEO are already at 100 and should be
-guarded there.
+**The remaining gap from 53 to 46** is the Scroll Stack: three photographs
+(263 KB) and 2,700px of extra page. LCP is still dominated by the 4 MB of
+hero film that transfers inside the measurement window on simulated slow 4G,
+which is unchanged and is a deliberate decision.
+
+Runtime smoothness is separate and is fine: one 6s scroll past three revealed
+headings measures 57.2/s with the reveal against 60.2/s without.
+
+**The instrument is machine-sensitive.** On a loaded machine the same scroll
+gives 27/s with the reveal AND 27/s with it switched off. `measure-blur.js`
+asserts the relative figure for that reason — an absolute threshold there
+measures how busy the machine is.
+
+### 15. Deployment is not done
+
+`vercel deploy --temporary` was attempted twice and both attempts failed at
+the TLS handshake before uploading anything. The CLI is logged out, so there
+is no authenticated deploy path from here.
+
+**A Vercel project record was created before the failure** —
+`saferide`, `prj_AsPFry3jScZIA3dqgMcFybIOhTDk`, under
+`team_yXEyGdufj3D8Q6GUfbtlxNIO` — and is linked locally in `.vercel/`, which
+is gitignored. No files were uploaded, no build ran, there is no deployment
+and no URL. Delete `.vercel/` if that project should not exist.
+
+`.vercelignore` is in place and matters: Vercel falls back to `.gitignore`
+when it is absent, and this repo gitignores `*.mp4`, so a deploy without it
+ships a hero with no video.
 
 ---
 

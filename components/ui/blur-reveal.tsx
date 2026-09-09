@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import type { ElementType } from "react";
 import { useMediaQuery } from "@/lib/use-media-query";
-import { useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 /**
  * BlurReveal — a heading that resolves out of a blur, character by character.
@@ -80,9 +80,40 @@ export function BlurReveal({
     () => false,
   );
 
-  if (reduced || off) {
+  /*
+   * PLAIN UNTIL IT IS NEARLY ON SCREEN.
+   *
+   * The server used to render every character of every heading as its own
+   * motion component — 311 of them — and the browser hydrated all 311 during
+   * load. Measured on the production build: 2,060ms of total blocking time
+   * against 660ms without, and 14 Lighthouse points. The scroll itself was
+   * always 60fps; the cost was entirely at load, where a blocked main thread
+   * is exactly the jank rule 1 exists to prevent.
+   *
+   * So the server sends the heading as text, and it becomes an animated
+   * heading only when it is within 200px of the viewport — which is off
+   * screen, so the swap is never seen. One or two headings are ever in that
+   * state at a time instead of all eleven at once, and the effect keeps its
+   * full scope rather than being cut back.
+   */
+  const hostRef = useRef<HTMLElement>(null);
+  const [armed, setArmed] = useState(false);
+
+  useEffect(() => {
+    if (reduced || off || armed) return;
+    const el = hostRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") { setArmed(true); return; }
+    const io = new IntersectionObserver(
+      (entries) => { if (entries.some((e) => e.isIntersecting)) { setArmed(true); io.disconnect(); } },
+      { rootMargin: "200px 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [reduced, off, armed]);
+
+  if (reduced || off || !armed) {
     return (
-      <Tag className={className} id={id}>
+      <Tag ref={hostRef} className={className} id={id}>
         {children}
       </Tag>
     );

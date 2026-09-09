@@ -43,3 +43,4 @@ CLAUDE.md
 build/cp*/
 build/chrome-profile/
 
+.vercel
