@@ -131,39 +131,38 @@ const check = (name, ok, detail = "") => {
     resumed.paused === false && resumed.now >= resumed.stoppedAt - 0.05,
     `stopped at ${resumed.stoppedAt}s, resumed at ${resumed.now}s`);
 
-  /* ---- captions follow the FILM, not the scroll ------------------------ */
-  const capAt = async (time) => JSON.parse(await ev(`(async () => {
-    const v = ${film};
-    v.pause(); v.currentTime = ${time};
-    await new Promise(r => setTimeout(r, 700));
-    const caps = [...document.querySelectorAll('section[aria-labelledby="hero-headline"] p')]
-      .filter(p => !p.className.includes('label-mono'))
-      .map(p => ({ text: p.textContent.slice(0, 22), o: +(parseFloat(getComputedStyle(p).opacity) || 0).toFixed(2) }))
-      .filter(c => c.o > 0.05);
-    return JSON.stringify({ t: +v.currentTime.toFixed(2), caps });
-  })()`));
-  const early = await capAt(adv.dur * 0.25);
-  const late = await capAt(adv.dur * 0.72);
-  check("captions change with the film's own clock",
-    early.caps.length > 0 && late.caps.length > 0 &&
-    JSON.stringify(early.caps) !== JSON.stringify(late.caps),
-    `t=${early.t}s: ${early.caps.map(c => c.text).join(" / ") || "(none)"}   |   t=${late.t}s: ${late.caps.map(c => c.text).join(" / ") || "(none)"}`);
-
-  /* And NOT with scroll: same currentTime, different scroll position. */
-  const scrolled = JSON.parse(await ev(`(async () => {
-    scrollTo(0, Math.round(innerHeight * 0.4));
-    await new Promise(r => setTimeout(r, 700));
-    const caps = [...document.querySelectorAll('section[aria-labelledby="hero-headline"] p')]
-      .filter(p => !p.className.includes('label-mono'))
-      .map(p => ({ text: p.textContent.slice(0, 22), o: +(parseFloat(getComputedStyle(p).opacity) || 0).toFixed(2) }))
-      .filter(c => c.o > 0.05);
+  /*
+   * THE CAPTIONS ARE DELETED, and so are the two checks that lived here.
+   *
+   * They asserted that the three overlay lines changed with the film's own
+   * clock and NOT with scroll position — a real distinction that was worth
+   * guarding while there were captions to guard. There are none now.
+   *
+   * What replaces them is the opposite assertion: the hero's copy is fixed.
+   * It used to fade against scroll progress, which is exactly the coupling
+   * those checks existed to police, and the failure mode now is copy that
+   * moves when it should not.
+   */
+  const copyFixed = JSON.parse(await ev(`(async () => {
+    const read = () => [...document.querySelectorAll('section[aria-labelledby="hero-headline"] h1, section[aria-labelledby="hero-headline"] p')]
+      .map((el) => +(parseFloat(getComputedStyle(el).opacity) || 0).toFixed(2));
+    const top = read();
+    scrollTo(0, Math.round(innerHeight * 0.6));
+    await new Promise((r) => setTimeout(r, 700));
+    const down = read();
     scrollTo(0, 0);
-    return JSON.stringify(caps);
+    await new Promise((r) => setTimeout(r, 400));
+    return JSON.stringify({ top, down });
   })()`));
-  check("scrolling does not change the captions",
-    JSON.stringify(scrolled) === JSON.stringify(late.caps),
-    `${scrolled.map(c => c.text + "@" + c.o).join(" / ") || "(none)"}`);
-  await shot("hero-1-caption.png");
+  check("the hero copy is fully opaque and does not fade with scroll",
+    copyFixed.top.length > 0
+      && copyFixed.top.every((o) => o === 1)
+      && JSON.stringify(copyFixed.top) === JSON.stringify(copyFixed.down),
+    `at top ${copyFixed.top.join(",")}   scrolled ${copyFixed.down.join(",")}`);
+
+  check("no caption text survives in the hero",
+    !(await ev(`document.querySelector('section[aria-labelledby="hero-headline"]').textContent.includes('boarded the right bus')`)));
+  await shot("hero-1-copy.png");
 
   /* ---- holds the last frame -------------------------------------------- */
   const ended = JSON.parse(await ev(`(async () => {
