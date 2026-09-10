@@ -1242,3 +1242,149 @@
   .map-marker[data-lit] .map-halo { animation: none; }
   .map-dot { transition: none; }
 }
+
+/* ==========================================================================
+   TESTIMONIALS — header bar, overlapping initials disc, quote below
+
+   Layout from the reference, none of its colour. The bar is --surface-dark
+   with --paper on it; the disc is --accent-warm with --surface-dark. Both are
+   pairings this palette already uses.
+
+   The reveal is one attribute on the list plus CSS delays: the card body
+   arrives on its own stagger, the bar and the disc 100ms behind it, so the
+   card assembles rather than appearing whole.
+   ========================================================================== */
+
+.quotes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2.5rem 1.5rem;
+}
+
+@media (width >= 56.25rem) {
+  .quotes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.quote {
+  /* Room for the disc, which sits above the card's own top edge. */
+  padding-top: 1.75rem;
+}
+
+.quote-card {
+  position: relative;
+  margin: 0;
+  height: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  /* The bar is flush into the top-left corner, so the card must clip it —
+     and the disc must NOT be clipped, which is why the disc is a sibling of
+     the bar positioned outside the padding rather than inside it. */
+  overflow: visible;
+}
+
+.quote-bar {
+  display: block;
+  /* Top-left, stopping short of the right edge so the disc has somewhere to
+     sit that is not on top of the words. */
+  width: min(78%, 22rem);
+  padding: 1rem 1.5rem 1.1rem;
+  background: var(--surface-dark);
+  color: var(--paper);
+  border-radius: calc(var(--radius) - 1px) 0 var(--radius) 0;
+}
+
+.quote-name {
+  display: block;
+  font-size: 1.0625rem;
+  line-height: 1.3;
+}
+
+.quote-role {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.8125rem;
+  /* Not --muted-foreground: inside .quote-bar the light-theme token would be
+     warm-700 on near-black. Paper at 78% is the same relationship the dark
+     sections use. */
+  color: color-mix(in srgb, var(--paper) 78%, transparent);
+}
+
+.quote-avatar {
+  position: absolute;
+  top: -1.75rem;
+  right: 1.5rem;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 9999px;
+  background: var(--accent-warm);
+  color: var(--surface-dark);
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-size: 1.125rem;
+  /* A ring in the page's own ground, so the disc reads as sitting on top of
+     the card and the bar rather than being cut into them. */
+  box-shadow: 0 0 0 5px var(--background);
+}
+
+.quote-body {
+  margin: 0;
+  padding: 1.5rem 1.5rem 1.75rem;
+}
+
+.quote-text {
+  margin: 0;
+  /* The accent rule down the left edge of the quote. A border rather than a
+     pseudo-element: it has to be exactly as tall as the text it belongs to,
+     which is what a border on the text's own box already is. */
+  border-left: 2px solid var(--accent);
+  padding-left: 1.1rem;
+  font-size: 1.0625rem;
+  line-height: var(--leading-body);
+}
+
+/* ---- the reveal --------------------------------------------------------- */
+
+.quote-card,
+.quote-bar,
+.quote-avatar {
+  transition:
+    opacity 400ms var(--ease-out),
+    translate 400ms var(--ease-out);
+}
+
+.quotes:not([data-in]) .quote-card {
+  opacity: 0;
+  translate: 0 20px;
+}
+
+.quotes:not([data-in]) .quote-bar,
+.quotes:not([data-in]) .quote-avatar {
+  opacity: 0;
+  translate: 0 12px;
+}
+
+/* Reading order, 120ms apart. --i is set per card in the component. */
+.quotes[data-in] .quote-card {
+  transition-delay: calc(var(--i) * 120ms);
+}
+
+/* The bar and the disc land 100ms after their own card body. */
+.quotes[data-in] .quote-bar,
+.quotes[data-in] .quote-avatar {
+  transition-delay: calc(var(--i) * 120ms + 100ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quote-card,
+  .quote-bar,
+  .quote-avatar {
+    transition: none;
+    opacity: 1;
+    translate: none;
+  }
+}
