@@ -135,22 +135,22 @@ describe("the hero renders a film that plays itself", () => {
   });
 
   /*
-   * THE HERO CARRIES NO TEXT NOW, and that includes its two CTAs.
+   * THE COPY IS BACK, and it does not move.
    *
-   * The opening frame is the film and nothing else — no eyebrow, no visible
-   * headline, no buttons. What this test still has to protect is the part
-   * that was never about the copy: the h1 must exist, because the page needs
-   * exactly one and the section is aria-labelledby it, and nothing in the
-   * hero may be focusable-but-hidden, which is the defect the original
-   * version of this test was written to catch.
+   * The eyebrow, the headline and both CTAs are on from the first frame and
+   * stay there. What this guards is the pair of defects that shape had
+   * before: the h1 must exist and be the real headline, because the page
+   * needs exactly one and the section is aria-labelledby it; and nothing may
+   * be focusable while invisible, which is what the old scroll-timed fade
+   * could produce at the end of its travel.
    */
-  it("keeps its h1 for the document, paints no text over the film", () => {
+  it("shows its copy and both CTAs, with nothing focusable-but-hidden", () => {
     const { container } = render(<ScrubVideoHero />);
     const h1 = container.querySelector("h1");
     expect(h1, "the page needs exactly one h1 and this is it").not.toBeNull();
     expect(h1?.textContent).toContain("safe ride home");
-    expect(h1?.className).toContain("sr-only");
-    expect(container.querySelectorAll("a"), "no links painted over the film").toHaveLength(0);
+    expect(h1?.className, "no longer visually hidden").not.toContain("sr-only");
+    expect(container.querySelectorAll("a").length).toBeGreaterThanOrEqual(2);
     /* The old hero could reach opacity 0 while still focusable. There is no
        longer a state that does that, so nothing here may be inert. */
     for (const el of container.querySelectorAll("[inert]")) {

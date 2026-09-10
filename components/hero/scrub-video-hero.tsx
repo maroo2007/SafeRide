@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  CAPTIONS, CAPTION_SCRIM, FILM_SECONDS, HERO, HERO_SCRIM, captionOpacity,
-} from "@/lib/hero-captions";
+import { HERO, HERO_SCRIM } from "@/lib/hero-captions";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { HERO_PLAYING_ATTR } from "@/components/ui/load-screen";
+import { CtaButton } from "@/components/ui/cta-button";
+import { VariableProximity } from "@/components/hero/variable-proximity";
 
 /**
  * The hero. A normal 100vh section with a film playing in it.
@@ -43,7 +43,7 @@ import { HERO_PLAYING_ATTR } from "@/components/ui/load-screen";
  *
  * ── The hero COPY does not run on either ──────────────────────────────────
  *
- * `heroCopyOpacity` and `heroScrimOpacity` also took scroll progress. Feeding
+ * `heroScrimOpacity` also took scroll progress. Feeding
  * them film time would fade the headline and both CTAs away a few seconds
  * after load, while the visitor is still looking at the hero — so the copy and
  * its scrim are constant now, and the section simply scrolls away like any
@@ -65,8 +65,6 @@ export function ScrubVideoHero() {
   const sectionRef = useRef<HTMLElement>(null);
   const reducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
 
-  /** Film time, 0..1. Drives the captions and nothing else. */
-  const [progress, setProgress] = useState(0);
   /** The film has taken over from the idle loop. One-way. */
   const [handedOver, setHandedOver] = useState(false);
   /**
@@ -170,25 +168,15 @@ export function ScrubVideoHero() {
     return () => io.disconnect();
   }, [reducedMotion, handedOver, tryPlay]);
 
-  /* ---- caption clock --------------------------------------------------- */
-  useEffect(() => {
-    if (reducedMotion) return;
-    const v = videoRef.current;
-    if (!v) return;
-    let raf = 0;
-    const tick = () => {
-      /*
-       * The element's own duration when it has one, so a re-encode of a
-       * different length cannot desync the captions from the film. The
-       * constant is only the pre-metadata fallback.
-       */
-      const d = Number.isFinite(v.duration) && v.duration > 0 ? v.duration : FILM_SECONDS;
-      setProgress(Math.min(1, Math.max(0, v.currentTime / d)));
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [reducedMotion]);
+  /*
+   * THE CAPTION CLOCK IS GONE with the captions.
+   *
+   * It ran a requestAnimationFrame for the whole life of the hero purely to
+   * push v.currentTime into React state, which re-rendered this component on
+   * every frame so three <p> elements could read their opacity off it. No
+   * captions, no clock, and no per-frame setState.
+   */
+
 
   return (
     <section
@@ -308,46 +296,42 @@ export function ScrubVideoHero() {
         style={{ opacity: HERO.scrimOpacity, background: HERO_SCRIM }}
       />
 
-      {/* Caption scrims are siblings of the copy container, not children.
-          `inset-0` resolves against the nearest positioned ancestor: inside
-          the centred max-w-6xl column that is a 1152px box, so the ellipse
-          would be sliced at its left edge and draw a vertical seam down the
-          middle of the frame. Out here the box is the viewport. */}
-      {CAPTIONS.map((c) => {
-        const o = captionOpacity(c, progress);
-        if (o <= 0 || !c.scrim) return null;
-        return (
-          <div
-            key={`${c.id}-scrim`}
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 z-0"
-            style={{ opacity: o, background: CAPTION_SCRIM }}
-          />
-        );
-      })}
-
       <div className="relative z-10 mx-auto flex h-full max-w-6xl flex-col justify-center px-6">
         {/* max-w in rem, NOT ch. `ch` on this wrapper resolves against the
             BODY font size (16px), not the h1's 72px — 20ch was ~160px, which
             stacked the headline into a column of single words. */}
         <div className="max-w-xl">
           {/*
-            THE OPENING FRAME CARRIES NO TEXT.
-            
-            The eyebrow, the headline and the two calls to action are gone —
-            the film opens clean. The h1 stays, visually hidden: the page needs
-            exactly one, the section is aria-labelledby it, and removing it
-            outright would cost the document its heading and take SEO with it.
-            So a screen reader and a crawler still get "Because every child
-            deserves a safe ride home" and nothing is painted over the video.
-
-            VariableProximity went with the visible headline. It is a
-            per-character pointer effect, and there is nothing left to point
-            at.
+            The copy is on from the first frame and stays there. It used to
+            fade out against scroll progress so it would not collide with the
+            captions further into the film; there are no captions now, so
+            there is nothing to schedule around and nothing to fade for.
           */}
-          <h1 id="hero-headline" className="sr-only">
-            {HERO.headline}
+          <p className="label-mono" style={{ color: "var(--accent-warm)" }}>
+            {HERO.eyebrow}
+          </p>
+          <h1
+            id="hero-headline"
+            className="mt-5 text-5xl sm:text-6xl lg:text-7xl"
+            style={{ color: "#fcfbf8", textWrap: "balance" }}
+          >
+            <VariableProximity text={HERO.headline} />
           </h1>
+          <div className="mt-10 flex flex-wrap gap-4">
+            <CtaButton
+              href={HERO.primaryCta.href}
+              label={HERO.primaryCta.label}
+              fill="solid"
+              route="below"
+            />
+            {/* Over footage, not over paper — outlineInk resolves its ink
+                against the light theme and measured 1.62:1 on film. */}
+            <CtaButton
+              href={HERO.ghostCta.href}
+              label={HERO.ghostCta.label}
+              fill="outlineOnMediaBorder"
+            />
+          </div>
 
           {/* Autoplay refused. A real control, not a hint: the visitor is
               looking at a still frame and nothing else on the page says why. */}
@@ -364,23 +348,6 @@ export function ScrubVideoHero() {
           ) : null}
         </div>
 
-        {CAPTIONS.map((c) => {
-          const o = captionOpacity(c, progress);
-          if (o <= 0) return null;
-          return (
-            <p
-              key={c.id}
-              aria-hidden={o < 0.5}
-              className="absolute bottom-24 left-6 max-w-[34ch] text-lg sm:left-10"
-              style={{
-                opacity: o,
-                color: c.ink === "white" ? "#fcfbf8" : "var(--ink)",
-              }}
-            >
-              {c.text}
-            </p>
-          );
-        })}
       </div>
     </section>
   );
