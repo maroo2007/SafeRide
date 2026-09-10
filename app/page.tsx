@@ -102,7 +102,7 @@ export default function Home() {
         headingId="coverage-heading"
         eyebrow="Coverage"
         heading="Protecting journeys across Egypt"
-        subhead="From Alexandria to Aswan, every SafeRide school reports into the same live network. Tap a city to see it."
+        subhead="From Alexandria to Aswan, every SafeRide school reports into the same live network."
       >
         <Coverage />
       </Section>

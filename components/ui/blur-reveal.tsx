@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { Fragment } from "react";
 import type { CSSProperties, ElementType } from "react";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -170,7 +171,18 @@ export function BlurReveal({
         style={{ display: "inline" }}
       >
         {words.map((word, w) => (
-          <span key={w} style={{ display: "inline-block", whiteSpace: "nowrap" }}>
+          /*
+           * THE SPACE GOES BETWEEN THE WORDS, not inside one.
+           *
+           * It was the last child of the word's own span, which is an
+           * inline-block with white-space: nowrap — so the trailing space
+           * collapsed and every revealed heading lost its spaces:
+           * "Protecting journeys across Egypt" rendered as
+           * "Protectingjourneys acrossEgypt". As a sibling text node between
+           * two inline-blocks it is a real space and wraps normally.
+           */
+          <Fragment key={w}>
+          <span style={{ display: "inline-block", whiteSpace: "nowrap" }}>
             {Array.from(word).map((ch, c) => {
               const i = index++;
               return (
@@ -188,8 +200,9 @@ export function BlurReveal({
                 </motion.span>
               );
             })}
-            {w < words.length - 1 ? " " : null}
           </span>
+          {w < words.length - 1 ? " " : null}
+          </Fragment>
         ))}
       </motion.span>
     </Tag>
