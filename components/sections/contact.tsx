@@ -42,6 +42,21 @@ const DETAILS: [string, string, string][] = [
   ["Office", "Cairo, Egypt", ""],
 ];
 
+/**
+ * What a quote actually depends on.
+ *
+ * No prices, no ranges, no "starting from". The section already says to get
+ * in touch for pricing; this says WHY there is no number on the page — the
+ * figure genuinely depends on these four things — rather than implying a
+ * number is being withheld.
+ */
+const QUOTE_FACTORS = [
+  "How many buses you operate",
+  "Cameras and GPS fitted per bus",
+  "App setup for admin and driver phones",
+  "Onboarding, training and support",
+];
+
 const FIELDS: {
   name: keyof ContactValues;
   label: string;
@@ -59,6 +74,7 @@ export function Contact() {
   const [sent, setSent] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const statusRef = useRef<HTMLDivElement>(null);
+  const quoteRef = useRef<HTMLDivElement>(null);
 
   const {
     register,
@@ -91,6 +107,23 @@ export function Contact() {
     if (formError) statusRef.current?.focus({ preventScroll: false });
   }, [formError]);
 
+  /* Same reveal as the testimonial and difference cards: one observer, one
+     attribute, CSS does the rest. Nothing at all under reduced motion. */
+  useEffect(() => {
+    const el = quoteRef.current;
+    if (!el) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      el.dataset.in = "";
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => { if (entries.some((e) => e.isIntersecting)) { el.dataset.in = ""; io.disconnect(); } },
+      { threshold: 0.2 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
   const onSubmit = handleSubmit(async (values) => {
     setFormError(null);
     const res = await submitContact(values);
@@ -109,6 +142,7 @@ export function Contact() {
 
   return (
     <div className="grid gap-12 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:gap-16">
+      <div className="space-y-10">
       <dl className="space-y-6">
         {DETAILS.map(([label, value, href]) => (
           <div key={label}>
@@ -128,6 +162,27 @@ export function Contact() {
           </div>
         ))}
       </dl>
+
+        {/*
+          Beside the form at desktop widths and above it once the grid
+          stacks — it belongs to the left column, so it needs no breakpoint
+          logic of its own.
+        */}
+        <div ref={quoteRef} className="quote-factors rounded-brand border border-border bg-card p-6 sm:p-7">
+          <p className="label-mono quote-factors-eyebrow">Contact us for pricing</p>
+          <h3 className="mt-3 text-2xl">What shapes your quote</h3>
+          <ul className="mt-5 space-y-3">
+            {QUOTE_FACTORS.map((f) => (
+              <li key={f} className="quote-factor">
+                {/* A rule, not a bullet glyph: it is decorative, so it is
+                    drawn rather than typed and never reaches the a11y tree. */}
+                <span aria-hidden="true" className="quote-factor-mark" />
+                <span>{f}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
 
       <div className="rounded-brand border border-border p-6 sm:p-8">
         {/*

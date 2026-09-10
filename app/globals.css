@@ -503,7 +503,7 @@
     min-block-size: 44px;
   }
 
-  /* EVERY accent-filled surface: the CTA, pricing CTAs, accent cards, badges.
+  /* EVERY accent-filled surface: the hero CTAs, the Final CTA, accent cards.
      Never write `bg-accent` bare — #fb8a00 against paper is a 2.27:1 boundary
      and fails WCAG 1.4.11. This bundles fill + compliant edge + lift, and the
      tokens neutralise the edge on dark grounds automatically.
@@ -1384,3 +1384,49 @@
   }
 }
 
+
+/* ==========================================================================
+   CONTACT — what shapes your quote
+
+   The card that stands in for a price list. Existing card treatment: --card
+   fill, --border hairline, the shared radius and padding.
+   ========================================================================== */
+
+.quote-factors-eyebrow {
+  /* --accent-edge, not --accent: the fill is 2.27:1 on paper and would fail
+     as text. The edge tone is 4.54:1, which is why it exists. */
+  color: var(--accent-edge);
+}
+
+.quote-factor {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr);
+  align-items: baseline;
+  gap: 0.25rem;
+  line-height: var(--leading-body);
+}
+
+/* A hairline, not a bullet glyph — no character, no list-style, nothing for
+   a screen reader to announce. */
+.quote-factor-mark {
+  width: 0.75rem;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+  /* Baseline alignment puts a 2px bar on the text baseline; this lifts it to
+     the middle of the x-height. */
+  transform: translateY(-0.35em);
+}
+
+.quote-factors {
+  transition: opacity 400ms var(--ease-out), translate 400ms var(--ease-out);
+}
+
+.quote-factors:not([data-in]) {
+  opacity: 0;
+  translate: 0 20px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quote-factors { transition: none; opacity: 1; translate: none; }
+}
