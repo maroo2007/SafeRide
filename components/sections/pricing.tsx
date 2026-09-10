@@ -18,7 +18,7 @@ import { BlurBody } from "@/components/ui/blur-reveal";
  *
  * ── Every price here is real ──────────────────────────────────────────────
  *
- * EGP 1,500 and EGP 3,500 are the published figures; Enterprise is genuinely
+ * EGP 2,000 and EGP 5,000 are the current figures; Enterprise is genuinely
  * "Custom" and is shown as that rather than as a number with a tilde in front
  * of it. Nothing on this page is a placeholder — the rule that cut the
  * coverage stat row and the `0+` counters applies here too.
@@ -39,7 +39,7 @@ type Tier = {
 const TIERS: Tier[] = [
   {
     name: "Basic",
-    price: "EGP 1,500",
+    price: "EGP 2,000",
     per: "/month",
     blurb: "For a single school getting live tracking and parent notifications off the ground.",
     features: ["Up to 2 buses", "Live GPS tracking", "Parent notifications", "Driver app", "Email support"],
@@ -47,7 +47,7 @@ const TIERS: Tier[] = [
   },
   {
     name: "Professional",
-    price: "EGP 3,500",
+    price: "EGP 5,000",
     per: "/month",
     blurb: "The full AI safety layer, for schools ready to automate attendance and monitoring.",
     features: ["Up to 10 buses", "AI monitoring", "Smart attendance", "Parent mobile app", "Live dashboard", "Priority support"],

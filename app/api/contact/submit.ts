@@ -71,7 +71,7 @@ export async function submitContact(values: ContactValues): Promise<ContactResul
     });
   } catch (err) {
     console.error("[contact] delivery failed", err);
-    return { ok: false, formError: "Something went wrong sending that. Please email hello@saferide.app." };
+    return { ok: false, formError: "Something went wrong sending that. Please email saferidee1@gmail.com." };
   }
 
   return { ok: true };

@@ -35,8 +35,10 @@ import { contactSchema, type ContactValues } from "@/lib/contact-schema";
  */
 
 const DETAILS: [string, string, string][] = [
-  ["Email", "hello@saferide.app", "mailto:hello@saferide.app"],
-  ["Phone", "+20 2 0000 0000", "tel:+20200000000"],
+  ["Email", "saferidee1@gmail.com", "mailto:saferidee1@gmail.com"],
+  /* tel: takes the dialable form; the label stays as it is written
+     locally. */
+  ["Phone", "01015797622", "tel:+201015797622"],
   ["Office", "Cairo, Egypt", ""],
 ];
 

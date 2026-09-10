@@ -36,8 +36,9 @@ const COLUMNS: [string, [string, string][]][] = [
   ["Company", [
     ["FAQ", "#faq"],
     ["Contact", "#contact"],
-    /* The only off-site link in the footer, and the same target the final
-       CTA uses. See the TODO on LOGIN_HREF in final-cta.tsx. */
+    /* The only off-site link on the page now: the Final CTA's Log In button
+       and the navbar's were both removed. It still points at the old site's
+       login because that is the only one that exists — logged in TODO.md. */
     ["Log In", "https://safe-ridee.vercel.app/login"],
   ]],
 ];
