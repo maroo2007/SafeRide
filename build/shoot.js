@@ -6,7 +6,7 @@
  * This writes full-resolution PNGs.
  *
  * Usage:
- *   node build/shoot.js <profile> <outdir> --at=features,pricing --w=1440
+ *   node build/shoot.js <profile> <outdir> --at=features,coverage --w=1440
  *   node build/shoot.js <profile> <outdir> --y=1200,2400,3600
  *   ...--stack=0,0.25,0.5,0.75,1   fractions through #features' own runway
  */

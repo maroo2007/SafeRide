@@ -78,6 +78,7 @@ export function Section({
   eyebrow,
   heading,
   subhead,
+  note,
   headingId,
   children,
   className = "",
@@ -88,6 +89,8 @@ export function Section({
   eyebrow: string;
   heading: string;
   subhead?: string;
+  /** A second line under the subhead, same styling. */
+  note?: string;
   headingId: string;
   children?: ReactNode;
   className?: string;
@@ -142,6 +145,14 @@ export function Section({
             {subhead ? (
               <BlurBody className="mt-5 max-w-[52ch] text-lg leading-relaxed text-muted-foreground">
                 {subhead}
+              </BlurBody>
+            ) : null}
+            {/* A second line in the subhead's own voice. Its own paragraph
+                rather than a sentence appended to the subhead, so it reads as
+                a separate statement — which is what it is. */}
+            {note ? (
+              <BlurBody className="mt-3 max-w-[52ch] text-lg leading-relaxed text-muted-foreground">
+                {note}
               </BlurBody>
             ) : null}
           </div>

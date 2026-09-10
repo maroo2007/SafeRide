@@ -7,7 +7,6 @@ import { JourneySteps } from "@/components/sections/journey";
 import { Difference } from "@/components/sections/difference";
 import { Coverage } from "@/components/sections/coverage";
 import { Testimonials } from "@/components/sections/testimonials";
-import { Pricing } from "@/components/sections/pricing";
 import { PageGround } from "@/components/sections/page-ground";
 import { LoadScreen } from "@/components/ui/load-screen";
 import { Faq } from "@/components/sections/faq";
@@ -117,16 +116,6 @@ export default function Home() {
         <Testimonials />
       </Section>
 
-      {/* §4.9 */}
-      <Section
-        id="pricing"
-        headingId="pricing-heading"
-        eyebrow="Pricing"
-        heading="Priced for one school, ready for a hundred"
-        subhead="Every plan includes the same core safety layer. Higher tiers add scale and AI depth, not fewer guarantees."
-      >
-        <Pricing />
-      </Section>
 
       {/* §4.10 — split so a seven-item accordion is not pushed a screen down
           the page by its own heading. */}
@@ -147,6 +136,7 @@ export default function Home() {
         eyebrow="Get in Touch"
         heading="Let's bring SafeRide to your school"
         subhead="Tell us about your fleet and we'll walk you through a live demo tailored to your school's routes."
+        note="Contact us for pricing."
       >
         <Contact />
       </Section>

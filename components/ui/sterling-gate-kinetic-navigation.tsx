@@ -38,7 +38,6 @@ type NavLink = { label: string; href: string };
 const LINKS: NavLink[] = [
   { label: "Features", href: "#features" },
   { label: "Coverage", href: "#coverage" },
-  { label: "Pricing", href: "#pricing" },
   { label: "FAQ", href: "#faq" },
   { label: "Contact", href: "#contact" },
 ];

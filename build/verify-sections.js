@@ -164,7 +164,7 @@ const check = (name, ok, detail = "") => {
      silently. */
   const ON_PAGE_GROUND = [
     "features", "parent-app", "journey",
-    "difference", "coverage", "testimonials", "pricing",
+    "difference", "coverage", "testimonials",
     /* Added with 4.10-4.12. Same decision as the seven above: they stand on
        the page's ground layer and do not paint one of their own. The footer is
        NOT here — it is dark and paints its own. */

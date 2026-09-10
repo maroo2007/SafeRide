@@ -46,7 +46,7 @@ describe("navbar port (spec 2.2)", () => {
    */
   it("carries a link per section, every one pointing at a real anchor", () => {
     const hrefs = [...code.matchAll(/href: "(#[a-z]+)"/g)].map((m) => m[1]);
-    expect(hrefs).toEqual(["#features", "#coverage", "#pricing", "#faq", "#contact"]);
+    expect(hrefs).toEqual(["#features", "#coverage", "#faq", "#contact"]);
     expect(hrefs, "a deleted section must not keep its nav link").not.toContain("#ai");
     /* The ambient shapes are deleted, so there is nothing to key a link to
        and nothing to assert about their numbering. What matters is that none

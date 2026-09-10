@@ -31,7 +31,6 @@ const COLUMNS: [string, [string, string][]][] = [
   ["Product", [
     ["Features", "#features"],
     ["Coverage", "#coverage"],
-    ["Pricing", "#pricing"],
   ]],
   ["Company", [
     ["FAQ", "#faq"],
