@@ -4,9 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   CAPTIONS, CAPTION_SCRIM, FILM_SECONDS, HERO, HERO_SCRIM, captionOpacity,
 } from "@/lib/hero-captions";
-import { CtaButton } from "@/components/ui/cta-button";
 import { useMediaQuery } from "@/lib/use-media-query";
-import { VariableProximity } from "@/components/hero/variable-proximity";
 import { HERO_PLAYING_ATTR } from "@/components/ui/load-screen";
 
 /**
@@ -333,31 +331,23 @@ export function ScrubVideoHero() {
             BODY font size (16px), not the h1's 72px — 20ch was ~160px, which
             stacked the headline into a column of single words. */}
         <div className="max-w-xl">
-          <p className="label-mono" style={{ color: "var(--accent-warm)" }}>
-            {HERO.eyebrow}
-          </p>
-          <h1
-            id="hero-headline"
-            className="mt-5 text-5xl sm:text-6xl lg:text-7xl"
-            style={{ color: "#fcfbf8", textWrap: "balance" }}
-          >
-            <VariableProximity text={HERO.headline} />
+          {/*
+            THE OPENING FRAME CARRIES NO TEXT.
+            
+            The eyebrow, the headline and the two calls to action are gone —
+            the film opens clean. The h1 stays, visually hidden: the page needs
+            exactly one, the section is aria-labelledby it, and removing it
+            outright would cost the document its heading and take SEO with it.
+            So a screen reader and a crawler still get "Because every child
+            deserves a safe ride home" and nothing is painted over the video.
+
+            VariableProximity went with the visible headline. It is a
+            per-character pointer effect, and there is nothing left to point
+            at.
+          */}
+          <h1 id="hero-headline" className="sr-only">
+            {HERO.headline}
           </h1>
-          <div className="mt-10 flex flex-wrap gap-4">
-            <CtaButton
-              href={HERO.primaryCta.href}
-              label={HERO.primaryCta.label}
-              fill="solid"
-              route="below"
-            />
-            {/* Over footage, not over paper — outlineInk resolves its ink
-                against the light theme and measured 1.62:1 on film. */}
-            <CtaButton
-              href={HERO.ghostCta.href}
-              label={HERO.ghostCta.label}
-              fill="outlineOnMediaBorder"
-            />
-          </div>
 
           {/* Autoplay refused. A real control, not a hint: the visitor is
               looking at a still frame and nothing else on the page says why. */}

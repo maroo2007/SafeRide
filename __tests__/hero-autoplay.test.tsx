@@ -134,10 +134,23 @@ describe("the hero renders a film that plays itself", () => {
     expect(film!.muted || film!.hasAttribute("muted")).toBe(true);
   });
 
-  it("both CTAs are present and not hidden from the tree at first paint", () => {
+  /*
+   * THE HERO CARRIES NO TEXT NOW, and that includes its two CTAs.
+   *
+   * The opening frame is the film and nothing else — no eyebrow, no visible
+   * headline, no buttons. What this test still has to protect is the part
+   * that was never about the copy: the h1 must exist, because the page needs
+   * exactly one and the section is aria-labelledby it, and nothing in the
+   * hero may be focusable-but-hidden, which is the defect the original
+   * version of this test was written to catch.
+   */
+  it("keeps its h1 for the document, paints no text over the film", () => {
     const { container } = render(<ScrubVideoHero />);
-    const links = [...container.querySelectorAll("a")];
-    expect(links.length).toBeGreaterThanOrEqual(2);
+    const h1 = container.querySelector("h1");
+    expect(h1, "the page needs exactly one h1 and this is it").not.toBeNull();
+    expect(h1?.textContent).toContain("safe ride home");
+    expect(h1?.className).toContain("sr-only");
+    expect(container.querySelectorAll("a"), "no links painted over the film").toHaveLength(0);
     /* The old hero could reach opacity 0 while still focusable. There is no
        longer a state that does that, so nothing here may be inert. */
     for (const el of container.querySelectorAll("[inert]")) {
