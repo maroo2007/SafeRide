@@ -220,38 +220,6 @@
 
 /* ---------- ambient shapes -------------------------------------------- */
 
-.ambientShapes {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  overflow: hidden;
-}
-.bgShape {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  visibility: hidden;
-}
-/*
- * opacity BELONGS HERE. Without it the container stayed at opacity 0 and the
- * shapes never painted — GSAP was faithfully animating the .shape-element
- * children to opacity 1 inside a parent that could not be seen.
- *
- * Every guard passed: six shapes present, visibility visible, children at
- * opacity 1, fills all brand tones. Caught only by diffing the panel hovered
- * against not-hovered — and the first version of THAT check passed too,
- * because the hovered link's own background band (14/255 on this ground) was
- * inside the diff. Excluding the row leaves the shape, and the shape was 0.
- */
-.bgShape.active {
-  visibility: visible;
-  opacity: 1;
-}
-
-/* ---------- menu list -------------------------------------------------- */
-
 .contentWrapper {
   position: relative;
   z-index: 1;
@@ -349,34 +317,4 @@
 .utility:focus-visible {
   outline: 3px solid var(--ring);
   outline-offset: 3px;
-}
-.langToggle {
-  font-variant-numeric: tabular-nums;
-}
-.langSep {
-  opacity: 0.5;
-  margin: 0 6px;
-}
-.langActive {
-  font-weight: 700;
-}
-
-/* ---------- reduced motion (§2.4) --------------------------------------
-   The menu opens and closes INSTANTLY. Not faster — none. The JS skips the
-   timeline entirely; globals.css zeroes every --dur-* token, which covers the
-   CSS transitions above, including the icon morph. */
-
-/* ---------- mobile (§2.5) ---------------------------------------------- */
-@media (max-width: 640px) {
-  .root {
-    --nav-panel-w: 100vw;
-    --nav-inset: 14px;
-  }
-  .contentWrapper {
-    padding: calc(var(--nav-clear) + 12px) 20px 24px;
-  }
-  .utility {
-    padding: 0 12px;
-    font-size: 0.9375rem;
-  }
 }

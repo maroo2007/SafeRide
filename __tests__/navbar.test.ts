@@ -48,8 +48,12 @@ describe("navbar port (spec 2.2)", () => {
     const hrefs = [...code.matchAll(/href: "(#[a-z]+)"/g)].map((m) => m[1]);
     expect(hrefs).toEqual(["#features", "#coverage", "#pricing", "#faq", "#contact"]);
     expect(hrefs, "a deleted section must not keep its nav link").not.toContain("#ai");
-    const shapes = [...code.matchAll(/data-bg-shape="(\d)"/g)].map((m) => +m[1]);
-    expect(shapes.sort()).toEqual([1, 2, 3, 4, 5, 6]);
+    /* The ambient shapes are deleted, so there is nothing to key a link to
+       and nothing to assert about their numbering. What matters is that none
+       of the machinery survived as dead markup. */
+    expect(code, "ambient shape markup must be gone").not.toMatch(/data-bg-shape/);
+    expect(code, "and the attribute that keyed it").not.toMatch(/data-shape=/);
+    expect(code, "and the hover handlers").not.toMatch(/mouseenter/);
   });
 
   it("uses no indigo, violet or pink, and none of the component's :root block", () => {
@@ -58,8 +62,9 @@ describe("navbar port (spec 2.2)", () => {
       expect(cssCode, `shipped placeholder colour ${dead}`).not.toContain(dead);
     }
     expect(cssCode).not.toMatch(/--color-primary/);
-    expect(code, "brand accent must actually be used").toContain("rgba(251,138,0,");
-    expect(code, "film edge tone must actually be used").toContain("rgba(185,85,26,");
+    /* The two rgba() assertions here were about the ambient shapes' fills, and
+       those shapes are gone. The rule they were enforcing — no indigo, violet
+       or pink anywhere — is the four checks above, which still stand. */
   });
 
   it("has no demo artifacts left", () => {
@@ -95,14 +100,16 @@ describe("there is no header bar", () => {
     expect(z(".overlayWrapper"), "the overlay must still outrank the hero").toBeGreaterThan(0);
   });
 
-  it("the utilities moved into the panel rather than disappearing (§2.2 F)", () => {
-    // They are inside .contentWrapper's footer, so they arrive with the panel.
-    const footerAt = code.indexOf("menuFooter");
+  it("the language toggle and Log In are deleted, not hidden", () => {
     const wrapperAt = code.indexOf("contentWrapper");
     expect(wrapperAt, "the panel content block must exist").toBeGreaterThan(-1);
-    expect(footerAt).toBeGreaterThan(wrapperAt);
-    expect(code).toMatch(/العربية/);
-    expect(code).toContain("https://safe-ridee.vercel.app/login");
+    /* Deleted means no markup, no handler and no href — not display:none and
+       not aria-hidden, either of which leaves a control in the file for
+       someone to switch back on by accident. */
+    expect(code, "no Arabic label").not.toMatch(/العربية/);
+    expect(code, "no language state").not.toMatch(/setLang/);
+    expect(code, "no login href").not.toContain("/login");
+    expect(code, "no panel footer left behind").not.toMatch(/menuFooter/);
   });
 });
 
@@ -174,54 +181,16 @@ describe("the link mask exists, because the timeline needs it", () => {
   });
 });
 
-describe("the ambient shapes actually paint", () => {
-  /*
-   * .bgShape is opacity 0 / visibility hidden at rest, and .active restored
-   * only the visibility. The container stayed at opacity 0, so nothing ever
-   * painted — GSAP was faithfully animating the .shape-element children to
-   * opacity 1 inside a parent that could not be seen.
-   *
-   * Every guard passed at the time: six shapes present, visibility visible,
-   * children at opacity 1, all fills brand tones. It took diffing the panel
-   * hovered against not-hovered (build/verify-phase3.js) to see it, and the
-   * first version of THAT passed too, because the hovered link's own
-   * background band was inside the diff.
-   */
-  it(".active restores opacity, not just visibility", () => {
-    const active = rule(".bgShape.active");
-    expect(active).toMatch(/visibility:\s*visible/);
-    expect(active, "the container is opacity 0 at rest").toMatch(/opacity:\s*1/);
-    // NO-OP HALF: the rest state has to exist, or "active turns it on" is
-    // satisfied by a shape that was never off.
-    const rest = rule(".bgShape");
-    expect(rest).toMatch(/opacity:\s*0/);
-    expect(rest).toMatch(/visibility:\s*hidden/);
-  });
-});
+/*
+ * THE AMBIENT SHAPES ARE DELETED, so the block that lived here is gone with
+ * them. It guarded a real defect — .bgShape.active restored visibility but
+ * not opacity, so GSAP animated children to opacity 1 inside a parent that
+ * could not be seen — and there is nothing left for it to guard. The
+ * assertion that the markup and handlers do not survive is in the port
+ * describe above.
+ */
 
-describe("the panel carries its own ground", () => {
-  /*
-   * The defect this guards: .menuContent had no background, so the only
-   * opaque thing in the panel was the three sliding .backdropLayer elements.
-   * The links start 0.35s in and the last layer lands at 0.815s, so for 465ms
-   * the copy was painted over bare film — measured at 400ms with the layers
-   * at x = 946 / 1052 / 1207, the panel's left edge at 880 and the first link
-   * at 920.
-   *
-   * "The menu opened" was true throughout. build/diagnose-menu.js is the
-   * guard that actually catches it, frame by frame in a browser; these two
-   * catch the cause in the source, where vitest can see it.
-   */
-  it("declares an opaque background, so content is never over film", () => {
-    const panel = rule(".menuContent");
-    expect(panel).toMatch(/background:\s*var\(--surface-dark/);
-    expect(panel, "a transparent panel is the bug").not.toMatch(/background:\s*(transparent|none)/);
-    // NO-OP HALF: the layers must still exist, or "the panel is opaque" is
-    // satisfied by deleting the sweep the panel is supposed to be a ground for.
-    expect(cssCode).toMatch(/\.backdropFirst\s*\{/);
-    expect(cssCode).toMatch(/\.backdropSecond\s*\{/);
-  });
-
+describe("the panel itself", () => {
   it("slides in, so the ground arrives with the panel and not after it", () => {
     // A bare `set` puts the panel's rect in place instantly while its paint
     // arrives layer by layer. The panel has to be the thing that moves.

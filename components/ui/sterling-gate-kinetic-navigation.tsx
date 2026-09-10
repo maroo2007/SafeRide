@@ -15,13 +15,12 @@ import s from "./sterling-gate-kinetic-navigation.module.css";
  * attached to, and moves §2.2 F inside the overlay.
  *
  * Adaptations still in force (§2.2):
- *   A  six links, not five, each with a matching ambient shape
- *   B  ambient shapes recoloured off indigo/violet/pink onto brand tones,
- *      alphas unchanged so they stay ambient
+ *   A  one link per section
  *   C  none of the component's :root block — SafeRide tokens only
  *   D  the "click me" demo label is gone
  *   E  dropped: there is no header for a logo to sit in
- *   F  language toggle and Log In, now in the panel footer
+ *   F  language toggle and Log In — REMOVED entirely, not hidden
+ *   B  ambient hover shapes — REMOVED entirely, markup and tweens
  *
  * §2.3: Lenis is stopped while the menu is open, so the film cannot scrub
  * behind the overlay. §2.4 in full: dialog role, focus trap, focus return,
@@ -32,18 +31,17 @@ import s from "./sterling-gate-kinetic-navigation.module.css";
  * silent. Registration goes through lib/gsap.ts, which counts them.
  */
 
-type NavLink = { shape: number; label: string; href: string };
+/* No `shape`: the ambient shapes those numbers keyed are gone. */
+type NavLink = { label: string; href: string };
 
-/** §2.2 A. Six, not the shipped five. */
+/** One per section. */
 const LINKS: NavLink[] = [
-  { shape: 1, label: "Features", href: "#features" },
-  { shape: 3, label: "Coverage", href: "#coverage" },
-  { shape: 4, label: "Pricing", href: "#pricing" },
-  { shape: 5, label: "FAQ", href: "#faq" },
-  { shape: 6, label: "Contact", href: "#contact" },
+  { label: "Features", href: "#features" },
+  { label: "Coverage", href: "#coverage" },
+  { label: "Pricing", href: "#pricing" },
+  { label: "FAQ", href: "#faq" },
+  { label: "Contact", href: "#contact" },
 ];
-
-const LOGIN_HREF = "https://safe-ridee.vercel.app/login";
 
 /**
  * The two paths, verbatim from the reference (Uiverse, JulanDeAlb). The morph
@@ -64,7 +62,6 @@ export function SterlingGateNavigation() {
   const toggleRef = useRef<HTMLButtonElement>(null);
   const wasOpen = useRef(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [lang, setLang] = useState<"en" | "ar">("en");
 
   const { stop, start } = useSmoothScroll();
 
@@ -75,51 +72,13 @@ export function SterlingGateNavigation() {
     registerGsap();
   }, []);
 
-  /* ---- ambient shape hover ------------------------------------------ */
-  useEffect(() => {
-    const root = containerRef.current;
-    if (!root) return;
-    // §2.5: the shapes are pointer-only. On a touch device there is no hover,
-    // so none of this is wired up rather than left running dead.
-    if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-
-    const ctx = gsap.context(() => {
-      const items = root.querySelectorAll<HTMLElement>("[data-shape]");
-      const shapes = root.querySelector(`.${s.ambientShapes}`);
-      const cleanups: (() => void)[] = [];
-
-      items.forEach((item) => {
-        const idx = item.getAttribute("data-shape");
-        const shape = shapes?.querySelector(`[data-bg-shape="${idx}"]`);
-        if (!shape) return;
-        const els = shape.querySelectorAll(".shape-element");
-
-        const onEnter = () => {
-          shapes?.querySelectorAll("[data-bg-shape]").forEach((el) => el.classList.remove(s.active));
-          shape.classList.add(s.active);
-          gsap.fromTo(els,
-            { scale: 0.5, opacity: 0, rotation: -10 },
-            { scale: 1, opacity: 1, rotation: 0, duration: 0.6, stagger: 0.08, ease: "back.out(1.7)", overwrite: "auto" });
-        };
-        const onLeave = () => {
-          gsap.to(els, {
-            scale: 0.8, opacity: 0, duration: 0.3, ease: "power2.in", overwrite: "auto",
-            onComplete: () => shape.classList.remove(s.active),
-          });
-        };
-        item.addEventListener("mouseenter", onEnter);
-        item.addEventListener("mouseleave", onLeave);
-        cleanups.push(() => {
-          item.removeEventListener("mouseenter", onEnter);
-          item.removeEventListener("mouseleave", onLeave);
-        });
-      });
-      return () => cleanups.forEach((fn) => fn());
-    }, containerRef);
-
-    return () => ctx.revert();
-  }, []);
+  /*
+   * The ambient hover shapes are GONE — markup, handlers and tweens.
+   *
+   * Six SVGs of circles and rings, six mouseenter/mouseleave pairs, and a
+   * gsap.fromTo per hover. Menu links keep their own text hover state, which
+   * is the one that tells a visitor what they are about to click.
+   */
 
   /* ---- open / close -------------------------------------------------- */
   useEffect(() => {
@@ -266,10 +225,6 @@ export function SterlingGateNavigation() {
     return () => window.removeEventListener("keydown", onKey);
   }, [isMenuOpen, close]);
 
-  const shapeFill = (a: number) => `rgba(251,138,0,${a})`;
-  const shapeAlt = (a: number) => `rgba(185,85,26,${a})`;
-  const shapeWarm = (a: number) => `rgba(197,191,171,${a})`;
-
   return (
     /* `dark` is load-bearing: it is what resolves --ring to --accent-warm and
        the foreground tokens to the film's paper. The hero shipped for weeks
@@ -322,56 +277,12 @@ export function SterlingGateNavigation() {
               <div className={`${s.backdropLayer} ${s.backdropSecond}`} />
               <div className={s.backdropLayer} />
 
-              {/* §2.2 B — same shapes, same alphas, brand tones. The sixth is
-                  new (§2.2 A) and follows the same visual family. */}
-              <div className={s.ambientShapes} aria-hidden="true">
-                <svg className={s.bgShape} data-bg-shape="1" viewBox="0 0 400 400" fill="none">
-                  <circle className="shape-element" cx="80" cy="120" r="40" fill={shapeFill(0.15)} />
-                  <circle className="shape-element" cx="300" cy="80" r="60" fill={shapeAlt(0.12)} />
-                  <circle className="shape-element" cx="200" cy="300" r="80" fill={shapeWarm(0.1)} />
-                  <circle className="shape-element" cx="350" cy="280" r="30" fill={shapeFill(0.15)} />
-                </svg>
-                <svg className={s.bgShape} data-bg-shape="2" viewBox="0 0 400 400" fill="none">
-                  <path className="shape-element" d="M0 200 Q100 100, 200 200 T 400 200" stroke={shapeFill(0.2)} strokeWidth="60" fill="none" />
-                  <path className="shape-element" d="M0 280 Q100 180, 200 280 T 400 280" stroke={shapeAlt(0.15)} strokeWidth="40" fill="none" />
-                </svg>
-                <svg className={s.bgShape} data-bg-shape="3" viewBox="0 0 400 400" fill="none">
-                  {[50, 150, 250, 350].map((x) => (
-                    <circle key={x} className="shape-element" cx={x} cy="50" r="8" fill={shapeFill(0.3)} />
-                  ))}
-                  {[100, 200, 300].map((x) => (
-                    <circle key={x} className="shape-element" cx={x} cy="150" r="12" fill={shapeAlt(0.25)} />
-                  ))}
-                  {[50, 150, 250, 350].map((x) => (
-                    <circle key={x} className="shape-element" cx={x} cy="250" r="10" fill={shapeWarm(0.3)} />
-                  ))}
-                  {[100, 200, 300].map((x) => (
-                    <circle key={x} className="shape-element" cx={x} cy="350" r="6" fill={shapeFill(0.3)} />
-                  ))}
-                </svg>
-                <svg className={s.bgShape} data-bg-shape="4" viewBox="0 0 400 400" fill="none">
-                  <path className="shape-element" d="M100 100 Q150 50, 200 100 Q250 150, 200 200 Q150 250, 100 200 Q50 150, 100 100" fill={shapeFill(0.12)} />
-                  <path className="shape-element" d="M250 200 Q300 150, 350 200 Q400 250, 350 300 Q300 350, 250 300 Q200 250, 250 200" fill={shapeWarm(0.1)} />
-                </svg>
-                <svg className={s.bgShape} data-bg-shape="5" viewBox="0 0 400 400" fill="none">
-                  <line className="shape-element" x1="0" y1="100" x2="300" y2="400" stroke={shapeFill(0.15)} strokeWidth="30" />
-                  <line className="shape-element" x1="100" y1="0" x2="400" y2="300" stroke={shapeAlt(0.12)} strokeWidth="25" />
-                  <line className="shape-element" x1="200" y1="0" x2="400" y2="200" stroke={shapeWarm(0.1)} strokeWidth="20" />
-                </svg>
-                {/* Sixth shape: concentric arcs, echoing the film's 3D network
-                    converging to a point. Same family, same alpha range. */}
-                <svg className={s.bgShape} data-bg-shape="6" viewBox="0 0 400 400" fill="none">
-                  <circle className="shape-element" cx="200" cy="220" r="40" stroke={shapeFill(0.2)} strokeWidth="18" fill="none" />
-                  <circle className="shape-element" cx="200" cy="220" r="95" stroke={shapeAlt(0.15)} strokeWidth="14" fill="none" />
-                  <circle className="shape-element" cx="200" cy="220" r="150" stroke={shapeWarm(0.1)} strokeWidth="10" fill="none" />
-                </svg>
-              </div>
             </div>
 
             <div className={s.contentWrapper}>
               <ul className={s.menuList}>
                 {LINKS.map((l) => (
-                  <li key={l.shape} className={s.menuListItem} data-shape={l.shape}>
+                  <li key={l.href} className={s.menuListItem}>
                     <a href={l.href} className={s.navLink} onClick={close}>
                       <p className={s.navLinkText}>{l.label}</p>
                       <span className={s.navLinkHoverBg} aria-hidden="true" />
@@ -380,22 +291,6 @@ export function SterlingGateNavigation() {
                 ))}
               </ul>
 
-              {/* §2.2 F, relocated: the utilities are in the panel now, so
-                  they animate in with it rather than surviving beside it. */}
-              <div className={s.menuFooter} data-menu-fade>
-                <button
-                  type="button"
-                  className={`${s.utility} ${s.langToggle}`}
-                  onClick={() => setLang((l) => (l === "en" ? "ar" : "en"))}
-                  aria-label={lang === "en" ? "Switch to Arabic" : "التبديل إلى الإنجليزية"}
-                >
-                  <span className={lang === "en" ? s.langActive : undefined}>EN</span>
-                  <span className={s.langSep} aria-hidden="true">/</span>
-                  <span className={lang === "ar" ? s.langActive : undefined} lang="ar">العربية</span>
-                </button>
-
-                <a className={s.utility} href={LOGIN_HREF}>Log In</a>
-              </div>
             </div>
           </nav>
         </div>
