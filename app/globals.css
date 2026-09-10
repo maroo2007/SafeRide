@@ -1157,11 +1157,9 @@
   cursor: default;
 }
 
-.map-marker:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-  border-radius: 9999px;
-}
+/* The dot and its halo are the only things worth hovering; the 2rem box
+   exists to give the pointer something to find. */
+.map-marker { border-radius: 9999px; }
 
 .map-dot {
   width: 0.5rem;
@@ -1221,10 +1219,7 @@
   transition: opacity var(--dur-micro) var(--ease-out);
 }
 
-.map-marker:hover .map-tip,
-.map-marker:focus-visible .map-tip {
-  opacity: 1;
-}
+.map-marker:hover .map-tip { opacity: 1; }
 
 .map-list {
   list-style: none;

@@ -179,41 +179,52 @@ Only the AV1 encodes are referenced: `ground-av1.mp4` (0.377 MB) and
 them at build time. A backup of the ground master is at
 `C:/Users/Marwan/saferide-asset-backup/`.
 
-### 14. Performance: 46 on mobile, and what moved it
+### 14. Performance, and why the desktop number cannot be quoted as one
 
-Lighthouse on the production build, 2026-09-10, mobile:
+Lighthouse on the production build, 2026-09-10, after items 0-5:
 
-| | before this round | after §2/§4/§5 | after the BlurReveal fix |
-|---|---|---|---|
-| Performance | 53 | 34 | **46** |
-| Accessibility | 100 | 100 | **100** |
-| Best Practices | 100 | 100 | **100** |
-| SEO | 100 | 100 | **100** |
-| FCP | 1.2s | 2.8s | 2.1s |
-| LCP | 7.1s | 8.7s | 8.0s |
-| TBT | 740ms | 2,060ms | 840ms |
-| CLS | 0 | 0 | **0** |
+| | mobile | desktop |
+|---|---|---|
+| Accessibility | **100** | **100** |
+| Best Practices | **100** | **100** |
+| SEO | **100** | **100** |
+| Performance | 50 | **55 or 85** |
+| LCP | 8.3s | 1.5s |
+| CLS | **0** | **0** |
 
-**BlurReveal was 1,400ms of that.** The server rendered every character of
-every heading as its own motion component — 311 of them — and the browser
-hydrated all 311 during load. Isolated by running the same audit against
-`?blur=off`: 660ms against 2,060ms. Fixed by rendering the heading as plain
-text and upgrading it only when it comes within 200px of the viewport, so one
-or two headings are ever animated at a time instead of eleven at once. The
-effect keeps its full scope; §7.3's reductions were not needed.
+**The desktop figure is bimodal and both halves are real.** Two consecutive
+runs on a quiet machine, same build, no changes between them: TBT 2,800ms and
+perf 55, then TBT 230ms and perf 85. That is not gradual noise — it is the
+phone tour's GLB parse and shader compile either landing inside Lighthouse's
+measurement window or finishing after it. LCP is stable at 1.5s across every
+run and CLS is 0.
 
-**The remaining gap from 53 to 46** is the Scroll Stack: three photographs
-(263 KB) and 2,700px of extra page. LCP is still dominated by the 4 MB of
-hero film that transfers inside the measurement window on simulated slow 4G,
-which is unchanged and is a deliberate decision.
+So the honest statement is a range with a cause, not an average. If the number
+has to be made stable rather than merely good, the tour's model work is the
+one lever: parse off the main thread, or a smaller GLB.
 
-Runtime smoothness is separate and is fine: one 6s scroll past three revealed
-headings measures 57.2/s with the reveal against 60.2/s without.
+**Mobile is the hero film**, unchanged: 4 MB of saferide-hero-av1.mp4
+transfers inside the window on simulated slow 4G and the loader holds the page
+until it plays. Deliberate.
 
-**The instrument is machine-sensitive.** On a loaded machine the same scroll
-gives 27/s with the reveal AND 27/s with it switched off. `measure-blur.js`
-asserts the relative figure for that reason — an absolute threshold there
-measures how busy the machine is.
+Accessibility reached 100 by making the map markers decorative — see item 16.
+
+### 16. The Coverage map markers are not keyboard-reachable
+
+Item 3 asked for hover OR focus on a marker to show its city name. They
+shipped as fourteen buttons and both Lighthouse runs failed `target-size`:
+six of the fourteen cities are in the Nile delta within a few percent of each
+other, so the hit areas genuinely overlap and no marker size fixes it.
+
+They are decorative spans with hover-only tooltips now, and the fourteen names
+below the map are where a keyboard or a screen reader finds them. That is a
+deliberate deviation from the brief's "or focus", and it is the reason
+accessibility is 100 rather than 97.
+
+If markers must be focusable, the fix is not a bigger dot — it is a different
+control: make the text list the interactive thing and have hovering or
+focusing a NAME light its marker. That inverts the interaction the brief
+described, which is why it was not done unasked.
 
 ### 15. Deployment is not done
 

@@ -132,22 +132,33 @@ export function Coverage() {
           className="map-img"
         />
         {MARKERS.map((m) => (
-          <button
+          /*
+           * DECORATIVE, and not focusable. This shipped as fourteen buttons
+           * whose accessible name was the city, which is what the brief asked
+           * for — and both Lighthouse runs failed target-size on them. Not a
+           * quibble about 32px: six of these cities are in the Nile delta,
+           * within a few percent of each other, so their hit areas genuinely
+           * overlap and no size fixes that. Fourteen crowded targets is a bad
+           * control however it is measured.
+           *
+           * So the marker is a span, the tooltip is hover-only, and the names
+           * live in the text list below — which was always the content of this
+           * section and where a keyboard or a screen reader now finds all
+           * fourteen. The "or focus" half of the brief is what gives way;
+           * hover still does what it was asked to do.
+           */
+          <span
             key={m.city}
-            type="button"
+            aria-hidden="true"
             data-marker=""
             data-y={m.y}
-            /* The city name IS the accessible name. The visible label below is
-               decoration, so it is hidden from assistive tech to stop the name
-               being announced twice. */
-            aria-label={m.city}
             className="map-marker"
             style={{ left: `${m.x}%`, top: `${m.y}%` }}
           >
-            <span aria-hidden="true" className="map-halo" />
-            <span aria-hidden="true" className="map-dot" />
-            <span aria-hidden="true" className="map-tip label-mono">{m.city}</span>
-          </button>
+            <span className="map-halo" />
+            <span className="map-dot" />
+            <span className="map-tip label-mono">{m.city}</span>
+          </span>
         ))}
       </div>
 
