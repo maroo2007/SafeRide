@@ -6,7 +6,13 @@ out/
 *.symlink.bak
 .DS_Store
 
-# Large media. Sources and encoded variants are tracked outside git.
+# Large media. Editing masters stay out of git; anything the SITE requests at
+# runtime must be in, or a fresh clone deploys with a hole in it.
+#
+# The blanket rules came first and every negation below is a specific asset
+# the built page fetches. Checked with `git check-ignore -v` on each path
+# rather than assumed — the hero film was untracked under a bare *.mp4 and a
+# deploy from this repo would have had no film at all.
 *.mp4
 *.webm
 *.mov
@@ -14,13 +20,17 @@ out/
 *.jpg
 *.jpeg
 *.png
-!public/images/*.jpg
-!public/images/*.png
-!public/images/*.webp
-# Phone tour screen textures ship with the site. The blanket *.png/*.jpg rule
-# above would have left chapter 1 and 2 missing from a fresh clone.
-!public/models/screens/*.png
-!public/models/screens/*.jpg
+
+# The hero: AV1 primary, H.264 fallback, webm, and the idle loop.
+!public/video/*.mp4
+!public/video/*.webm
+
+# The phone tour's model, and its screen textures at both resolutions.
+!public/models/**
+
+# Everything under public/images, at any depth — the scroll-stack photographs
+# live in a subdirectory and `public/images/*` does not reach them.
+!public/images/**
 
 # Test harness working files
 build/*.log

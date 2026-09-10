@@ -51,7 +51,6 @@ export default function CtaLab() {
           ref={videoRef} id="lab-video" muted playsInline preload="auto" aria-hidden="true"
           className="absolute inset-0 h-full w-full object-cover"
         >
-          <source src="/video/saferide-hero.webm" type="video/webm" />
           <source src="/video/saferide-hero.mp4" type="video/mp4" />
         </video>
         <div aria-hidden="true" className="pointer-events-none absolute inset-0"
